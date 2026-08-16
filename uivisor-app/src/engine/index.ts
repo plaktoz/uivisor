@@ -7,9 +7,10 @@ async function runFlow(file: FlowFile, page: Page, ctx: RunContext): Promise<Flo
   const start = Date.now();
   const commandResults = [];
   const flowStem = path.basename(file.filePath, '.yaml');
+  const flowDir = path.dirname(file.filePath);
 
   for (const cmd of file.commands) {
-    const result = await dispatch(page, cmd, ctx, flowStem);
+    const result = await dispatch(page, cmd, ctx, flowStem, flowDir);
     commandResults.push(result);
     if (!result.passed) break; // halt on first failure
   }

@@ -22,6 +22,8 @@ export interface FlowFile {
   baseUrl: string;
   filePath: string;
   commands: Command[];
+  tags: string[];
+  shared: boolean;
 }
 
 export interface RunOptions {
@@ -29,6 +31,7 @@ export interface RunOptions {
   slowMo: number;
   reporter: 'html' | 'md' | null;
   runDir: string;
+  tags: string[];
 }
 
 export interface CommandResult {
