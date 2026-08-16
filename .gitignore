@@ -1,5 +1,2 @@
-node_modules/
-dist/
-screenshots/
-webt-report.html
-webt-report.md
+.DS_Store
+target/
