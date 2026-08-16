@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>webt Test Fixture</title>
+  <style>
+    body  { font-family: sans-serif; margin: 0; padding: 16px; }
+    .hidden { display: none !important; }
+    #tall-content { height: 5000px; padding: 20px 0; background: linear-gradient(white, #eee); }
+  </style>
+</head>
+<body>
+
+  <!-- nav: provides plain text "Sign In" for tapOn shorthand (AC9) -->
+  <nav>
+    <a id="sign-in-link" href="#" onclick="return false;">Sign In</a>
+  </nav>
+
+  <!-- heading: visible text for assertVisible (AC16) -->
+  <h1 id="welcome-heading">Welcome, user</h1>
+
+  <!-- form: label + placeholder + testId + ARIA role for selector ACs 30-33 -->
+  <form id="login-form" onsubmit="return false;">
+    <div>
+      <!-- label "Email" bound to input via for/id (AC31) -->
+      <label for="email-input">Email</label>
+      <!-- placeholder "Enter email" (AC32), testId "email-input" (AC33) -->
+      <input
+        id="email-input"
+        type="email"
+        placeholder="Enter email"
+        data-testid="email-input"
+      >
+    </div>
+    <div>
+      <label for="password-input">Password</label>
+      <input
+        id="password-input"
+        type="password"
+        placeholder="Enter password"
+        data-testid="password-input"
+      >
+    </div>
+    <!--
+      button with:
+        - visible text "Submit"
+        - aria-label="Submit" so getByRole('button',{name:'Submit'}) matches (AC11/AC30)
+        - data-testid for testId selector (AC33)
+    -->
+    <button
+      id="submit-btn"
+      type="submit"
+      aria-label="Submit"
+      data-testid="submit-btn"
+    >Submit</button>
+  </form>
+
+  <!-- hidden element: for assertNotVisible pass case (AC18) -->
+  <p id="error-message" class="hidden">Error message</p>
+
+  <!-- controls to toggle visibility for assertNotVisible fail case (AC19) -->
+  <button
+    id="show-error-btn"
+    onclick="document.getElementById('error-message').classList.remove('hidden')"
+  >Show Error</button>
+  <button
+    id="hide-error-btn"
+    onclick="document.getElementById('error-message').classList.add('hidden')"
+  >Hide Error</button>
+
+  <!-- tall container to enable scroll testing (ACs 22-23) -->
+  <div id="tall-content">
+    <p>Top of scrollable content</p>
+    <p id="bottom-marker" style="margin-top:4800px;">Bottom marker</p>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+# agent-config.yml
+# Central configuration for the autonomous multi-agent pipeline.
+# Edit this file to change models, skills, and runtime behaviour.
+# Run `python scripts/validate_config.py` after editing.
+
+api:
+  api_key: ${ANTHROPIC_AUTH_TOKEN}        # export ANTHROPIC_API_KEY=sk-ant-...
+  api_url: hhttps://api.nextgen-beta.ica.ibm.com/ica   # Override for proxy or custom endpoint
+
+pipeline:
+  parallel_execution: true      # Run independent tasks concurrently
+  max_tester_retries: 3         # Tester→Coder loop limit before human escalation
+
+roles:
+  orchestrator:
+    model: claude-opus-4-8
+    tools:
+      - read_files
+      - task_planning
+    skills:
+      - ask-matt                # Routes orchestrator to the right skill per situation
+
+  analyst:
+    model: claude-sonnet-5
+    tools:
+      - read_files
+      - web_search
+    skills:
+      - to-spec                 # Converts requirements into a published spec
+      - domain-modeling         # Pins down terminology and ubiquitous language
+      - research                # Investigates questions against primary sources
+
+  designer:
+    model: claude-sonnet-5
+    optional: true              # Only activated when task has a UI/UX component
+    tools:
+      - read_files
+      - write_files
+    skills:
+      - prototype               # Throwaway single-file HTML prototype
+      - frontend-design         # Full design system work
+
+  architect:
+    model: claude-opus-4-8
+    tools:
+      - read_files
+      - write_files
+    skills:
+      - to-tickets              # Breaks spec into tasks with blocking-edge declarations
+      - codebase-design         # Enforces small interfaces and clean seams
+
+  coder:
+    model: claude-sonnet-5
+    tools:
+      - read_files
+      - write_files
+      - terminal
+    skills:
+      - implement               # Builds from spec/tickets with TDD at seams
+      - diagnosing-bugs         # Disciplined red→minimise→fix→regression loop
+
+  tester:
+    model: claude-haiku-4-5
+    tools:
+      - read_files
+      - terminal
+    skills:
+      - tdd                     # Red-green-refactor loop, one vertical slice at a time
+      - code-review             # Parallel sub-agent review across coding standards + spec
+
+  deployer:
+    model: claude-haiku-4-5
+    tools:
+      - terminal
+      - git
+    skills:
+      - proj-deploy             # Custom skill: reads deploy section below
+
+deploy:
+  container_runtime: podman     # docker | podman | none
+  registry: none                # docker.io | ghcr.io | local | none
+  target_environment: local     # local | staging | production
+  build_tool: compose           # dockerfile | compose | none
+  pre_deploy_checks:
+    - tests
+    - lint

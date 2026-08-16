@@ -1,0 +1,27 @@
+{
+  "name": "webt",
+  "version": "0.1.0",
+  "description": "Web UI test runner with a YAML DSL",
+  "type": "module",
+  "bin": {
+    "webt": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0",
+    "js-yaml": "^4.1.0",
+    "@types/node": "^20.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "tsx": "^4.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "typescript": "^5.0.0",
+    "@playwright/test": "^1.45.0"
+  }
+}

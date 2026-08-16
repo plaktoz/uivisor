@@ -1,0 +1,17 @@
+appId: http://localhost:8084/login
+commands:
+  - goto: http://localhost:8084/login
+  - inputText:
+      element:
+        testId: "login-username"
+      text: "alice"
+  - inputText:
+      element:
+        testId: "login-password"
+      text: "password1"
+  - tapOn:
+      testId: "login-submit"
+  - assertUrl: "/tasks"
+  - tapOn:
+      text: "Delete unused apps"
+  - assertVisible: "34 / 100 done"
