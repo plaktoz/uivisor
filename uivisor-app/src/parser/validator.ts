@@ -1,4 +1,4 @@
-const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands']);
+const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'shared']);
 
 export function validateHeader(raw: unknown, filePath?: string): string {
   if (typeof raw !== 'object' || raw === null) {
@@ -11,6 +11,27 @@ export function validateHeader(raw: unknown, filePath?: string): string {
     if (!VALID_HEADER_KEYS.has(key)) {
       throw new Error(`Unknown header key: ${key}${filePath ? ' in ' + filePath : ''}`);
     }
+  }
+
+  // Validate tags if present
+  if ('tags' in obj) {
+    const tags = obj['tags'];
+    if (!Array.isArray(tags)) {
+      throw new Error(`Invalid tags: must be an array${filePath ? ' in ' + filePath : ''}`);
+    }
+    for (const tag of tags) {
+      if (typeof tag !== 'string') {
+        throw new Error(`Invalid tag: each tag must be a string${filePath ? ' in ' + filePath : ''}`);
+      }
+      if (tag.trim() === '') {
+        throw new Error(`Invalid tag: tags must not be empty or whitespace-only${filePath ? ' in ' + filePath : ''}`);
+      }
+    }
+  }
+
+  // Validate shared if present
+  if ('shared' in obj && typeof obj['shared'] !== 'boolean') {
+    throw new Error(`Invalid shared: must be a boolean${filePath ? ' in ' + filePath : ''}`);
   }
 
   if ('appId' in obj) {

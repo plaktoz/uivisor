@@ -1,10 +1,9 @@
-import type { RunOptions } from '../types.js';
-
 export interface ParsedArgs {
   target: string;
   headed: boolean;
   slowMo: number;
   reporter: 'html' | 'md' | null;
+  tags: string[];
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -15,6 +14,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let headed = false;
   let slowMo = 0;
   let reporter: 'html' | 'md' | null = null;
+  const tags: string[] = [];
 
   let i = 0;
   // skip 'test' subcommand
@@ -38,15 +38,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const val = args[i + 1];
       if (val === 'html' || val === 'md') reporter = val;
       i += 2;
+    } else if (arg === '--tag' && i + 1 < args.length) {
+      tags.push(args[i + 1] as string);
+      i += 2;
     } else {
       i++;
     }
   }
 
   if (!target) {
-    process.stdout.write('Usage: webt test <target> [--headed] [--slow-mo <ms>] [--reporter html|md]\n');
+    process.stdout.write('Usage: webt test <target> [--headed] [--slow-mo <ms>] [--reporter html|md] [--tag <name>]\n');
     process.exit(1);
   }
 
-  return { target, headed, slowMo, reporter };
+  return { target, headed, slowMo, reporter, tags };
 }

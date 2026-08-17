@@ -111,6 +111,35 @@ describe('parseArgs', () => {
     expect(result.slowMo).toBe(100);
     expect(result.reporter).toBe('html');
   });
+
+  // ── --tag flag ─────────────────────────────────────────────────────────────
+
+  it('no --tag flag → tags: []', () => {
+    const result = parseArgs(argv('test', 'flow.yaml'));
+    expect(result.tags).toEqual([]);
+  });
+
+  it('single --tag smoke → tags: ["smoke"]', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--tag', 'smoke'));
+    expect(result.tags).toEqual(['smoke']);
+  });
+
+  it('--tag smoke --tag auth → tags: ["smoke", "auth"] (OR semantics)', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--tag', 'smoke', '--tag', 'auth'));
+    expect(result.tags).toEqual(['smoke', 'auth']);
+  });
+
+  it('--tag can be combined with --headed', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--headed', '--tag', 'smoke'));
+    expect(result.headed).toBe(true);
+    expect(result.tags).toEqual(['smoke']);
+  });
+
+  it('--tag can be combined with --reporter html', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--tag', 'smoke', '--reporter', 'html'));
+    expect(result.tags).toEqual(['smoke']);
+    expect(result.reporter).toBe('html');
+  });
 });
 
 // ─── resolveTarget ────────────────────────────────────────────────────────────

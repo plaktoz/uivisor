@@ -44,12 +44,13 @@ export async function dispatch(
   cmd: Command,
   ctx: RunContext,
   flowStem = 'flow',
+  flowDir = process.cwd(),
 ): Promise<CommandResult> {
   const start = Date.now();
 
   // Handle runFlow specially
   if (cmd.type === 'runFlow') {
-    const absPath = path.resolve(cmd.path);
+    const absPath = path.resolve(flowDir, cmd.path);
 
     // Check file exists
     if (!fs.existsSync(absPath)) {
