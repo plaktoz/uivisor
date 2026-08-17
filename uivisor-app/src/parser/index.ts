@@ -11,5 +11,7 @@ export function loadAndParse(filePath: string): FlowFile {
   const rawCommands = obj['commands'];
   validateCommandList(rawCommands);
   const commands = (rawCommands as unknown[]).map(parseCommand);
-  return { baseUrl, filePath: path.resolve(filePath), commands };
+  const tags = Array.isArray(obj['tags']) ? (obj['tags'] as string[]) : [];
+  const shared = typeof obj['shared'] === 'boolean' ? obj['shared'] : false;
+  return { baseUrl, filePath: path.resolve(filePath), commands, tags, shared };
 }

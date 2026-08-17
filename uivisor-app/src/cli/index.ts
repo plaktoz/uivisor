@@ -4,6 +4,8 @@ import * as path from 'path';
 import { parseArgs } from './args.js';
 import { resolveTarget } from './resolver.js';
 import { runAll } from './runner.js';
+import { loadAndParse } from '../parser/index.js';
+import { filterFlows, isSingleSharedFlowTarget } from './filter.js';
 import { generateHtmlReport } from '../reporter/html.js';
 import { generateMarkdownReport } from '../reporter/markdown.js';
 
@@ -24,20 +26,48 @@ function makeRunDir(): string {
 
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
-  const { target, headed, slowMo, reporter } = parsed;
+  const { target, headed, slowMo, reporter, tags } = parsed;
   const runDir = makeRunDir();
-  const options = { headed, slowMo, reporter, runDir };
+  const options = { headed, slowMo, reporter, runDir, tags };
 
-  let targets: string[];
+  let rawTargets: string[];
   try {
-    targets = resolveTarget(target);
+    rawTargets = resolveTarget(target);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stdout.write(`Error: ${msg}\n`);
     process.exit(1);
   }
 
-  const result = await runAll(targets, options);
+  // Load flow metadata for filtering (tags + shared); parse errors exit here
+  const flows = rawTargets.map((p) => {
+    try {
+      return loadAndParse(p);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stdout.write(`Error: ${msg}\n`);
+      process.exit(1);
+    }
+  });
+
+  // Guard: single shared flow passed directly as target
+  if (rawTargets.length === 1 && isSingleSharedFlowTarget(flows[0]!)) {
+    process.stdout.write(`Cannot run shared flow directly: ${target}\n`);
+    process.exit(1);
+  }
+
+  const { included } = filterFlows(flows, tags);
+
+  if (included.length === 0) {
+    if (tags.length > 0) {
+      process.stdout.write(`No flows matched tag(s): ${tags.join(', ')}\n`);
+    } else {
+      process.stdout.write(`No runnable flows found in: ${target}\n`);
+    }
+    process.exit(1);
+  }
+
+  const result = await runAll(included, options);
 
   if (reporter === 'html') {
     const html = generateHtmlReport(result);
