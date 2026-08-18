@@ -1,0 +1,13 @@
+appId: http://localhost:8084/login
+tags: [feat-fnd-login-ok]
+commands:
+  - goto: http://mex:8084/login
+  - tapOn:
+      testId: "landing-singpass-button"
+  - assertUrl: "/singpass/authorized*"
+  - inputText:
+      element:
+        testId: "todo-InputNameNRIC"
+      text: "S4831922Z"
+  - tapOn:
+      testId: "todo-submit-button"
