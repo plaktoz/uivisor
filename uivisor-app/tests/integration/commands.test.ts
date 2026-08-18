@@ -470,6 +470,49 @@ describe('runFlow nesting via engine', () => {
   });
 });
 
+// ─── assertUrl ────────────────────────────────────────────────────────────────
+
+describe('assertUrl', () => {
+  it('exact match: returns passed: true when path matches exactly', async () => {
+    const ctx = freshCtx();
+    await page.goto(baseUrl + '/tasks');
+    const result = await dispatch(page, { type: 'assertUrl', path: '/tasks' }, ctx);
+    expect(result.passed).toBe(true);
+  });
+
+  it('exact match: returns passed: false with expected/got when path does not match', async () => {
+    const ctx = freshCtx();
+    // page is on baseUrl (path = '/')
+    const result = await dispatch(page, { type: 'assertUrl', path: '/tasks' }, ctx);
+    expect(result.passed).toBe(false);
+    expect(result.expected).toBe('/tasks');
+    expect(result.got).toBe('/');
+  });
+
+  it('wildcard: returns passed: true when path matches glob pattern with query string', async () => {
+    const ctx = freshCtx();
+    await page.goto(baseUrl + '/singpass/authorized?callback=abc');
+    const result = await dispatch(page, { type: 'assertUrl', path: '/singpass/authorized*' }, ctx);
+    expect(result.passed).toBe(true);
+  });
+
+  it('wildcard: returns passed: true when path matches glob pattern exactly (no trailing chars)', async () => {
+    const ctx = freshCtx();
+    await page.goto(baseUrl + '/singpass/authorized');
+    const result = await dispatch(page, { type: 'assertUrl', path: '/singpass/authorized*' }, ctx);
+    expect(result.passed).toBe(true);
+  });
+
+  it('wildcard: returns passed: false with expected/got when path does not match glob pattern', async () => {
+    const ctx = freshCtx();
+    // page is on baseUrl (path = '/')
+    const result = await dispatch(page, { type: 'assertUrl', path: '/singpass/authorized*' }, ctx);
+    expect(result.passed).toBe(false);
+    expect(result.expected).toBe('/singpass/authorized*');
+    expect(result.got).toBe('/');
+  });
+});
+
 // ─── Selector types in real browser (ACs 28–33 in integration context) ────────
 
 describe('selectors in real browser via tapOn', () => {
