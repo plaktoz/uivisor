@@ -1,7 +1,8 @@
-appId: http://localhost:8084/login
+appId: http://localhost:5173/login
 tags: [feat-task]
 commands:
   - runFlow: ./shared-login.yaml
+  - assertVisible: "34 / 100 done"
   - tapOn:
       text: "Delete unused apps"
   - assertVisible: "35 / 100 done"

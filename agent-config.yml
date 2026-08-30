@@ -222,10 +222,10 @@ roles:
       - proj-deploy             # Custom skill: reads deploy section below
 
 deploy:
-  container_runtime: none       # docker | podman | none
-  registry: none                # docker.io | ghcr.io | local | none
+  container_runtime: podman     # docker | podman | none
+  registry: local               # docker.io | ghcr.io | local | none
   target_environment: local     # local | staging | production
-  build_tool: none              # dockerfile | compose | none
+  build_tool: compose           # dockerfile | compose | none
   pre_deploy_checks:
     - tests
     - lint
