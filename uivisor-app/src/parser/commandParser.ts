@@ -85,6 +85,27 @@ export function parseCommand(raw: unknown): Command {
     case 'assertUnchecked':
       return { type: 'assertUnchecked', selector: parseSelector(value) };
 
+    case 'pressKey':
+      return { type: 'pressKey', key: value as string };
+
+    case 'selectOption': {
+      const v = value as Record<string, unknown>;
+      const val = v['value'] as string;
+      const { value: _v, ...selectorRaw } = v;
+      return { type: 'selectOption', selector: parseSelector(selectorRaw), value: val };
+    }
+
+    case 'check':
+      return { type: 'check', selector: parseSelector(value) };
+    case 'uncheck':
+      return { type: 'uncheck', selector: parseSelector(value) };
+    case 'hover':
+      return { type: 'hover', selector: parseSelector(value) };
+    case 'doubleClick':
+      return { type: 'doubleClick', selector: parseSelector(value) };
+    case 'clearText':
+      return { type: 'clearText', selector: parseSelector(value) };
+
     default:
       throw new Error(`Unknown command: ${key}`);
   }

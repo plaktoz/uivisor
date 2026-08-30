@@ -75,6 +75,13 @@ export class ConsoleReporter {
       case 'assertDisabled': return `assertDisabled: ${JSON.stringify(cmd.selector)}`;
       case 'assertChecked': return `assertChecked: ${JSON.stringify(cmd.selector)}`;
       case 'assertUnchecked': return `assertUnchecked: ${JSON.stringify(cmd.selector)}`;
+      case 'pressKey': return `pressKey: ${cmd.key}`;
+      case 'selectOption': return `selectOption: ${JSON.stringify(cmd.selector)} value: ${cmd.value}`;
+      case 'check': return `check: ${JSON.stringify(cmd.selector)}`;
+      case 'uncheck': return `uncheck: ${JSON.stringify(cmd.selector)}`;
+      case 'hover': return `hover: ${JSON.stringify(cmd.selector)}`;
+      case 'doubleClick': return `doubleClick: ${JSON.stringify(cmd.selector)}`;
+      case 'clearText': return `clearText: ${JSON.stringify(cmd.selector)}`;
     }
   }
 }

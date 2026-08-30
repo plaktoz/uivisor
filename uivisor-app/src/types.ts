@@ -23,7 +23,14 @@ export type Command =
   | { type: 'assertEnabled';   selector: Selector }
   | { type: 'assertDisabled';  selector: Selector }
   | { type: 'assertChecked';   selector: Selector }
-  | { type: 'assertUnchecked'; selector: Selector };
+  | { type: 'assertUnchecked'; selector: Selector }
+  | { type: 'pressKey';     key: string }
+  | { type: 'selectOption'; selector: Selector; value: string }
+  | { type: 'check';        selector: Selector }
+  | { type: 'uncheck';      selector: Selector }
+  | { type: 'hover';        selector: Selector }
+  | { type: 'doubleClick';  selector: Selector }
+  | { type: 'clearText';    selector: Selector };
 
 export interface FlowFile {
   baseUrl: string;
