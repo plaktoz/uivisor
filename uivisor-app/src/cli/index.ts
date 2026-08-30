@@ -9,7 +9,7 @@ import { filterFlows, isSingleSharedFlowTarget } from './filter.js';
 import { generateHtmlReport } from '../reporter/html.js';
 import { generateMarkdownReport } from '../reporter/markdown.js';
 
-function makeRunDir(): string {
+function makeRunDir(outputDir?: string): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp =
@@ -19,15 +19,16 @@ function makeRunDir(): string {
     '-' +
     pad(now.getHours()) +
     pad(now.getMinutes());
-  const dir = path.join('target', stamp);
+  const base = path.resolve(outputDir ?? 'target');
+  const dir = path.join(base, stamp);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
-  const { target, headed, slowMo, reporter, tags } = parsed;
-  const runDir = makeRunDir();
+  const { target, headed, slowMo, reporter, tags, outputDir } = parsed;
+  const runDir = makeRunDir(outputDir);
   const options = { headed, slowMo, reporter, runDir, tags };
 
   let rawTargets: string[];
@@ -71,12 +72,12 @@ async function main(): Promise<void> {
 
   if (reporter === 'html') {
     const html = generateHtmlReport(result);
-    fs.writeFileSync(path.join(runDir, 'webt-report.html'), html, 'utf8');
-    process.stdout.write(`Report: ${path.join(runDir, 'webt-report.html')}\n`);
+    fs.writeFileSync(path.join(runDir, 'uivisor-report.html'), html, 'utf8');
+    process.stdout.write(`Report: ${path.join(runDir, 'uivisor-report.html')}\n`);
   } else if (reporter === 'md') {
     const md = generateMarkdownReport(result);
-    fs.writeFileSync(path.join(runDir, 'webt-report.md'), md, 'utf8');
-    process.stdout.write(`Report: ${path.join(runDir, 'webt-report.md')}\n`);
+    fs.writeFileSync(path.join(runDir, 'uivisor-report.md'), md, 'utf8');
+    process.stdout.write(`Report: ${path.join(runDir, 'uivisor-report.md')}\n`);
   }
 
   process.exit(result.failedFlows > 0 ? 1 : 0);

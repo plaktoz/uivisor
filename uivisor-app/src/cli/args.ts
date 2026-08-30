@@ -4,6 +4,7 @@ export interface ParsedArgs {
   slowMo: number;
   reporter: 'html' | 'md' | null;
   tags: string[];
+  outputDir?: string;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -15,6 +16,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let slowMo = 0;
   let reporter: 'html' | 'md' | null = null;
   const tags: string[] = [];
+  let outputDir: string | undefined;
 
   let i = 0;
   // skip 'test' subcommand
@@ -41,15 +43,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
     } else if (arg === '--tag' && i + 1 < args.length) {
       tags.push(args[i + 1] as string);
       i += 2;
+    } else if (arg === '--output-dir' && i + 1 < args.length) {
+      outputDir = args[i + 1] as string;
+      i += 2;
     } else {
       i++;
     }
   }
 
   if (!target) {
-    process.stdout.write('Usage: webt test <target> [--headed] [--slow-mo <ms>] [--reporter html|md] [--tag <name>]\n');
+    process.stdout.write('Usage: uivisor test <target> [--headed] [--slow-mo <ms>] [--reporter html|md] [--tag <name>] [--output-dir <path>]\n');
     process.exit(1);
   }
 
-  return { target, headed, slowMo, reporter, tags };
+  return { target, headed, slowMo, reporter, tags, outputDir };
 }
