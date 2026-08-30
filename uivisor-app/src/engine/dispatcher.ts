@@ -12,6 +12,13 @@ import {
   executeAssertUrl,
   executeWait,
   executeScroll,
+  executeAssertText,
+  executeAssertValue,
+  executeAssertCount,
+  executeAssertEnabled,
+  executeAssertDisabled,
+  executeAssertChecked,
+  executeAssertUnchecked,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
 import { loadAndParse } from '../parser/index.js';
@@ -131,6 +138,27 @@ export async function dispatch(
         break;
       case 'scroll':
         await executeScroll(page, cmd.direction);
+        break;
+      case 'assertText':
+        await executeAssertText(page, cmd.selector, cmd.expected);
+        break;
+      case 'assertValue':
+        await executeAssertValue(page, cmd.selector, cmd.expected);
+        break;
+      case 'assertCount':
+        await executeAssertCount(page, cmd.css, cmd.expected);
+        break;
+      case 'assertEnabled':
+        await executeAssertEnabled(page, cmd.selector);
+        break;
+      case 'assertDisabled':
+        await executeAssertDisabled(page, cmd.selector);
+        break;
+      case 'assertChecked':
+        await executeAssertChecked(page, cmd.selector);
+        break;
+      case 'assertUnchecked':
+        await executeAssertUnchecked(page, cmd.selector);
         break;
     }
     return { command: cmd, passed: true, durationMs: Date.now() - start };

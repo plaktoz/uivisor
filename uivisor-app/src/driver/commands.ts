@@ -1,4 +1,4 @@
-import type { Page } from 'playwright';
+import type { Page, Locator } from 'playwright';
 import type { Selector, RunContext } from '../types.js';
 import { resolveSelector } from '../matcher/index.js';
 
@@ -84,4 +84,95 @@ export async function executeScroll(page: Page, direction: 'up' | 'down' | 'left
     else if (dir === 'right') window.scrollBy(w, 0);
     else if (dir === 'left') window.scrollBy(-w, 0);
   }, direction);
+}
+
+export async function executeAssertText(page: Page, selector: Selector, expected: string): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'visible', timeout: 5000 });
+  } catch {
+    throw new Error(`Expected: ${expected}\nGot: element not found`);
+  }
+  const actual = (await locator.innerText()).trim();
+  if (actual !== expected) {
+    throw new Error(`Expected: ${expected}\nGot: ${actual}`);
+  }
+}
+
+export async function executeAssertValue(page: Page, selector: Selector, expected: string): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+  } catch {
+    throw new Error(`Expected: ${expected}\nGot: element not found`);
+  }
+  const actual = await locator.inputValue();
+  if (actual !== expected) {
+    throw new Error(`Expected: ${expected}\nGot: ${actual}`);
+  }
+}
+
+export async function executeAssertCount(page: Page, css: string, expected: number): Promise<void> {
+  const actual = await page.locator(css).count();
+  if (actual !== expected) {
+    throw new Error(`Expected: ${expected}\nGot: ${actual}`);
+  }
+}
+
+export async function executeAssertEnabled(page: Page, selector: Selector): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+  } catch {
+    throw new Error(`Expected: enabled\nGot: element not found`);
+  }
+  const enabled = await locator.isEnabled();
+  if (!enabled) {
+    throw new Error(`Expected: enabled\nGot: disabled`);
+  }
+}
+
+export async function executeAssertDisabled(page: Page, selector: Selector): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+  } catch {
+    throw new Error(`Expected: disabled\nGot: element not found`);
+  }
+  const disabled = await locator.isDisabled();
+  if (!disabled) {
+    throw new Error(`Expected: disabled\nGot: enabled`);
+  }
+}
+
+export async function executeAssertChecked(page: Page, selector: Selector): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+  } catch {
+    throw new Error(`Expected: checked\nGot: element not found`);
+  }
+  const checked = await locator.isChecked();
+  if (!checked) {
+    throw new Error(`Expected: checked\nGot: unchecked`);
+  }
+}
+
+export async function executeAssertUnchecked(page: Page, selector: Selector): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+  } catch {
+    throw new Error(`Expected: unchecked\nGot: element not found`);
+  }
+  const checked = await locator.isChecked();
+  if (checked) {
+    throw new Error(`Expected: unchecked\nGot: checked`);
+  }
 }
