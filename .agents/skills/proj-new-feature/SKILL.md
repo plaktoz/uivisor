@@ -78,7 +78,10 @@ Reason through the task and produce an execution plan. Write it to `state.md` un
 4. Tester Ensemble Phase 1 → skill: tdd
    Reads: spec + acceptance criteria
    4a. tester_generator_a + tester_generator_b in parallel → each generates test cases
-   4b. tester_consolidator → deduplicates, produces test_plan.md → state.md#tests
+       → copy generator_a raw output to state.md#tests-generator-a
+       → copy generator_b raw output to state.md#tests-generator-b
+   4b. tester_consolidator → reads both sections, deduplicates → state.md#tests
+       → include attribution table: which ACs came from generator_a only, generator_b only, or both
    4c. tester_arbiter → resolves any generator disagreements before finalizing
    Output: unit tests + integration tests → state.md#tests
 5. Coder → skill: implement
@@ -130,6 +133,41 @@ Follow the approved execution sequence. At each step:
 2. Copy the role's output into the correct section of `state.md`
 3. Log the action to `pipeline/[run-name]/log.md`
 4. Stop at each gate per the gate protocol
+
+**Tester generator attribution (Tester Ensemble Phase 1, step 4a):**
+
+After tester_generator_a and tester_generator_b complete, write each generator's raw output to its own section **before** handing off to the consolidator:
+
+```markdown
+## Tests — Generator A (tester_generator_a)
+
+[raw test cases as produced — AC numbers, test descriptions, seam notes]
+
+## Tests — Generator B (tester_generator_b)
+
+[raw test cases as produced — AC numbers, test descriptions, seam notes]
+```
+
+Then activate the consolidator with both sections as input. The consolidator writes `state.md#tests` and includes an attribution table:
+
+```markdown
+## Tests
+
+### Attribution
+
+| AC / Test | Generator A | Generator B |
+|---|---|---|
+| AC1: ... | ✓ | ✓ |
+| AC2: ... | ✓ | — |
+| AC3: ... | — | ✓ |
+
+**Unique to A:** [n]  **Unique to B:** [n]  **Shared:** [n]  **Total after dedup:** [n]
+
+### Consolidated test plan
+[final deduplicated list]
+```
+
+This makes the contribution of each generator visible and preserves the rationale for every included test.
 
 For parallel Coder tasks: activate all independent tasks simultaneously if `parallel_execution: true`.
 
