@@ -36,6 +36,12 @@ function cmdLabel(cmd: CommandResult['command']): string {
     case 'hover': return `hover: ${JSON.stringify(cmd.selector)}`;
     case 'doubleClick': return `doubleClick: ${JSON.stringify(cmd.selector)}`;
     case 'clearText': return `clearText: ${JSON.stringify(cmd.selector)}`;
+    case 'reload': return 'reload';
+    case 'goBack': return 'goBack';
+    case 'goForward': return 'goForward';
+    case 'setViewport': return `setViewport: ${cmd.width}x${cmd.height}`;
+    case 'screenshot': return `screenshot: ${cmd.path}`;
+    case 'waitFor': return `waitFor: ${cmd.ms}ms`;
   }
 }
 

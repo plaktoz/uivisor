@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import type { Page, Locator } from 'playwright';
 import type { Selector, RunContext } from '../types.js';
 import { resolveSelector } from '../matcher/index.js';
@@ -239,4 +241,42 @@ export async function executeClearText(page: Page, selector: Selector): Promise<
   } catch {
     throw new Error('Element not found.');
   }
+}
+
+export async function executeReload(page: Page): Promise<void> {
+  await page.reload({ waitUntil: 'load' });
+}
+
+export async function executeGoBack(page: Page): Promise<void> {
+  const urlBefore = page.url();
+  await page.goBack({ waitUntil: 'commit' });
+  const urlAfter = page.url();
+  if (urlAfter === urlBefore || urlAfter.startsWith('about:')) {
+    throw new Error('No previous page in history.');
+  }
+}
+
+export async function executeGoForward(page: Page): Promise<void> {
+  const urlBefore = page.url();
+  await page.goForward({ waitUntil: 'commit' });
+  const urlAfter = page.url();
+  if (urlAfter === urlBefore || urlAfter.startsWith('about:')) {
+    throw new Error('No next page in history.');
+  }
+}
+
+export async function executeSetViewport(page: Page, width: number, height: number): Promise<void> {
+  await page.setViewportSize({ width, height });
+}
+
+export async function executeScreenshot(page: Page, screenshotPath: string, runDir: string): Promise<string> {
+  const resolvedPath = path.resolve(runDir, screenshotPath);
+  const dir = path.dirname(resolvedPath);
+  fs.mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: resolvedPath });
+  return resolvedPath;
+}
+
+export async function executeWaitFor(ms: number): Promise<void> {
+  await new Promise<void>((r) => setTimeout(r, ms));
 }
