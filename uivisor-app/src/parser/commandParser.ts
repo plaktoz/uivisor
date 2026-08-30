@@ -57,6 +57,34 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'scroll', direction: value as 'up' | 'down' | 'left' | 'right' };
     }
 
+    case 'assertText': {
+      const v = value as Record<string, unknown>;
+      const expected = v['expected'] as string;
+      const { expected: _e, ...selectorRaw } = v;
+      return { type: 'assertText', selector: parseSelector(selectorRaw), expected };
+    }
+    case 'assertValue': {
+      const v = value as Record<string, unknown>;
+      const expected = v['expected'] as string;
+      const { expected: _e, ...selectorRaw } = v;
+      return { type: 'assertValue', selector: parseSelector(selectorRaw), expected };
+    }
+    case 'assertCount': {
+      const v = value as { css: string; expected: number };
+      if (!Number.isInteger(v.expected)) {
+        throw new Error(`assertCount expected must be an integer, got ${String(v.expected)}`);
+      }
+      return { type: 'assertCount', css: v.css, expected: v.expected };
+    }
+    case 'assertEnabled':
+      return { type: 'assertEnabled', selector: parseSelector(value) };
+    case 'assertDisabled':
+      return { type: 'assertDisabled', selector: parseSelector(value) };
+    case 'assertChecked':
+      return { type: 'assertChecked', selector: parseSelector(value) };
+    case 'assertUnchecked':
+      return { type: 'assertUnchecked', selector: parseSelector(value) };
+
     default:
       throw new Error(`Unknown command: ${key}`);
   }

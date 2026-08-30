@@ -16,7 +16,14 @@ export type Command =
   | { type: 'wait';               ms: number }
   | { type: 'assertUrl';          path: string }
   | { type: 'runFlow';            path: string }
-  | { type: 'scroll';             direction: 'up' | 'down' | 'left' | 'right' };
+  | { type: 'scroll';             direction: 'up' | 'down' | 'left' | 'right' }
+  | { type: 'assertText';      selector: Selector; expected: string }
+  | { type: 'assertValue';     selector: Selector; expected: string }
+  | { type: 'assertCount';     css: string; expected: number }
+  | { type: 'assertEnabled';   selector: Selector }
+  | { type: 'assertDisabled';  selector: Selector }
+  | { type: 'assertChecked';   selector: Selector }
+  | { type: 'assertUnchecked'; selector: Selector };
 
 export interface FlowFile {
   baseUrl: string;

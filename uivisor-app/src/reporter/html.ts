@@ -22,6 +22,13 @@ function cmdLabel(cmd: CommandResult['command']): string {
     case 'wait': return `wait: ${cmd.ms}ms`;
     case 'runFlow': return `runFlow: ${cmd.path}`;
     case 'scroll': return `scroll: ${cmd.direction}`;
+    case 'assertText': return `assertText: ${JSON.stringify(cmd.selector)} expected: ${cmd.expected}`;
+    case 'assertValue': return `assertValue: ${JSON.stringify(cmd.selector)} expected: ${cmd.expected}`;
+    case 'assertCount': return `assertCount: ${cmd.css} expected: ${cmd.expected}`;
+    case 'assertEnabled': return `assertEnabled: ${JSON.stringify(cmd.selector)}`;
+    case 'assertDisabled': return `assertDisabled: ${JSON.stringify(cmd.selector)}`;
+    case 'assertChecked': return `assertChecked: ${JSON.stringify(cmd.selector)}`;
+    case 'assertUnchecked': return `assertUnchecked: ${JSON.stringify(cmd.selector)}`;
   }
 }
 
