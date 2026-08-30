@@ -1,6 +1,6 @@
-appId: http://localhost:8084/login
+appId: http://localhost:5173/login
 commands:
-  - goto: http://localhost:8084/login
+  - goto: http://localhost:5173/login
   - inputText:
       element:
         testId: "login-username"

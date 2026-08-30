@@ -1,4 +1,4 @@
-appId: http://localhost:8084/login
+appId: http://localhost:5173/login
 tags: [feat-task]
 commands:
   - runFlow: ./shared-login.yaml
