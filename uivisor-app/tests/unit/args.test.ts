@@ -142,6 +142,132 @@ describe('parseArgs', () => {
   });
 });
 
+// ─── --output-dir flag ────────────────────────────────────────────────────────
+//
+// Decisions documented here so the intent is clear when reading failures:
+//
+//   • Multiple --output-dir flags:  last value wins (simplest; consistent with
+//     how --reporter and --slow-mo behave when repeated).
+//   • Empty string value:           stored as-is ("").
+//   • Flag-like token as value:     the sequential parser consumes the next
+//     token unconditionally, so `--output-dir --headed` stores "--headed" as
+//     the outputDir and never sets headed:true.  This is a known parser
+//     limitation — callers must not rely on detection of "missing value".
+//
+// NOTE: makeRunDir() in src/cli/index.ts is unexported.  Its contract
+//   (path.resolve(outputDir ?? 'target') passed to mkdirSync) is intentionally
+//   omitted here and should be covered either by an integration test or by
+//   exporting makeRunDir for unit testing in a future iteration.
+
+describe('--output-dir flag', () => {
+  function argv(...args: string[]): string[] {
+    return ['/usr/bin/node', '/usr/local/bin/uivisor', ...args];
+  }
+
+  // ── Absence / presence baseline ────────────────────────────────────────────
+
+  it('no --output-dir flag → outputDir: undefined', () => {
+    const result = parseArgs(argv('test', 'flow.yaml'));
+    expect(result.outputDir).toBeUndefined();
+  });
+
+  it('--output-dir with absolute path → stored as-is', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', '/abs/path'));
+    expect(result.outputDir).toBe('/abs/path');
+  });
+
+  it('--output-dir with relative path → raw string preserved (no resolution in parseArgs)', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', './relative/path'));
+    expect(result.outputDir).toBe('./relative/path');
+  });
+
+  // ── Edge values ────────────────────────────────────────────────────────────
+
+  it('--output-dir at end of argv with no following value → outputDir: undefined', () => {
+    // The parser only consumes a value when i+1 < args.length; with no token
+    // after the flag the condition is false and outputDir stays undefined.
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir'));
+    expect(result.outputDir).toBeUndefined();
+  });
+
+  it('--output-dir "" → outputDir stored as empty string', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', ''));
+    expect(result.outputDir).toBe('');
+  });
+
+  it('--output-dir with path containing spaces → stored as-is', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', '/path/with spaces'));
+    expect(result.outputDir).toBe('/path/with spaces');
+  });
+
+  it('--output-dir with Windows-style path → stored as-is (no path normalisation)', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', 'C:\\Users\\out'));
+    expect(result.outputDir).toBe('C:\\Users\\out');
+  });
+
+  it('multiple --output-dir flags → last value wins', () => {
+    const result = parseArgs(
+      argv('test', 'flow.yaml', '--output-dir', '/first', '--output-dir', '/last'),
+    );
+    expect(result.outputDir).toBe('/last');
+  });
+
+  it('--output-dir followed immediately by a flag-like token → token consumed as value', () => {
+    // '--slow-mo' is taken as the outputDir value; '500' falls through the
+    // else-branch and is discarded, so slowMo stays at its default of 0.
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', '--slow-mo', '500'));
+    expect(result.outputDir).toBe('--slow-mo');
+    expect(result.slowMo).toBe(0);
+  });
+
+  // ── Combinations ───────────────────────────────────────────────────────────
+
+  it('--output-dir /out --headed → both flags parsed', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', '/out', '--headed'));
+    expect(result.outputDir).toBe('/out');
+    expect(result.headed).toBe(true);
+  });
+
+  it('--output-dir /out --reporter html → both flags parsed', () => {
+    const result = parseArgs(
+      argv('test', 'flow.yaml', '--output-dir', '/out', '--reporter', 'html'),
+    );
+    expect(result.outputDir).toBe('/out');
+    expect(result.reporter).toBe('html');
+  });
+
+  it('--output-dir /out --tag smoke → outputDir, tag, and target all captured', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', '/out', '--tag', 'smoke'));
+    expect(result.target).toBe('flow.yaml');
+    expect(result.outputDir).toBe('/out');
+    expect(result.tags).toEqual(['smoke']);
+  });
+
+  it('target positional captured correctly when --output-dir follows it', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--output-dir', '/out'));
+    expect(result.target).toBe('flow.yaml');
+    expect(result.outputDir).toBe('/out');
+  });
+
+  // ── Usage string rename ─────────────────────────────────────────────────────
+
+  it('usage string shown on missing target contains "uivisor" (not "webt")', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+
+    // 'test' subcommand present but no target → triggers usage + exit
+    parseArgs(['/usr/bin/node', '/usr/local/bin/uivisor', 'test']);
+
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('uivisor'));
+    expect(writeSpy).not.toHaveBeenCalledWith(expect.stringContaining('webt'));
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+});
+
 // ─── resolveTarget ────────────────────────────────────────────────────────────
 
 describe('resolveTarget', () => {

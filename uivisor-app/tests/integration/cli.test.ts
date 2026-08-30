@@ -193,8 +193,8 @@ describe('error handling', () => {
 // ─── Reporter file generation (ACs 57, 60, 63) ───────────────────────────────
 
 describe('reporter files', () => {
-  // AC57: --reporter html generates webt-report.html
-  it('AC57: --reporter html creates webt-report.html in the working directory', async () => {
+  // AC57: --reporter html generates uivisor-report.html
+  it('AC57: --reporter html creates uivisor-report.html in the working directory', async () => {
     const cwd = makeTmpDir();
     writeFlow(cwd, 'flow.yaml',
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
@@ -202,12 +202,12 @@ describe('reporter files', () => {
 
     await runWebt(['test', 'flow.yaml', '--reporter', 'html'], cwd);
 
-    const reportPath = path.join(cwd, 'webt-report.html');
+    const reportPath = path.join(cwd, 'uivisor-report.html');
     expect(fs.existsSync(reportPath)).toBe(true);
   }, 30_000);
 
   // AC58: generated HTML is non-empty and starts with expected tags
-  it('AC58: webt-report.html is a non-empty self-contained HTML file', async () => {
+  it('AC58: uivisor-report.html is a non-empty self-contained HTML file', async () => {
     const cwd = makeTmpDir();
     writeFlow(cwd, 'flow.yaml',
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
@@ -215,7 +215,7 @@ describe('reporter files', () => {
 
     await runWebt(['test', 'flow.yaml', '--reporter', 'html'], cwd);
 
-    const reportPath = path.join(cwd, 'webt-report.html');
+    const reportPath = path.join(cwd, 'uivisor-report.html');
     const content = fs.readFileSync(reportPath, 'utf8');
     expect(content.length).toBeGreaterThan(100);
     expect(content).toMatch(/<html|<!DOCTYPE html>/i);
@@ -224,8 +224,8 @@ describe('reporter files', () => {
     expect(content).not.toMatch(/<script[^>]+src=["']https?:/i);
   }, 30_000);
 
-  // AC60: --reporter md generates webt-report.md
-  it('AC60: --reporter md creates webt-report.md in the working directory', async () => {
+  // AC60: --reporter md generates uivisor-report.md
+  it('AC60: --reporter md creates uivisor-report.md in the working directory', async () => {
     const cwd = makeTmpDir();
     writeFlow(cwd, 'flow.yaml',
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
@@ -233,12 +233,12 @@ describe('reporter files', () => {
 
     await runWebt(['test', 'flow.yaml', '--reporter', 'md'], cwd);
 
-    const reportPath = path.join(cwd, 'webt-report.md');
+    const reportPath = path.join(cwd, 'uivisor-report.md');
     expect(fs.existsSync(reportPath)).toBe(true);
   }, 30_000);
 
   // AC61: generated MD contains summary and flow sections
-  it('AC61: webt-report.md contains a summary header and per-flow section', async () => {
+  it('AC61: uivisor-report.md contains a summary header and per-flow section', async () => {
     const cwd = makeTmpDir();
     writeFlow(cwd, 'flow.yaml',
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
@@ -246,7 +246,7 @@ describe('reporter files', () => {
 
     await runWebt(['test', 'flow.yaml', '--reporter', 'md'], cwd);
 
-    const content = fs.readFileSync(path.join(cwd, 'webt-report.md'), 'utf8');
+    const content = fs.readFileSync(path.join(cwd, 'uivisor-report.md'), 'utf8');
     // Must have at least one heading
     expect(content).toMatch(/^#+\s/m);
     // Should reference the flow file
@@ -262,8 +262,8 @@ describe('reporter files', () => {
 
     await runWebt(['test', 'flow.yaml'], cwd);
 
-    expect(fs.existsSync(path.join(cwd, 'webt-report.html'))).toBe(false);
-    expect(fs.existsSync(path.join(cwd, 'webt-report.md'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'uivisor-report.html'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'uivisor-report.md'))).toBe(false);
   }, 30_000);
 
   // AC62: --reporter html + --headed are compatible (does not crash)
@@ -278,7 +278,7 @@ describe('reporter files', () => {
       cwd,
     );
     expect(exitCode).toBe(0);
-    expect(fs.existsSync(path.join(cwd, 'webt-report.html'))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, 'uivisor-report.html'))).toBe(true);
   }, 30_000);
 
   // AC62: --reporter md + --slow-mo are compatible
@@ -293,7 +293,7 @@ describe('reporter files', () => {
       cwd,
     );
     expect(exitCode).toBe(0);
-    expect(fs.existsSync(path.join(cwd, 'webt-report.md'))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, 'uivisor-report.md'))).toBe(true);
   }, 30_000);
 });
 
