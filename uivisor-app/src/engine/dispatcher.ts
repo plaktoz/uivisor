@@ -19,6 +19,13 @@ import {
   executeAssertDisabled,
   executeAssertChecked,
   executeAssertUnchecked,
+  executePressKey,
+  executeSelectOption,
+  executeCheck,
+  executeUncheck,
+  executeHover,
+  executeDoubleClick,
+  executeClearText,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
 import { loadAndParse } from '../parser/index.js';
@@ -159,6 +166,27 @@ export async function dispatch(
         break;
       case 'assertUnchecked':
         await executeAssertUnchecked(page, cmd.selector);
+        break;
+      case 'pressKey':
+        await executePressKey(page, cmd.key);
+        break;
+      case 'selectOption':
+        await executeSelectOption(page, cmd.selector, cmd.value);
+        break;
+      case 'check':
+        await executeCheck(page, cmd.selector);
+        break;
+      case 'uncheck':
+        await executeUncheck(page, cmd.selector);
+        break;
+      case 'hover':
+        await executeHover(page, cmd.selector);
+        break;
+      case 'doubleClick':
+        await executeDoubleClick(page, cmd.selector);
+        break;
+      case 'clearText':
+        await executeClearText(page, cmd.selector);
         break;
     }
     return { command: cmd, passed: true, durationMs: Date.now() - start };

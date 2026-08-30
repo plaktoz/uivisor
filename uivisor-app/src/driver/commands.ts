@@ -176,3 +176,67 @@ export async function executeAssertUnchecked(page: Page, selector: Selector): Pr
     throw new Error(`Expected: unchecked\nGot: checked`);
   }
 }
+
+export async function executePressKey(page: Page, key: string): Promise<void> {
+  await page.keyboard.press(key);
+}
+
+export async function executeSelectOption(page: Page, selector: Selector, value: string): Promise<void> {
+  let locator: Locator;
+  try {
+    locator = resolveSelector(page, selector);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+  } catch {
+    throw new Error('Element not found.');
+  }
+  try {
+    await locator.selectOption(value, { timeout: 5000 });
+  } catch {
+    throw new Error('Option not found.');
+  }
+}
+
+export async function executeCheck(page: Page, selector: Selector): Promise<void> {
+  const locator = resolveSelector(page, selector);
+  try {
+    await locator.check({ timeout: 5000 });
+  } catch {
+    throw new Error('Element not found.');
+  }
+}
+
+export async function executeUncheck(page: Page, selector: Selector): Promise<void> {
+  const locator = resolveSelector(page, selector);
+  try {
+    await locator.uncheck({ timeout: 5000 });
+  } catch {
+    throw new Error('Element not found.');
+  }
+}
+
+export async function executeHover(page: Page, selector: Selector): Promise<void> {
+  const locator = resolveSelector(page, selector);
+  try {
+    await locator.hover({ timeout: 5000 });
+  } catch {
+    throw new Error('Element not found.');
+  }
+}
+
+export async function executeDoubleClick(page: Page, selector: Selector): Promise<void> {
+  const locator = resolveSelector(page, selector);
+  try {
+    await locator.dblclick({ timeout: 5000 });
+  } catch {
+    throw new Error('Element not found.');
+  }
+}
+
+export async function executeClearText(page: Page, selector: Selector): Promise<void> {
+  const locator = resolveSelector(page, selector);
+  try {
+    await locator.clear({ timeout: 5000 });
+  } catch {
+    throw new Error('Element not found.');
+  }
+}

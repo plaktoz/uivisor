@@ -509,3 +509,90 @@ describe('loadAndParse', () => {
     ]);
   });
 });
+
+// ─── parseCommand — interaction commands (ACs 19–28) ─────────────────────────
+
+describe('parseCommand — interaction commands', () => {
+  // AC19: pressKey with "Enter"
+  it('AC19: parses { pressKey: "Enter" } → { type: "pressKey", key: "Enter" }', () => {
+    expect(parseCommand({ pressKey: 'Enter' })).toEqual({ type: 'pressKey', key: 'Enter' });
+  });
+
+  // AC20: pressKey with "ArrowDown"
+  it('AC20: parses { pressKey: "ArrowDown" } → { type: "pressKey", key: "ArrowDown" }', () => {
+    expect(parseCommand({ pressKey: 'ArrowDown' })).toEqual({
+      type: 'pressKey',
+      key: 'ArrowDown',
+    });
+  });
+
+  // AC21: selectOption with testId + value
+  it('AC21: parses selectOption with testId + value — extracts value before parseSelector', () => {
+    expect(
+      parseCommand({ selectOption: { testId: 'country-select', value: 'sg' } }),
+    ).toEqual({
+      type: 'selectOption',
+      selector: { testId: 'country-select' },
+      value: 'sg',
+    });
+  });
+
+  // AC22: selectOption with placeholder + value
+  it('AC22: parses selectOption with placeholder + value', () => {
+    expect(
+      parseCommand({ selectOption: { placeholder: 'Choose…', value: 'my' } }),
+    ).toEqual({
+      type: 'selectOption',
+      selector: { placeholder: 'Choose…' },
+      value: 'my',
+    });
+  });
+
+  // AC23: check with testId object
+  it('AC23: parses { check: { testId } } → { type: "check", selector: { testId } }', () => {
+    expect(parseCommand({ check: { testId: 'terms' } })).toEqual({
+      type: 'check',
+      selector: { testId: 'terms' },
+    });
+  });
+
+  // AC24: check with string shorthand
+  it('AC24: parses { check: "Accept terms" } → { type: "check", selector: "Accept terms" }', () => {
+    expect(parseCommand({ check: 'Accept terms' })).toEqual({
+      type: 'check',
+      selector: 'Accept terms',
+    });
+  });
+
+  // AC25: uncheck with testId object
+  it('AC25: parses { uncheck: { testId } } → { type: "uncheck", selector: { testId } }', () => {
+    expect(parseCommand({ uncheck: { testId: 'newsletter' } })).toEqual({
+      type: 'uncheck',
+      selector: { testId: 'newsletter' },
+    });
+  });
+
+  // AC26: hover with role+name
+  it('AC26: parses { hover: { role, name } } → { type: "hover", selector: { role, name } }', () => {
+    expect(parseCommand({ hover: { role: 'button', name: 'Submit' } })).toEqual({
+      type: 'hover',
+      selector: { role: 'button', name: 'Submit' },
+    });
+  });
+
+  // AC27: doubleClick with string shorthand
+  it('AC27: parses { doubleClick: "Sign In" } → { type: "doubleClick", selector: "Sign In" }', () => {
+    expect(parseCommand({ doubleClick: 'Sign In' })).toEqual({
+      type: 'doubleClick',
+      selector: 'Sign In',
+    });
+  });
+
+  // AC28: clearText with placeholder selector
+  it('AC28: parses { clearText: { placeholder } } → { type: "clearText", selector: { placeholder } }', () => {
+    expect(parseCommand({ clearText: { placeholder: 'Enter email' } })).toEqual({
+      type: 'clearText',
+      selector: { placeholder: 'Enter email' },
+    });
+  });
+});

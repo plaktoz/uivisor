@@ -68,6 +68,7 @@ function freshCtx(): RunContext {
     lastTappedLocator: null,
     callStack: new Set(),
     indentLevel: 0,
+    runDir: process.cwd(),
   };
 }
 
@@ -567,4 +568,230 @@ describe('selectors in real browser via tapOn', () => {
     );
     expect(result.passed).toBe(true);
   });
+});
+
+// ─── pressKey (ACs 1–3) ───────────────────────────────────────────────────────
+
+describe('pressKey', () => {
+  // AC1: dispatching pressKey returns passed: true
+  it('AC1: pressKey Tab returns passed: true', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'pressKey', key: 'Tab' }, ctx);
+    expect(result.passed).toBe(true);
+    expect(result.command.type).toBe('pressKey');
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  // AC2: key delivered to focused element
+  it('AC2: pressKey "a" delivers keystroke to focused email input', async () => {
+    const ctx = freshCtx();
+    // Focus the email input first
+    await page.locator('#email-input').focus();
+    // @ts-expect-error — type does not exist yet; red phase
+    await dispatch(page, { type: 'pressKey', key: 'a' }, ctx);
+    const value = await page.locator('#email-input').inputValue();
+    expect(value).toContain('a');
+  });
+
+  // AC3: passes even without any focused element
+  it('AC3: pressKey succeeds globally with no focused element', async () => {
+    const ctx = freshCtx();
+    // No tapOn — no focused element
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'pressKey', key: 'Escape' }, ctx);
+    expect(result.passed).toBe(true);
+  });
+});
+
+// ─── selectOption (ACs 4–6) ───────────────────────────────────────────────────
+
+describe('selectOption', () => {
+  // AC4: valid select + matching value → passed: true, option selected
+  it('AC4: selects option "sg" in country-select and verifies the selected value', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'selectOption', selector: { testId: 'country-select' }, value: 'sg' },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+    const selected = await page.locator('#country-select').inputValue();
+    expect(selected).toBe('sg');
+  }, 10_000);
+
+  // AC5: nonexistent element → passed: false, "Element not found"
+  it('AC5: returns passed: false with "Element not found" for missing element', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'selectOption', selector: 'NonExistentSelectXYZ', value: 'sg' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Element not found/i);
+  }, 10_000);
+
+  // AC6: valid element, invalid option value → passed: false, "Option not found"
+  it('AC6: returns passed: false with "Option not found" when option value is absent', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'selectOption', selector: { testId: 'country-select' }, value: 'xx-invalid' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Option not found/i);
+  }, 10_000);
+});
+
+// ─── check (ACs 7–8) ─────────────────────────────────────────────────────────
+
+describe('check', () => {
+  // AC7: unchecked checkbox → becomes checked
+  it('AC7: checks an unchecked checkbox and verifies it is now checked', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'check', selector: { testId: 'check-box' } },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+    expect(await page.locator('[data-testid="check-box"]').isChecked()).toBe(true);
+  }, 10_000);
+
+  // AC8: nonexistent element → passed: false
+  it('AC8: returns passed: false with "Element not found" for missing element', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'check', selector: 'NonExistentCheckboxXYZ' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Element not found/i);
+  }, 10_000);
+});
+
+// ─── uncheck (ACs 9–10) ──────────────────────────────────────────────────────
+
+describe('uncheck', () => {
+  // AC9: pre-checked checkbox → becomes unchecked
+  it('AC9: unchecks a pre-checked checkbox and verifies it is now unchecked', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'uncheck', selector: { testId: 'uncheck-box' } },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+    expect(await page.locator('[data-testid="uncheck-box"]').isChecked()).toBe(false);
+  }, 10_000);
+
+  // AC10: nonexistent element → passed: false
+  it('AC10: returns passed: false with "Element not found" for missing element', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'uncheck', selector: 'NonExistentCheckboxXYZ' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Element not found/i);
+  }, 10_000);
+});
+
+// ─── hover (ACs 11–12) ───────────────────────────────────────────────────────
+
+describe('hover', () => {
+  // AC11: hoverable element → passed: true
+  it('AC11: hovers over the submit button and returns passed: true', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'hover', selector: { testId: 'submit-btn' } },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+  }, 10_000);
+
+  // AC12: nonexistent element → passed: false
+  it('AC12: returns passed: false with "Element not found" for missing element', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'hover', selector: 'NonExistentElementXYZ' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Element not found/i);
+  }, 10_000);
+});
+
+// ─── doubleClick (ACs 13–14) ─────────────────────────────────────────────────
+
+describe('doubleClick', () => {
+  // AC13: double-clickable element → passed: true
+  it('AC13: double-clicks the submit button and returns passed: true', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'doubleClick', selector: { testId: 'submit-btn' } },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+  }, 10_000);
+
+  // AC14: nonexistent element → passed: false
+  it('AC14: returns passed: false with "Element not found" for missing element', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'doubleClick', selector: 'NonExistentElementXYZ' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Element not found/i);
+  }, 10_000);
+});
+
+// ─── clearText (ACs 15–16) ───────────────────────────────────────────────────
+
+describe('clearText', () => {
+  // AC15: pre-filled input → cleared to ""
+  it('AC15: clears the prefilled-text input and verifies value is empty', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'clearText', selector: { testId: 'prefilled-text' } },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+    expect(await page.locator('[data-testid="prefilled-text"]').inputValue()).toBe('');
+  }, 10_000);
+
+  // AC16: nonexistent element → passed: false
+  it('AC16: returns passed: false with "Element not found" for missing element', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      // @ts-expect-error — type does not exist yet; red phase
+      { type: 'clearText', selector: 'NonExistentInputXYZ' },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Element not found/i);
+  }, 10_000);
 });
