@@ -26,6 +26,12 @@ import {
   executeHover,
   executeDoubleClick,
   executeClearText,
+  executeReload,
+  executeGoBack,
+  executeGoForward,
+  executeSetViewport,
+  executeScreenshot,
+  executeWaitFor,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
 import { loadAndParse } from '../parser/index.js';
@@ -117,6 +123,8 @@ export async function dispatch(
     }
   }
 
+  let capturedScreenshotPath: string | undefined;
+
   try {
     switch (cmd.type) {
       case 'goto':
@@ -188,8 +196,26 @@ export async function dispatch(
       case 'clearText':
         await executeClearText(page, cmd.selector);
         break;
+      case 'reload':
+        await executeReload(page);
+        break;
+      case 'goBack':
+        await executeGoBack(page);
+        break;
+      case 'goForward':
+        await executeGoForward(page);
+        break;
+      case 'setViewport':
+        await executeSetViewport(page, cmd.width, cmd.height);
+        break;
+      case 'screenshot':
+        capturedScreenshotPath = await executeScreenshot(page, cmd.path, ctx.runDir);
+        break;
+      case 'waitFor':
+        await executeWaitFor(cmd.ms);
+        break;
     }
-    return { command: cmd, passed: true, durationMs: Date.now() - start };
+    return { command: cmd, passed: true, screenshotPath: capturedScreenshotPath, durationMs: Date.now() - start };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     let expected: string | undefined;

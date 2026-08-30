@@ -30,7 +30,13 @@ export type Command =
   | { type: 'uncheck';      selector: Selector }
   | { type: 'hover';        selector: Selector }
   | { type: 'doubleClick';  selector: Selector }
-  | { type: 'clearText';    selector: Selector };
+  | { type: 'clearText';    selector: Selector }
+  | { type: 'reload' }
+  | { type: 'goBack' }
+  | { type: 'goForward' }
+  | { type: 'setViewport'; width: number; height: number }
+  | { type: 'screenshot';  path: string }
+  | { type: 'waitFor';     ms: number };
 
 export interface FlowFile {
   baseUrl: string;

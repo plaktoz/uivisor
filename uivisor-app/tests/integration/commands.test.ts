@@ -795,3 +795,140 @@ describe('clearText', () => {
     expect(result.message).toMatch(/Element not found/i);
   }, 10_000);
 });
+
+// ─── reload (ACs 1–2) ────────────────────────────────────────────────────────
+
+describe('reload', () => {
+  it('AC1: reload returns passed: true with correct command type and durationMs > 0', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'reload' }, ctx);
+    expect(result.passed).toBe(true);
+    expect(result.command.type).toBe('reload');
+    expect(result.durationMs).toBeGreaterThan(0);
+  }, 15_000);
+
+  it('AC2: heading is still visible after reload', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    await dispatch(page, { type: 'reload' }, ctx);
+    const visible = await dispatch(page, { type: 'assertVisible', selector: 'Welcome, user' }, freshCtx());
+    expect(visible.passed).toBe(true);
+  }, 15_000);
+});
+
+// ─── goBack (ACs 3–4) ────────────────────────────────────────────────────────
+
+describe('goBack', () => {
+  it('AC3: goBack after two navigations returns passed: true and restores previous URL', async () => {
+    await page.goto(baseUrl + '#section2');
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'goBack' }, ctx);
+    expect(result.passed).toBe(true);
+    expect(page.url()).not.toContain('#section2');
+  }, 15_000);
+
+  it('AC4: goBack with no history returns passed: false with "No previous page in history"', async () => {
+    const freshPage = await browser.newPage();
+    await freshPage.goto(baseUrl);
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(freshPage, { type: 'goBack' }, ctx);
+    await freshPage.close();
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/No previous page in history/i);
+  }, 15_000);
+});
+
+// ─── goForward (ACs 5–6) ─────────────────────────────────────────────────────
+
+describe('goForward', () => {
+  it('AC5: goForward after goBack returns passed: true and restores forward URL', async () => {
+    await page.goto(baseUrl + '#section2');
+    await page.goBack();
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'goForward' }, ctx);
+    expect(result.passed).toBe(true);
+    expect(page.url()).toContain('#section2');
+  }, 15_000);
+
+  it('AC6: goForward with no forward history returns passed: false', async () => {
+    const freshPage = await browser.newPage();
+    await freshPage.goto(baseUrl);
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(freshPage, { type: 'goForward' }, ctx);
+    await freshPage.close();
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/No next page in history/i);
+  }, 15_000);
+});
+
+// ─── setViewport (ACs 7–8) ───────────────────────────────────────────────────
+
+describe('setViewport', () => {
+  it('AC7: setViewport 390x844 sets viewport to exact dimensions', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'setViewport', width: 390, height: 844 }, ctx);
+    expect(result.passed).toBe(true);
+    expect(page.viewportSize()).toEqual({ width: 390, height: 844 });
+  });
+
+  it('AC8: setViewport 1920x1080 sets viewport to explicit dimensions', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'setViewport', width: 1920, height: 1080 }, ctx);
+    expect(result.passed).toBe(true);
+    expect(page.viewportSize()).toEqual({ width: 1920, height: 1080 });
+  });
+});
+
+// ─── screenshot (ACs 9–10) ───────────────────────────────────────────────────
+
+describe('screenshot', () => {
+  it('AC9: saves PNG file and sets result.screenshotPath to the resolved path', async () => {
+    const ctx = freshCtx();
+    ctx.runDir = os.tmpdir();
+    const filename = `webt-test-shot-${Date.now()}.png`;
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'screenshot', path: filename }, ctx);
+    expect(result.passed).toBe(true);
+    expect(result.screenshotPath).toBeDefined();
+    expect(fs.existsSync(result.screenshotPath!)).toBe(true);
+    fs.unlinkSync(result.screenshotPath!);
+  });
+
+  it('AC10: creates intermediate directories automatically', async () => {
+    const ctx = freshCtx();
+    const subdir = `webt-test-subdir-${Date.now()}`;
+    ctx.runDir = os.tmpdir();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'screenshot', path: `${subdir}/shot.png` }, ctx);
+    expect(result.passed).toBe(true);
+    expect(fs.existsSync(result.screenshotPath!)).toBe(true);
+    fs.rmSync(path.join(os.tmpdir(), subdir), { recursive: true });
+  });
+});
+
+// ─── waitFor (ACs 11–12) ─────────────────────────────────────────────────────
+
+describe('waitFor', () => {
+  it('AC11: waitFor 100ms returns passed: true and durationMs >= 100', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'waitFor', ms: 100 }, ctx);
+    expect(result.passed).toBe(true);
+    expect(result.durationMs).toBeGreaterThanOrEqual(100);
+  });
+
+  it('AC12: waitFor 500ms returns passed: true and durationMs >= 500', async () => {
+    const ctx = freshCtx();
+    // @ts-expect-error — type does not exist yet; red phase
+    const result = await dispatch(page, { type: 'waitFor', ms: 500 }, ctx);
+    expect(result.passed).toBe(true);
+    expect(result.durationMs).toBeGreaterThanOrEqual(500);
+  }, 10_000);
+});

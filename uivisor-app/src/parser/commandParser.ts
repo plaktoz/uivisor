@@ -106,6 +106,43 @@ export function parseCommand(raw: unknown): Command {
     case 'clearText':
       return { type: 'clearText', selector: parseSelector(value) };
 
+    case 'reload':
+      return { type: 'reload' };
+    case 'goBack':
+      return { type: 'goBack' };
+    case 'goForward':
+      return { type: 'goForward' };
+
+    case 'setViewport': {
+      const PRESETS: Record<string, { width: number; height: number }> = {
+        mobile:  { width: 390,  height: 844  },
+        tablet:  { width: 768,  height: 1024 },
+        desktop: { width: 1280, height: 800  },
+      };
+      if (typeof value === 'string') {
+        const preset = PRESETS[value];
+        if (!preset) {
+          throw new Error(`Unknown viewport preset: ${value}. Valid presets: mobile, tablet, desktop`);
+        }
+        return { type: 'setViewport', width: preset.width, height: preset.height };
+      }
+      const v = value as { width: number; height: number };
+      if (!Number.isInteger(v.width) || !Number.isInteger(v.height) || v.width <= 0 || v.height <= 0) {
+        throw new Error('setViewport width and height must be positive integers');
+      }
+      return { type: 'setViewport', width: v.width, height: v.height };
+    }
+
+    case 'screenshot':
+      return { type: 'screenshot', path: value as string };
+
+    case 'waitFor': {
+      if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+        throw new Error(`waitFor ms must be a positive integer, got ${String(value)}`);
+      }
+      return { type: 'waitFor', ms: value };
+    }
+
     default:
       throw new Error(`Unknown command: ${key}`);
   }

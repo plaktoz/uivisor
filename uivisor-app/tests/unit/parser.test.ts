@@ -596,3 +596,98 @@ describe('parseCommand — interaction commands', () => {
     });
   });
 });
+
+// ─── parseCommand — page control & utilities (ACs 13–25) ─────────────────────
+
+describe('parseCommand — page control & utilities', () => {
+  // AC13: reload with null value
+  it('AC13: parses { reload: null } → { type: "reload" }', () => {
+    expect(parseCommand({ reload: null })).toEqual({ type: 'reload' });
+  });
+
+  // AC14: goBack with null value
+  it('AC14: parses { goBack: null } → { type: "goBack" }', () => {
+    expect(parseCommand({ goBack: null })).toEqual({ type: 'goBack' });
+  });
+
+  // AC15: goForward with null value
+  it('AC15: parses { goForward: null } → { type: "goForward" }', () => {
+    expect(parseCommand({ goForward: null })).toEqual({ type: 'goForward' });
+  });
+
+  // AC16: setViewport mobile preset
+  it('AC16: parses setViewport "mobile" → { type: "setViewport", width: 390, height: 844 }', () => {
+    expect(parseCommand({ setViewport: 'mobile' })).toEqual({
+      type: 'setViewport',
+      width: 390,
+      height: 844,
+    });
+  });
+
+  // AC17: setViewport tablet preset
+  it('AC17: parses setViewport "tablet" → { type: "setViewport", width: 768, height: 1024 }', () => {
+    expect(parseCommand({ setViewport: 'tablet' })).toEqual({
+      type: 'setViewport',
+      width: 768,
+      height: 1024,
+    });
+  });
+
+  // AC18: setViewport desktop preset
+  it('AC18: parses setViewport "desktop" → { type: "setViewport", width: 1280, height: 800 }', () => {
+    expect(parseCommand({ setViewport: 'desktop' })).toEqual({
+      type: 'setViewport',
+      width: 1280,
+      height: 800,
+    });
+  });
+
+  // AC19: setViewport explicit dimensions
+  it('AC19: parses setViewport { width, height } → resolved setViewport command', () => {
+    expect(parseCommand({ setViewport: { width: 1920, height: 1080 } })).toEqual({
+      type: 'setViewport',
+      width: 1920,
+      height: 1080,
+    });
+  });
+
+  // AC20: setViewport unknown preset throws
+  it('AC20: throws on unknown setViewport preset string', () => {
+    expect(() => parseCommand({ setViewport: 'ultrawide' })).toThrow(/Unknown viewport preset/i);
+  });
+
+  // AC21: setViewport with non-positive width throws
+  it('AC21: throws when setViewport width is 0', () => {
+    expect(() => parseCommand({ setViewport: { width: 0, height: 720 } })).toThrow(
+      /positive integers/i,
+    );
+  });
+
+  // AC22: screenshot plain string
+  it('AC22: parses { screenshot: "step1.png" } → { type: "screenshot", path: "step1.png" }', () => {
+    expect(parseCommand({ screenshot: 'step1.png' })).toEqual({
+      type: 'screenshot',
+      path: 'step1.png',
+    });
+  });
+
+  // AC23: waitFor integer ms
+  it('AC23: parses { waitFor: 3000 } → { type: "waitFor", ms: 3000 }', () => {
+    expect(parseCommand({ waitFor: 3000 })).toEqual({ type: 'waitFor', ms: 3000 });
+  });
+
+  // AC24: waitFor another integer
+  it('AC24: parses { waitFor: 500 } → { type: "waitFor", ms: 500 }', () => {
+    expect(parseCommand({ waitFor: 500 })).toEqual({ type: 'waitFor', ms: 500 });
+  });
+
+  // AC25: waitFor zero throws
+  it('AC25: throws when waitFor value is 0', () => {
+    expect(() => parseCommand({ waitFor: 0 })).toThrow(/positive integer/i);
+  });
+
+  // AC25 extra: waitFor float throws
+  it('AC25b: throws when waitFor value is a float', () => {
+    expect(() => parseCommand({ waitFor: 1.5 })).toThrow(/positive integer/i);
+  });
+});
