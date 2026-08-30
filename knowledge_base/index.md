@@ -6,7 +6,9 @@ Entry point for all lessons and guardrail candidates. Every file in this KB must
 
 ## Distilled Lessons
 
-*(empty — lessons appear here as pipeline failures accumulate)*
+- [Playwright goBack/goForward: null return is ambiguous](lessons/distilled/playwright-goback-null-handling.md) — use URL-before/after + `waitUntil: 'commit'`; don't rely on `response === null` alone
+- [Reporter exhaustiveness required for new commands](lessons/distilled/reporter-exhaustiveness-required-for-new-commands.md) — 5 files need updating per new Command type; dispatcher has no TS guard
+- [screenshot command sets screenshotPath on success](lessons/distilled/screenshot-command-screenshotpath-on-success.md) — unique exception; requires `capturedScreenshotPath` local before try block
 
 ### By role
 <!-- role:analyst -->
