@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { CommandResult, FlowResult, RunResult } from '../types.js';
+import type { Command, CommandResult, FlowResult, RunResult } from '@uivisor/core';
 
 export class ConsoleReporter {
   startFlow(filePath: string, _indentLevel: number): void {
@@ -56,7 +56,7 @@ export class ConsoleReporter {
     }
   }
 
-  private _cmdSummary(cmd: import('../types.js').Command): string {
+  private _cmdSummary(cmd: Command): string {
     switch (cmd.type) {
       case 'goto': return `goto: ${cmd.url}`;
       case 'tapOn': return `tapOn: ${JSON.stringify(cmd.selector)}`;

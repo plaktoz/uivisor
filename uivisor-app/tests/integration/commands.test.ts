@@ -23,7 +23,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { dispatch } from '../../src/engine/dispatcher';
 import { runFlow } from '../../src/engine/index';
-import type { RunContext, FlowFile } from '../../src/types';
+import type { RunContext, FlowFile } from '@uivisor/core';
 
 // ─── Global setup ─────────────────────────────────────────────────────────────
 

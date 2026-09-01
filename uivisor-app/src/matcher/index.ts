@@ -1,5 +1,5 @@
 import type { Page, Locator } from 'playwright';
-import type { Selector } from '../types.js';
+import type { Selector } from '@uivisor/core';
 
 export function resolveSelector(page: Page, selector: Selector): Locator {
   if (typeof selector === 'string') {

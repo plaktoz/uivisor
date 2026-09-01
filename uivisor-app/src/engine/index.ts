@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { Page } from 'playwright';
-import type { CommandResult, FlowFile, FlowResult, RunContext } from '../types.js';
+import type { CommandResult, FlowFile, FlowResult, RunContext } from '@uivisor/core';
 import { dispatch, registerRunFlow } from './dispatcher.js';
 
 async function runFlow(file: FlowFile, page: Page, ctx: RunContext): Promise<FlowResult> {

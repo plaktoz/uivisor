@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { RunResult, FlowResult, CommandResult } from '../types.js';
+import type { RunResult, FlowResult, CommandResult } from '@uivisor/core';
 
 function cmdLabel(cmd: CommandResult['command']): string {
   switch (cmd.type) {

@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { filterFlows } from '../../src/cli/filter';
-import type { FlowFile } from '../../src/types';
+import type { FlowFile } from '@uivisor/core';
 
 function makeFlow(partial: Partial<FlowFile> & { filePath: string }): FlowFile {
   return {

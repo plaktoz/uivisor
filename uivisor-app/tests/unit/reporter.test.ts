@@ -15,7 +15,7 @@ import { ConsoleReporter } from '../../src/reporter/console';
 import { generateHtmlReport } from '../../src/reporter/html';
 import { generateMarkdownReport } from '../../src/reporter/markdown';
 import { captureScreenshot } from '../../src/reporter/screenshot';
-import type { Command, CommandResult, FlowResult, RunResult } from '../../src/types';
+import type { Command, CommandResult, FlowResult, RunResult } from '@uivisor/core';
 
 // ─── Test-data factories ──────────────────────────────────────────────────────
 

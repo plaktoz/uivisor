@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
-import type { Command, CommandResult, RunContext, FlowResult } from '../types.js';
+import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
 import {
   executeGoto,
   executeTapOn,
@@ -36,7 +36,7 @@ import {
 import { captureScreenshot } from '../reporter/screenshot.js';
 import { loadAndParse } from '../parser/index.js';
 
-type RunFlowFn = (file: import('../types.js').FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>;
+type RunFlowFn = (file: FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>;
 
 let _runFlowImpl: RunFlowFn | null = null;
 

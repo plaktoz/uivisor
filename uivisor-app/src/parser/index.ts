@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { FlowFile } from '../types.js';
+import type { FlowFile } from '@uivisor/core';
 import { readYamlFile } from './reader.js';
 import { validateHeader, validateCommandList, validateSessions } from './validator.js';
 import { parseSessionedCommand } from './commandParser.js';

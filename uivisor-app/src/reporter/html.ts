@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { RunResult, FlowResult, CommandResult } from '../types.js';
+import type { RunResult, FlowResult, CommandResult } from '@uivisor/core';
 
 function escapeHtml(s: string): string {
   return s

@@ -1,4 +1,4 @@
-import type { SessionDef } from '../types.js';
+import type { SessionDef } from '@uivisor/core';
 
 const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'shared', 'sessions']);
 
