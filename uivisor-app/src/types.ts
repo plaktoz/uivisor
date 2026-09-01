@@ -38,10 +38,15 @@ export type Command =
   | { type: 'screenshot';  path: string }
   | { type: 'waitFor';     ms: number };
 
+export type SessionDef = { id: string; label?: string };
+
+export type SessionedCommand = { session?: string; command: Command };
+
 export interface FlowFile {
   baseUrl: string;
   filePath: string;
-  commands: Command[];
+  commands: SessionedCommand[];
+  sessions: SessionDef[];
   tags: string[];
   shared: boolean;
 }
@@ -87,4 +92,6 @@ export interface RunContext {
   callStack: Set<string>;
   indentLevel: number;
   runDir: string;
+  sessions: Map<string, import('playwright').Page>;
+  defaultSessionId: string;
 }

@@ -36,9 +36,11 @@ import {
 import { captureScreenshot } from '../reporter/screenshot.js';
 import { loadAndParse } from '../parser/index.js';
 
-let _runFlowImpl: ((file: import('../types.js').FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>) | null = null;
+type RunFlowFn = (file: import('../types.js').FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>;
 
-export function registerRunFlow(fn: (file: import('../types.js').FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>): void {
+let _runFlowImpl: RunFlowFn | null = null;
+
+export function registerRunFlow(fn: RunFlowFn): void {
   _runFlowImpl = fn;
 }
 
