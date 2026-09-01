@@ -1,0 +1,5 @@
+{
+  "name": "uivisor-workspace",
+  "private": true,
+  "workspaces": ["packages/*", "uivisor-app"]
+}

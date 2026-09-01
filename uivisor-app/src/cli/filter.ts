@@ -1,4 +1,4 @@
-import type { FlowFile } from '../types.js';
+import type { FlowFile } from '@uivisor/core';
 
 export interface FilterResult {
   included: string[];

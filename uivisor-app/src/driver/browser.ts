@@ -1,5 +1,5 @@
 import { chromium, type Browser, type Page } from 'playwright';
-import type { RunOptions } from '../types.js';
+import type { RunOptions } from '@uivisor/core';
 
 export async function launchBrowser(options: RunOptions): Promise<{ browser: Browser; page: Page }> {
   const browser = await chromium.launch({ headless: !options.headed, slowMo: options.slowMo });

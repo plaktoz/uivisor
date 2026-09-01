@@ -1,4 +1,4 @@
-import type { RunContext } from '../types.js';
+import type { RunContext } from '@uivisor/core';
 
 export function createContext(
   runDir: string,

@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { Page, Browser } from 'playwright';
-import type { RunContext } from '../../src/types';
+import type { RunContext } from '@uivisor/core';
 
 // Hoist mock before any module imports so Vitest replaces the real module.
 vi.mock('../../src/parser/reader');

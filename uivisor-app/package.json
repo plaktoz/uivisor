@@ -16,6 +16,7 @@
     "node": ">=24"
   },
   "dependencies": {
+    "@uivisor/core": "*",
     "playwright": "^1.45.0",
     "js-yaml": "^4.1.0",
     "@types/node": "^24.0.0",

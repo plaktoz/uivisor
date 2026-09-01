@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { Page } from 'playwright';
-import type { FlowFile, RunContext, SessionedCommand } from '../../src/types';
+import type { FlowFile, RunContext, SessionedCommand } from '@uivisor/core';
 import { runFlow } from '../../src/engine/index';
 
 // ─── Mock page helpers ─────────────────────────────────────────────────────────

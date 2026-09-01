@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../src/parser/reader');
 
 import { validateHeader, validateCommandList } from '../../src/parser/validator';
-import { parseSelector } from '../../src/parser/selectorParser';
+import { parseSelector } from '@uivisor/core';
 import { parseCommand } from '../../src/parser/commandParser';
 import { loadAndParse } from '../../src/parser/index';
 import * as reader from '../../src/parser/reader';

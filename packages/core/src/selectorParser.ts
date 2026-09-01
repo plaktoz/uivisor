@@ -1,4 +1,4 @@
-import type { Selector } from '../types.js';
+import type { Selector } from './types.js';
 
 export function parseSelector(raw: unknown): Selector {
   if (typeof raw === 'string') {

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Page, Locator } from 'playwright';
-import type { Selector, RunContext } from '../types.js';
+import type { Selector, RunContext } from '@uivisor/core';
 import { resolveSelector } from '../matcher/index.js';
 
 export async function executeGoto(page: Page, url: string): Promise<void> {

@@ -1,5 +1,4 @@
-import type { Command, SessionedCommand } from '../types.js';
-import { parseSelector } from './selectorParser.js';
+import { type Command, type SessionedCommand, parseSelector } from '@uivisor/core';
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 

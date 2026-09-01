@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { Page } from 'playwright';
-import type { RunOptions, RunResult, FlowResult } from '../types.js';
+import type { RunOptions, RunResult, FlowResult } from '@uivisor/core';
 import { loadAndParse } from '../parser/index.js';
 import { launchBrowser, closeBrowser, createSessionPages } from '../driver/browser.js';
 import { runFlow } from '../engine/index.js';
