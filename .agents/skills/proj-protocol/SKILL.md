@@ -88,11 +88,23 @@ cd .worktrees/[run-name] && docker run --rm -v $(pwd):/workspace:ro ...
 
 ### Push and PR from a worktree
 
-From inside the worktree directory:
+Before pushing, commit the pipeline state files into the worktree so they travel with the PR:
+
 ```bash
-cd .worktrees/[run-name]
-git push -u origin [run-name]
-gh pr create --title "[run-name]" --body "Pipeline run: pipeline/[run-name]/state.md"
+# From the main checkout root (not inside the worktree)
+mkdir -p .worktrees/[run-name]/pipeline/[run-name]
+cp pipeline/[run-name]/state.md .worktrees/[run-name]/pipeline/[run-name]/state.md
+# Copy log.md if it exists
+[ -f pipeline/[run-name]/log.md ] && cp pipeline/[run-name]/log.md .worktrees/[run-name]/pipeline/[run-name]/log.md
+
+git -C .worktrees/[run-name] add pipeline/[run-name]/
+git -C .worktrees/[run-name] commit -m "chore: add pipeline state for [run-name]"
+```
+
+Then push and open the PR:
+```bash
+git -C .worktrees/[run-name] push -u origin [run-name]
+gh pr create --title "[run-name]" --body "Pipeline run: pipeline/[run-name]/state.md" --head [run-name]
 ```
 
 The Coder writes the PR URL back to `pipeline/[run-name]/state.md#pr` in the **main checkout** (not the worktree — the pipeline state file is always in the main checkout).
