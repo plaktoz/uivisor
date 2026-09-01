@@ -1,22 +1,43 @@
 import * as path from 'path';
 import type { Page } from 'playwright';
-import type { FlowFile, FlowResult, RunContext } from '../types.js';
+import type { CommandResult, FlowFile, FlowResult, RunContext } from '../types.js';
 import { dispatch, registerRunFlow } from './dispatcher.js';
 
 async function runFlow(file: FlowFile, page: Page, ctx: RunContext): Promise<FlowResult> {
   const start = Date.now();
-  const commandResults = [];
+  const commandResults: CommandResult[] = [];
   const flowStem = path.basename(file.filePath, '.yaml');
   const flowDir = path.dirname(file.filePath);
 
-  for (const cmd of file.commands) {
-    const result = await dispatch(page, cmd, ctx, flowStem, flowDir);
+  // NOTE: lastTappedLocator is shared across all sessions (known limitation).
+  for (const sc of file.commands) {
+    const effectiveId = sc.session ?? ctx.defaultSessionId;
+    const sessionPage = ctx.sessions.get(effectiveId);
+    if (!sessionPage) {
+      throw new Error(`Unknown session: "${effectiveId}"`);
+    }
+
+    let result: CommandResult;
+
+    // For runFlow commands with an explicit session, temporarily set defaultSessionId so
+    // nested flows inherit that session as their default.
+    if (sc.command.type === 'runFlow' && sc.session !== undefined) {
+      const savedDefaultSessionId = ctx.defaultSessionId;
+      ctx.defaultSessionId = sc.session;
+      try {
+        result = await dispatch(sessionPage, sc.command, ctx, flowStem, flowDir);
+      } finally {
+        ctx.defaultSessionId = savedDefaultSessionId;
+      }
+    } else {
+      result = await dispatch(sessionPage, sc.command, ctx, flowStem, flowDir);
+    }
+
     commandResults.push(result);
     if (!result.passed) break; // halt on first failure
   }
 
   const passedCommands = commandResults.filter((r) => r.passed).length;
-  const totalCommands = commandResults.length;
 
   return {
     filePath: file.filePath,

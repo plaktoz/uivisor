@@ -1,4 +1,4 @@
-import type { Command } from '../types.js';
+import type { Command, SessionedCommand } from '../types.js';
 import { parseSelector } from './selectorParser.js';
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
@@ -146,4 +146,16 @@ export function parseCommand(raw: unknown): Command {
     default:
       throw new Error(`Unknown command: ${key}`);
   }
+}
+
+export function parseSessionedCommand(raw: unknown): SessionedCommand {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error(`Invalid command: ${String(raw)}`);
+  }
+  const obj = raw as Record<string, unknown>;
+  // Extract session field before passing to parseCommand (parseCommand throws on unknown keys)
+  const session = typeof obj['session'] === 'string' ? obj['session'] : undefined;
+  const { session: _session, ...rest } = obj;
+  const command = parseCommand(rest);
+  return session !== undefined ? { session, command } : { command };
 }

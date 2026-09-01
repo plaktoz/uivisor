@@ -301,8 +301,8 @@ describe('loadAndParse', () => {
       baseUrl: 'http://localhost:3000',
       filePath: '/flows/login.yaml',
       commands: [
-        { type: 'goto', url: 'http://localhost:3000' },
-        { type: 'assertVisible', selector: 'Hello' },
+        { command: { type: 'goto', url: 'http://localhost:3000' } },
+        { command: { type: 'assertVisible', selector: 'Hello' } },
       ],
     });
   });
@@ -496,7 +496,7 @@ describe('loadAndParse', () => {
     });
 
     const { commands } = loadAndParse('/flows/all.yaml');
-    expect(commands.map((c) => c.type)).toEqual([
+    expect(commands.map((c) => c.command.type)).toEqual([
       'goto',
       'tapOn',
       'inputText',

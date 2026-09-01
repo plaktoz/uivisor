@@ -69,6 +69,8 @@ function freshCtx(): RunContext {
     callStack: new Set(),
     indentLevel: 0,
     runDir: process.cwd(),
+    sessions: new Map([['__default__', page]]),
+    defaultSessionId: '__default__',
   };
 }
 
@@ -427,7 +429,13 @@ describe('runFlow nesting via engine', () => {
     const parentFlow: FlowFile = {
       baseUrl,
       filePath: '/parent.yaml',
-      commands: [{ type: 'goto', url: baseUrl }, { type: 'runFlow', path: subFlowPath }],
+      sessions: [],
+      tags: [],
+      shared: false,
+      commands: [
+        { command: { type: 'goto', url: baseUrl } },
+        { command: { type: 'runFlow', path: subFlowPath } },
+      ],
     };
 
     try {
@@ -457,7 +465,13 @@ describe('runFlow nesting via engine', () => {
     const parentFlow: FlowFile = {
       baseUrl,
       filePath: '/root.yaml',
-      commands: [{ type: 'goto', url: baseUrl }, { type: 'runFlow', path: level1Path }],
+      sessions: [],
+      tags: [],
+      shared: false,
+      commands: [
+        { command: { type: 'goto', url: baseUrl } },
+        { command: { type: 'runFlow', path: level1Path } },
+      ],
     };
 
     try {
