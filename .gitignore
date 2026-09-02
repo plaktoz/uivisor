@@ -4,3 +4,4 @@
 .* copy
 pipeline-log.md
 .worktrees/
+**/node_modules/
