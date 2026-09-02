@@ -6,3 +6,4 @@ export type {
 
 export { parseSelector } from './selectorParser.js';
 export { resolveSelector } from './selectorHeuristics.js';
+export { CAPTURE_SCRIPT } from './captureScript.js';
