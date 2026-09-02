@@ -46,8 +46,9 @@ Read the linter and test commands from `agent-config.yml` under `deploy.pre_depl
 - All tests must pass
 - No linter errors (warnings are allowed)
 - Error paths must be handled — no silent swallows (`catch {}`, `_ =`, unhandled promise rejections)
+- **If the package has a `build` script, run it.** `vitest` passing does not verify the build config. Run `npm run build` (or equivalent) and confirm exit 0. A `tsconfig.build.json` that includes test files, missing type roots, or wrong `outDir` is a blocking finding.
 
-Severity: **high** if tests fail or linter errors exist.
+Severity: **high** if tests fail, linter errors exist, or `npm run build` fails.
 
 ---
 
