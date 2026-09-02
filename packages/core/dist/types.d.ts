@@ -9,6 +9,8 @@ export type Selector = string | {
     placeholder: string;
 } | {
     testId: string;
+} | {
+    css: string;
 };
 export type Command = {
     type: 'goto';
