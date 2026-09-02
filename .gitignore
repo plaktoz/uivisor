@@ -1,5 +1,6 @@
 .DS_Store
 **/target/
+**/dist/
 .env
 .* copy
 pipeline-log.md
