@@ -11,6 +11,7 @@ export function parseSelector(raw: unknown): Selector {
     if ('label' in obj) return { label: obj['label'] as string };
     if ('placeholder' in obj) return { placeholder: obj['placeholder'] as string };
     if ('testId' in obj) return { testId: obj['testId'] as string };
+    if ('css' in obj) return { css: obj['css'] as string };
     const key = Object.keys(obj)[0] ?? 'unknown';
     throw new Error(`Unrecognized selector type: ${key}`);
   }
