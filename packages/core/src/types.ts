@@ -4,7 +4,8 @@ export type Selector =
   | { role: string; name: string }
   | { label: string }
   | { placeholder: string }
-  | { testId: string };
+  | { testId: string }
+  | { css: string };
 
 export type Command =
   | { type: 'goto';               url: string }

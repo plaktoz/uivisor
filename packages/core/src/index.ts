@@ -5,3 +5,4 @@ export type {
 } from './types.js';
 
 export { parseSelector } from './selectorParser.js';
+export { resolveSelector } from './selectorHeuristics.js';
