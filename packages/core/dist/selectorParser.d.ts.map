@@ -1,1 +1,1 @@
-{"version":3,"file":"selectorParser.d.ts","sourceRoot":"","sources":["../src/selectorParser.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAE3C,wBAAgB,aAAa,CAAC,GAAG,EAAE,OAAO,GAAG,QAAQ,CAepD"}
+{"version":3,"file":"selectorParser.d.ts","sourceRoot":"","sources":["../src/selectorParser.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAE3C,wBAAgB,aAAa,CAAC,GAAG,EAAE,OAAO,GAAG,QAAQ,CAgBpD"}

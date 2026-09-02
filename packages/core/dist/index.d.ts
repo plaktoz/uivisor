@@ -1,3 +1,5 @@
 export type { Selector, Command, SessionDef, SessionedCommand, FlowFile, RunOptions, CommandResult, FlowResult, RunResult, RunContext, } from './types.js';
 export { parseSelector } from './selectorParser.js';
+export { resolveSelector } from './selectorHeuristics.js';
+export { CAPTURE_SCRIPT } from './captureScript.js';
 //# sourceMappingURL=index.d.ts.map
