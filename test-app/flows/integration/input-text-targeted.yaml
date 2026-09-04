@@ -1,0 +1,29 @@
+appId: http://localhost:5173/integration
+# Tests: inputText (targeted) — element key selects the target without a prior tapOn
+commands:
+  - goto: http://localhost:5173/integration
+  # Type directly by specifying the element selector
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: Hello targeted
+  - assertValue:
+      testId: int-input-targeted
+      expected: Hello targeted
+  # Overwrite with a second targeted input
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: Second write
+  - assertValue:
+      testId: int-input-targeted
+      expected: Second write
+  # Label selector — navigate to login page which has a labeled Username input
+  - goto: http://localhost:5173/login
+  - inputText:
+      element:
+        label: Username
+      text: alice
+  - assertValue:
+      testId: login-username
+      expected: alice

@@ -1,0 +1,343 @@
+appId: http://localhost:5173/integration
+# Full integration suite — flows continuously without redundant page resets.
+# Sections mirror the command order on the integration test page.
+commands:
+
+  # ── goto ─────────────────────────────────────────────────────────────────
+  - goto: http://localhost:5173/integration
+  - assertUrl: /integration
+  - assertUrl: /integration*
+  - assertVisible:
+      testId: int-goto-marker
+  - assertVisible:
+      testId: integration-page
+
+  # ── assertUrl (login page variants) + inputText label selector ───────────
+  # Navigate to login once to test /login URL patterns and the label selector
+  - goto: http://localhost:5173/login
+  - assertUrl: /login
+  - assertUrl: /log*
+  - assertUrl: /*
+  - inputText:
+      element:
+        label: Username
+      text: alice
+  - assertValue:
+      testId: login-username
+      expected: alice
+  - goto: http://localhost:5173/integration
+
+  # ── assertVisible / assertNotVisible ─────────────────────────────────────
+  - assertVisible:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-text-content
+  - assertVisible:
+      testId: int-toggle-target
+  - assertVisible:
+      testId: int-wait-target
+  - assertVisible: Hello World
+  - assertVisible:
+      role: button
+      name: Click Me
+  - assertNotVisible:
+      testId: int-tap-result
+  - assertNotVisible:
+      testId: int-hover-tooltip
+
+  # ── assertText ───────────────────────────────────────────────────────────
+  - assertText:
+      testId: int-text-content
+      expected: Hello World
+  - assertText:
+      testId: int-url-marker
+      expected: /integration
+  - assertText:
+      testId: int-wait-target
+      expected: "Wait target — still here after the delay."
+  - assertText:
+      testId: int-dblclick-count
+      expected: 0 double-click(s)
+
+  # ── assertValue ──────────────────────────────────────────────────────────
+  - assertValue:
+      testId: int-value-input
+      expected: preset-value
+  - assertValue:
+      testId: int-select
+      expected: apple
+
+  # ── assertCount ──────────────────────────────────────────────────────────
+  - assertCount:
+      css: '[data-testid=''int-count-item'']'
+      expected: 3
+  - assertCount:
+      css: '[data-testid=''int-btn-enabled''], [data-testid=''int-btn-disabled'']'
+      expected: 2
+  - assertCount:
+      css: '[data-testid=''int-scroll-bottom'']'
+      expected: 1
+
+  # ── assertEnabled / assertDisabled ───────────────────────────────────────
+  - assertEnabled:
+      testId: int-btn-enabled
+  - assertEnabled:
+      testId: int-input-enabled-field
+  - assertEnabled:
+      testId: int-tap-btn
+  - assertEnabled:
+      testId: int-toggle-btn
+  - assertDisabled:
+      testId: int-btn-disabled
+  - assertDisabled:
+      testId: int-input-disabled-field
+
+  # ── assertChecked / assertUnchecked ──────────────────────────────────────
+  - assertChecked:
+      testId: int-checkbox-pre-checked
+  - assertUnchecked:
+      testId: int-checkbox-pre-unchecked
+
+  # ── tapOn ────────────────────────────────────────────────────────────────
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result
+  - assertText:
+      testId: int-tap-result
+      expected: Tapped!
+  - tapOn: Click Me
+  - tapOn:
+      role: button
+      name: Click Me
+
+  # ── inputText (shorthand) ────────────────────────────────────────────────
+  - tapOn:
+      testId: int-input-shorthand
+  - inputText: Hello shorthand
+  - assertValue:
+      testId: int-input-shorthand
+      expected: Hello shorthand
+  - tapOn:
+      testId: int-input-shorthand
+  - inputText: replaced text
+  - assertValue:
+      testId: int-input-shorthand
+      expected: replaced text
+
+  # ── inputText (targeted) ─────────────────────────────────────────────────
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: Hello targeted
+  - assertValue:
+      testId: int-input-targeted
+      expected: Hello targeted
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: Second write
+  - assertValue:
+      testId: int-input-targeted
+      expected: Second write
+
+  # ── assertVisible / assertNotVisible (toggle) ────────────────────────────
+  - tapOn:
+      testId: int-toggle-btn
+  - assertNotVisible:
+      testId: int-toggle-target
+  - tapOn:
+      testId: int-toggle-btn
+  - assertVisible:
+      testId: int-toggle-target
+
+  # ── hover ────────────────────────────────────────────────────────────────
+  - hover:
+      testId: int-hover-target
+  - assertVisible:
+      testId: int-hover-tooltip
+  - assertText:
+      testId: int-hover-tooltip
+      expected: Tooltip visible!
+
+  # ── doubleClick ──────────────────────────────────────────────────────────
+  - doubleClick:
+      testId: int-dblclick-target
+  - assertText:
+      testId: int-dblclick-count
+      expected: 1 double-click(s)
+  - doubleClick:
+      testId: int-dblclick-target
+  - assertText:
+      testId: int-dblclick-count
+      expected: 2 double-click(s)
+
+  # ── selectOption ─────────────────────────────────────────────────────────
+  - selectOption:
+      testId: int-select
+      value: banana
+  - assertValue:
+      testId: int-select
+      expected: banana
+  - selectOption:
+      testId: int-select
+      value: cherry
+  - assertValue:
+      testId: int-select
+      expected: cherry
+  - selectOption:
+      testId: int-select
+      value: apple
+  - assertValue:
+      testId: int-select
+      expected: apple
+
+  # ── pressKey ─────────────────────────────────────────────────────────────
+  - tapOn:
+      testId: int-key-input
+  - pressKey: Enter
+  - assertText:
+      testId: int-last-key
+      expected: 'Last key: Enter'
+  - pressKey: ArrowDown
+  - assertText:
+      testId: int-last-key
+      expected: 'Last key: ArrowDown'
+  - pressKey: Escape
+  - assertText:
+      testId: int-last-key
+      expected: 'Last key: Escape'
+
+  # ── check / uncheck ──────────────────────────────────────────────────────
+  - check:
+      testId: int-checkbox-pre-unchecked
+  - assertChecked:
+      testId: int-checkbox-pre-unchecked
+  - uncheck:
+      testId: int-checkbox-pre-checked
+  - assertUnchecked:
+      testId: int-checkbox-pre-checked
+  - check:
+      testId: int-checkbox-pre-checked
+  - assertChecked:
+      testId: int-checkbox-pre-checked
+  - uncheck:
+      testId: int-checkbox-pre-unchecked
+  - assertUnchecked:
+      testId: int-checkbox-pre-unchecked
+
+  # ── clearText ────────────────────────────────────────────────────────────
+  - assertValue:
+      testId: int-clear-input
+      expected: text to be cleared
+  - clearText:
+      testId: int-clear-input
+  - assertValue:
+      testId: int-clear-input
+      expected: ''
+  - tapOn:
+      testId: int-clear-input
+  - inputText: temporary value
+  - assertValue:
+      testId: int-clear-input
+      expected: temporary value
+  - clearText:
+      testId: int-clear-input
+  - assertValue:
+      testId: int-clear-input
+      expected: ''
+
+  # ── wait / waitFor ───────────────────────────────────────────────────────
+  - assertVisible:
+      testId: int-wait-target
+  - wait: 200
+  - wait: 500
+  - waitFor: 300
+  - assertVisible:
+      testId: int-wait-target
+
+  # ── setViewport ──────────────────────────────────────────────────────────
+  - assertVisible:
+      testId: int-viewport-display
+  - setViewport: mobile
+  - assertVisible:
+      testId: int-viewport-display
+  - assertVisible:
+      testId: int-tap-btn
+  - setViewport: tablet
+  - assertVisible:
+      testId: int-viewport-display
+  - setViewport:
+      width: 1440
+      height: 900
+  - assertVisible:
+      testId: int-viewport-display
+  - setViewport:
+      width: 375
+      height: 667
+  - assertVisible:
+      testId: int-viewport-display
+  - setViewport: desktop
+
+  # ── screenshot ───────────────────────────────────────────────────────────
+  - assertVisible:
+      testId: int-screenshot-target
+  - screenshot: screenshots/integration-full.png
+  - assertUrl: /integration
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result
+  - screenshot: screenshots/integration-after-tap.png
+
+  # ── scroll ───────────────────────────────────────────────────────────────
+  - scroll: down
+  - scroll: down
+  - scroll: down
+  - assertVisible:
+      testId: int-scroll-bottom
+  - scroll: up
+  - scroll: up
+  - scroll: up
+  - assertVisible:
+      testId: int-tap-btn
+
+  # ── reload ───────────────────────────────────────────────────────────────
+  - tapOn:
+      testId: int-toggle-btn
+  - assertNotVisible:
+      testId: int-toggle-target
+  - reload: null
+  - assertNotVisible:
+      testId: int-tap-result
+  - assertVisible:
+      testId: int-toggle-target
+  - assertUrl: /integration
+  - assertVisible:
+      testId: int-goto-marker
+
+  # ── goBack / goForward ───────────────────────────────────────────────────
+  - goto: http://localhost:5173/login
+  - tapOn:
+      testId: login-integration-link
+  - assertUrl: /integration
+  - tapOn:
+      testId: int-nav-away-link
+  - assertUrl: /login
+  - goBack: null
+  - assertUrl: /integration
+  - assertVisible:
+      testId: int-goto-marker
+  - goForward: null
+  - assertUrl: /login
+
+  # ── runFlow ──────────────────────────────────────────────────────────────
+  - runFlow: ./shared-int-setup.yaml
+  - assertText:
+      testId: int-runflow-marker
+      expected: runFlow fixture element
+  - assertUrl: /integration
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result

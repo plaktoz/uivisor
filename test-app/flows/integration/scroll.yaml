@@ -1,0 +1,23 @@
+appId: http://localhost:5173/integration
+# Tests: scroll — move the viewport in all four directions
+commands:
+  - goto: http://localhost:5173/integration
+  # Scroll down through the long page
+  - scroll: down
+  - scroll: down
+  - scroll: down
+  # Bottom marker is in the DOM — confirm it is reachable
+  - assertVisible:
+      testId: int-scroll-bottom
+  # Scroll back up to the top
+  - scroll: up
+  - scroll: up
+  - scroll: up
+  # Top button is visible again
+  - assertVisible:
+      testId: int-tap-btn
+  # Horizontal scroll (no-op on this page but command must not throw)
+  - scroll: right
+  - scroll: left
+  - assertVisible:
+      testId: int-tap-btn

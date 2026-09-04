@@ -1,0 +1,29 @@
+appId: http://localhost:5173/integration
+# Tests: selectOption — pick an option from a <select> element by value
+commands:
+  - goto: http://localhost:5173/integration
+  # Default selection is apple
+  - assertValue:
+      testId: int-select
+      expected: apple
+  # Select banana
+  - selectOption:
+      testId: int-select
+      value: banana
+  - assertValue:
+      testId: int-select
+      expected: banana
+  # Select cherry
+  - selectOption:
+      testId: int-select
+      value: cherry
+  - assertValue:
+      testId: int-select
+      expected: cherry
+  # Return to apple
+  - selectOption:
+      testId: int-select
+      value: apple
+  - assertValue:
+      testId: int-select
+      expected: apple

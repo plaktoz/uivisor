@@ -1,0 +1,26 @@
+appId: http://localhost:5173/integration
+# Tests: reload — reload the current page and verify transient state is reset
+commands:
+  - goto: http://localhost:5173/integration
+  # Click the tap button to create transient state
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result
+  # Also toggle the element off
+  - tapOn:
+      testId: int-toggle-btn
+  - assertNotVisible:
+      testId: int-toggle-target
+  # Reload — all React state returns to initial values
+  - reload: ~
+  # Transient state is gone
+  - assertNotVisible:
+      testId: int-tap-result
+  # Toggle target is visible again (initial state is true)
+  - assertVisible:
+      testId: int-toggle-target
+  # Page is still functional after reload
+  - assertUrl: /integration
+  - assertVisible:
+      testId: int-goto-marker

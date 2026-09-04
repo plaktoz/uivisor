@@ -1,0 +1,16 @@
+appId: http://localhost:5173/integration
+# Tests: assertCount — assert the number of elements matching a CSS selector
+commands:
+  - goto: http://localhost:5173/integration
+  # Exactly 3 list items share the int-count-item testid
+  - assertCount:
+      css: "[data-testid='int-count-item']"
+      expected: 3
+  # Buttons with the int-btn testids — one enabled, one disabled
+  - assertCount:
+      css: "[data-testid='int-btn-enabled'], [data-testid='int-btn-disabled']"
+      expected: 2
+  # Only one scroll-bottom marker
+  - assertCount:
+      css: "[data-testid='int-scroll-bottom']"
+      expected: 1

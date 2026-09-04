@@ -1,0 +1,10 @@
+appId: http://localhost:5173/integration
+# Shared helper: navigate to the integration page and assert core markers
+# Used by run-flow.yaml via runFlow
+commands:
+  - goto: http://localhost:5173/integration
+  - assertUrl: /integration
+  - assertVisible:
+      testId: int-runflow-marker
+  - assertVisible:
+      testId: int-goto-marker

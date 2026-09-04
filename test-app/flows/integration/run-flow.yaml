@@ -1,0 +1,15 @@
+appId: http://localhost:5173/integration
+# Tests: runFlow — include a shared flow file and continue with assertions afterward
+commands:
+  # Delegate navigation and initial assertions to the shared setup
+  - runFlow: ./shared-int-setup.yaml
+  # Continue with assertions that verify we are still on the integration page
+  - assertText:
+      testId: int-runflow-marker
+      expected: runFlow fixture element
+  - assertUrl: /integration
+  # Interact after the nested flow to prove the session is still live
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result

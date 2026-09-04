@@ -1,0 +1,19 @@
+appId: http://localhost:5173/integration
+# Tests: assertValue — assert the .value property of an input or select
+commands:
+  - goto: http://localhost:5173/integration
+  # Pre-filled input with a known defaultValue
+  - assertValue:
+      testId: int-value-input
+      expected: preset-value
+  # After typing, the value changes
+  - tapOn:
+      testId: int-input-shorthand
+  - inputText: typed value
+  - assertValue:
+      testId: int-input-shorthand
+      expected: typed value
+  # Select defaults to the first option (apple)
+  - assertValue:
+      testId: int-select
+      expected: apple

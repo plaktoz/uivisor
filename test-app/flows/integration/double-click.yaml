@@ -1,0 +1,20 @@
+appId: http://localhost:5173/integration
+# Tests: doubleClick — fire a double-click event on an element
+commands:
+  - goto: http://localhost:5173/integration
+  # Counter starts at zero
+  - assertText:
+      testId: int-dblclick-count
+      expected: 0 double-click(s)
+  # First double-click
+  - doubleClick:
+      testId: int-dblclick-target
+  - assertText:
+      testId: int-dblclick-count
+      expected: 1 double-click(s)
+  # Second double-click
+  - doubleClick:
+      testId: int-dblclick-target
+  - assertText:
+      testId: int-dblclick-count
+      expected: 2 double-click(s)

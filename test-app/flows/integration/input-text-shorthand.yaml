@@ -1,0 +1,20 @@
+appId: http://localhost:5173/integration
+# Tests: inputText (shorthand) — tapOn to focus, then inputText with a plain string
+commands:
+  - goto: http://localhost:5173/integration
+  # Focus the input first
+  - tapOn:
+      testId: int-input-shorthand
+  # Type using the shorthand form (no element key)
+  - inputText: Hello shorthand
+  # Assert the typed value
+  - assertValue:
+      testId: int-input-shorthand
+      expected: Hello shorthand
+  # Type additional text to confirm appending works
+  - tapOn:
+      testId: int-input-shorthand
+  - inputText: replaced text
+  - assertValue:
+      testId: int-input-shorthand
+      expected: replaced text

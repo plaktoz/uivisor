@@ -1,0 +1,27 @@
+appId: http://localhost:5173/integration
+# Tests: tapOn — click an element and assert the visible side-effect
+commands:
+  - goto: http://localhost:5173/integration
+  # Result element is absent before the click
+  - assertNotVisible:
+      testId: int-tap-result
+  # Click the button
+  - tapOn:
+      testId: int-tap-btn
+  # Result element appears and contains the expected text
+  - assertVisible:
+      testId: int-tap-result
+  - assertText:
+      testId: int-tap-result
+      expected: Tapped!
+  # tapOn using a text selector
+  - tapOn: Click Me
+  # Reload so we can verify tapOn with role selector too
+  - reload: ~
+  - assertNotVisible:
+      testId: int-tap-result
+  - tapOn:
+      role: button
+      name: Click Me
+  - assertVisible:
+      testId: int-tap-result
