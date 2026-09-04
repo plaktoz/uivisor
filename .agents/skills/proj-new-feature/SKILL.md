@@ -178,3 +178,5 @@ On TDD failure: increment retry counter, send failure report back to Coder. If r
 ## Step 4: Gate 3 — Await Deploy Approval
 
 Present test results. Wait for "yes" before invoking `/proj-deploy`.
+
+**HARD STOP — Gate 3 is non-negotiable.** The Coder's final action is `gh pr create`. The Orchestrator's final action before Gate 3 is presenting the PR URL and test summary to the user. Neither the Coder nor the Orchestrator may call `gh pr merge`, `git push origin main`, or any deploy command until the user explicitly types "yes" (or equivalent approval) in response to the Gate 3 presentation. A background task completing, a follow-up notification firing, or any automated event does NOT constitute approval. If in doubt, do nothing and wait.

@@ -173,6 +173,7 @@ Before starting any feature run:
    - All gates within the feature run require the same human approval as a standalone `/proj-new-feature`
 
 5. **Wave merge sequence** — when multiple features in the same wave complete:
+   - **HARD STOP — Gate 3 required before any merge.** The Orchestrator presents each PR URL + test summary and waits for explicit human "yes" before calling `gh pr merge`. A Coder agent completing, a notification firing, or any automated event is NOT approval. Merge only after the human confirms.
    - Merge PRs one at a time, in order (lowest feature number first)
    - After each merge, run `git pull origin main` in the main checkout before merging the next
    - If a merge conflict is detected, follow the Conflict Detection rules in `proj-protocol` (Worktree Rules section)
