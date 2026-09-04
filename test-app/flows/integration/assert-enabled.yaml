@@ -1,0 +1,16 @@
+appId: http://localhost:5173/integration
+# Tests: assertEnabled — assert a button or input is not disabled
+commands:
+  - goto: http://localhost:5173/integration
+  # Enabled button
+  - assertEnabled:
+      testId: int-btn-enabled
+  # Enabled text input
+  - assertEnabled:
+      testId: int-input-enabled-field
+  # The main tap button is also enabled
+  - assertEnabled:
+      testId: int-tap-btn
+  # The toggle button is enabled
+  - assertEnabled:
+      testId: int-toggle-btn

@@ -1,0 +1,27 @@
+appId: http://localhost:5173/integration
+# Tests: clearText — remove all text from an input field
+commands:
+  - goto: http://localhost:5173/integration
+  # Input has a pre-filled value
+  - assertValue:
+      testId: int-clear-input
+      expected: text to be cleared
+  # Clear the field
+  - clearText:
+      testId: int-clear-input
+  # Field is now empty
+  - assertValue:
+      testId: int-clear-input
+      expected: ""
+  # Type something, then clear again
+  - tapOn:
+      testId: int-clear-input
+  - inputText: temporary value
+  - assertValue:
+      testId: int-clear-input
+      expected: temporary value
+  - clearText:
+      testId: int-clear-input
+  - assertValue:
+      testId: int-clear-input
+      expected: ""

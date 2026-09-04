@@ -62,6 +62,15 @@ export default function LoginPage() {
         <p className="mt-4 text-xs text-gray-400 text-center">
           Try: alice / password1 &nbsp;·&nbsp; bob / password2
         </p>
+        <p className="mt-2 text-xs text-center">
+          <a
+            href="/integration"
+            data-testid="login-integration-link"
+            className="text-indigo-400 underline hover:text-indigo-600"
+          >
+            Integration Test Page →
+          </a>
+        </p>
       </div>
     </div>
   );

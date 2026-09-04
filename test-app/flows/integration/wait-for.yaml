@@ -1,0 +1,20 @@
+appId: http://localhost:5173/integration
+# Tests: waitFor — pause execution (positive integer ms, validated at parse time)
+commands:
+  - goto: http://localhost:5173/integration
+  - assertVisible:
+      testId: int-wait-target
+  # Short pause
+  - waitFor: 200
+  - assertVisible:
+      testId: int-wait-target
+  # Longer pause
+  - waitFor: 500
+  - assertVisible:
+      testId: int-wait-target
+  # Wait then interact to confirm page is still live
+  - waitFor: 150
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result

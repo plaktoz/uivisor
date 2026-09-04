@@ -1,0 +1,22 @@
+appId: http://localhost:5173/integration
+# Tests: pressKey — send a keyboard key to the focused element
+commands:
+  - goto: http://localhost:5173/integration
+  # Focus the key input
+  - tapOn:
+      testId: int-key-input
+  # Press Enter — e.key is "Enter"
+  - pressKey: Enter
+  - assertText:
+      testId: int-last-key
+      expected: "Last key: Enter"
+  # Press ArrowDown — e.key is "ArrowDown"
+  - pressKey: ArrowDown
+  - assertText:
+      testId: int-last-key
+      expected: "Last key: ArrowDown"
+  # Press Escape — e.key is "Escape"
+  - pressKey: Escape
+  - assertText:
+      testId: int-last-key
+      expected: "Last key: Escape"

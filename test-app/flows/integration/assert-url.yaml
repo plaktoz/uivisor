@@ -1,0 +1,14 @@
+appId: http://localhost:5173/integration
+# Tests: assertUrl — exact path match and wildcard match
+commands:
+  - goto: http://localhost:5173/integration
+  # Exact match
+  - assertUrl: /integration
+  # Wildcard — path starts with /integration
+  - assertUrl: /integration*
+  # Navigate to login and assert a different path
+  - goto: http://localhost:5173/login
+  - assertUrl: /login
+  - assertUrl: /log*
+  # Wildcard matching the entire path segment
+  - assertUrl: /*

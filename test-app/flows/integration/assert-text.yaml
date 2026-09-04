@@ -1,0 +1,20 @@
+appId: http://localhost:5173/integration
+# Tests: assertText — assert exact innerText of an element
+commands:
+  - goto: http://localhost:5173/integration
+  # Static text element
+  - assertText:
+      testId: int-text-content
+      expected: Hello World
+  # Dynamic element — initial double-click counter
+  - assertText:
+      testId: int-dblclick-count
+      expected: 0 double-click(s)
+  # Static wait-target paragraph
+  - assertText:
+      testId: int-wait-target
+      expected: Wait target — still here after the delay.
+  # URL marker
+  - assertText:
+      testId: int-url-marker
+      expected: /integration

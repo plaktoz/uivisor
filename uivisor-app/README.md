@@ -631,9 +631,9 @@ commands:
 ### Happy path login (`flows/login-happy.yaml`)
 
 ```yaml
-appId: http://localhost:8084/login
+appId: http://localhost:5173/login
 commands:
-  - goto: http://localhost:8084/login
+  - goto: http://localhost:5173/login
   - inputText:
       element:
         testId: "login-username"
@@ -653,9 +653,9 @@ commands:
 ### Unhappy path login (`flows/login-unhappy.yaml`)
 
 ```yaml
-appId: http://localhost:8084/login
+appId: http://localhost:5173/login
 commands:
-  - goto: http://localhost:8084/login
+  - goto: http://localhost:5173/login
   - inputText:
       element:
         testId: "login-username"

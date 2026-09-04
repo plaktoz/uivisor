@@ -1,0 +1,16 @@
+appId: http://localhost:5173/integration
+# Tests: hover — move the mouse over an element and assert the side-effect
+commands:
+  - goto: http://localhost:5173/integration
+  # Tooltip is absent before hover
+  - assertNotVisible:
+      testId: int-hover-tooltip
+  # Move mouse over the target
+  - hover:
+      testId: int-hover-target
+  # Tooltip appears after hover
+  - assertVisible:
+      testId: int-hover-tooltip
+  - assertText:
+      testId: int-hover-tooltip
+      expected: Tooltip visible!

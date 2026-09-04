@@ -6,3 +6,4 @@
 pipeline-log.md
 .worktrees/
 **/node_modules/
+recorder-app/reports/

@@ -6,7 +6,7 @@ This repo is a monorepo with two packages:
 
 | Package | Description |
 |---------|-------------|
-| [`uivisor-app/`](./uivisor-app/) | The `webt` CLI — the test runner itself |
+| [`uivisor-app/`](./uivisor-app/) | The `uivisor` CLI — the test runner itself |
 | [`test-app/`](./test-app/) | A sample React app to run tests against |
 
 ---
@@ -35,7 +35,7 @@ The test app is a small React app with login, profile, and task management — i
 cd test-app
 nvm use          # switches to Node 24
 npm install
-npm run dev      # starts the app at http://localhost:8084
+npm run dev      # starts the app — note the port printed in the output
 ```
 
 Leave this running, then open a new terminal for the next steps.
@@ -56,28 +56,26 @@ npm run build
 npm link
 ```
 
-This makes the `webt` command available anywhere in your terminal. Without it, use `npx tsx src/cli/index.ts` instead.
+This makes the `uivisor` command available anywhere in your terminal. Without it, use `npx uivisor` from the workspace root instead.
 
 ---
 
 ## Running Flows
 
-With the test app running on port 8084, run the included example flows:
+With the test app running, run the included example flows:
 
 ```bash
-# From uivisor-app/
-
-# Run all flows
-webt test flows/
+# Run all flows in a directory
+npx uivisor test test-app/flows/
 
 # Run a single flow
-webt test flows/login-happy.yaml
+npx uivisor test test-app/flows/login-happy.yaml
 
 # Run headed with slow motion (useful for watching/debugging)
-webt test flows/login-happy.yaml --headed --slow-mo 500
+npx uivisor test test-app/flows/login-happy.yaml --headed --slow-mo 500
 
 # Generate an HTML report
-webt test flows/ --reporter html
+npx uivisor test test-app/flows/ --reporter html
 ```
 
 The CLI exits with code `0` if all flows pass, or `1` if any fail — compatible with CI pipelines.

@@ -1,0 +1,18 @@
+appId: http://localhost:5173/integration
+# Tests: screenshot — capture a PNG screenshot to a file path relative to the run dir
+commands:
+  - goto: http://localhost:5173/integration
+  - assertVisible:
+      testId: int-screenshot-target
+  # Capture the full page at this point
+  - screenshot: screenshots/integration-full.png
+  # Page is still usable after the screenshot
+  - assertVisible:
+      testId: int-screenshot-target
+  - assertUrl: /integration
+  # Capture a second screenshot after an interaction
+  - tapOn:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-tap-result
+  - screenshot: screenshots/integration-after-tap.png

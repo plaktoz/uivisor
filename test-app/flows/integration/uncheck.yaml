@@ -1,0 +1,18 @@
+appId: http://localhost:5173/integration
+# Tests: uncheck — uncheck a checked checkbox
+commands:
+  - goto: http://localhost:5173/integration
+  # Verify starting state
+  - assertChecked:
+      testId: int-checkbox-pre-checked
+  # Uncheck it
+  - uncheck:
+      testId: int-checkbox-pre-checked
+  # Verify it is now unchecked
+  - assertUnchecked:
+      testId: int-checkbox-pre-checked
+  # Calling uncheck on an already-unchecked box is idempotent
+  - uncheck:
+      testId: int-checkbox-pre-unchecked
+  - assertUnchecked:
+      testId: int-checkbox-pre-unchecked

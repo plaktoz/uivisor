@@ -1,0 +1,33 @@
+appId: http://localhost:5173/integration
+# Tests: setViewport — resize the browser viewport using presets and custom dimensions
+commands:
+  - goto: http://localhost:5173/integration
+  - assertVisible:
+      testId: int-viewport-display
+  # Named preset: mobile (390 × 844)
+  - setViewport: mobile
+  - assertVisible:
+      testId: int-viewport-display
+  - assertVisible:
+      testId: int-tap-btn
+  # Named preset: tablet (768 × 1024)
+  - setViewport: tablet
+  - assertVisible:
+      testId: int-viewport-display
+  # Named preset: desktop (1280 × 800)
+  - setViewport: desktop
+  - assertVisible:
+      testId: int-viewport-display
+  # Custom dimensions
+  - setViewport:
+      width: 1440
+      height: 900
+  - assertVisible:
+      testId: int-viewport-display
+  - setViewport:
+      width: 375
+      height: 667
+  - assertVisible:
+      testId: int-viewport-display
+  # Restore to desktop for any following assertions
+  - setViewport: desktop

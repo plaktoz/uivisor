@@ -1,0 +1,19 @@
+appId: http://localhost:5173/integration
+# Tests: assertVisible — element exists in DOM and is visible
+commands:
+  - goto: http://localhost:5173/integration
+  # Assert several known-visible elements using different selector types
+  - assertVisible:
+      testId: int-tap-btn
+  - assertVisible:
+      testId: int-text-content
+  - assertVisible:
+      testId: int-toggle-target
+  - assertVisible:
+      testId: int-wait-target
+  # Text selector
+  - assertVisible: Hello World
+  # Role selector
+  - assertVisible:
+      role: button
+      name: Click Me

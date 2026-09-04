@@ -1,0 +1,10 @@
+appId: http://localhost:5173/integration
+# Tests: assertDisabled — assert a button or input has the disabled attribute
+commands:
+  - goto: http://localhost:5173/integration
+  # Disabled button
+  - assertDisabled:
+      testId: int-btn-disabled
+  # Disabled text input
+  - assertDisabled:
+      testId: int-input-disabled-field

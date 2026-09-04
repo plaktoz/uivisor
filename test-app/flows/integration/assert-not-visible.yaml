@@ -1,0 +1,22 @@
+appId: http://localhost:5173/integration
+# Tests: assertNotVisible — element is hidden or absent from DOM
+commands:
+  - goto: http://localhost:5173/integration
+  # int-tap-result is only rendered after clicking int-tap-btn
+  - assertNotVisible:
+      testId: int-tap-result
+  # int-hover-tooltip only appears on hover
+  - assertNotVisible:
+      testId: int-hover-tooltip
+  # Toggle the element off, then assert it is not visible
+  - assertVisible:
+      testId: int-toggle-target
+  - tapOn:
+      testId: int-toggle-btn
+  - assertNotVisible:
+      testId: int-toggle-target
+  # Toggle back on to confirm state is reversible
+  - tapOn:
+      testId: int-toggle-btn
+  - assertVisible:
+      testId: int-toggle-target

@@ -4,6 +4,7 @@ import NavBar from "./components/NavBar";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
 import TasksPage from "./pages/TasksPage";
+import IntegrationTestPage from "./pages/IntegrationTestPage";
 
 function ProtectedRoute({ children }) {
   const { currentUser } = useAuth();
@@ -32,6 +33,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="/integration" element={<IntegrationTestPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </>
