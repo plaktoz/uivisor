@@ -32,6 +32,7 @@ import {
   executeSetViewport,
   executeScreenshot,
   executeWaitFor,
+  executeWithin,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
 import { loadAndParse } from '../parser/index.js';
@@ -216,6 +217,37 @@ export async function dispatch(
       case 'waitFor':
         await executeWaitFor(cmd.ms);
         break;
+
+      case 'within': {
+        const nestedResults = await executeWithin(page, cmd, ctx, (p, c, cx) =>
+          dispatch(p, c, cx, flowStem, flowDir),
+        );
+        const allPassed = nestedResults.every((r) => r.passed);
+        const nestedResult = {
+          filePath: '',
+          passed: allPassed,
+          commandResults: nestedResults,
+          totalCommands: nestedResults.length,
+          passedCommands: nestedResults.filter((r) => r.passed).length,
+          durationMs: nestedResults.reduce((sum, r) => sum + (r.durationMs ?? 0), 0),
+        };
+        return {
+          command: cmd,
+          passed: allPassed,
+          nestedResult,
+          message: allPassed ? undefined : nestedResults.find((r) => !r.passed)?.message,
+          durationMs: Date.now() - start,
+        };
+      }
+
+      default: {
+        // TypeScript exhaustiveness guard — this branch is unreachable at runtime.
+        // If a new Command type is added without a case here, tsc will fail.
+        const _exhaustive: never = cmd;
+        throw new Error(
+          `Unhandled command type: ${(_exhaustive as Command & { type: string }).type}`,
+        );
+      }
     }
     return { command: cmd, passed: true, screenshotPath: capturedScreenshotPath, durationMs: Date.now() - start };
   } catch (err: unknown) {
