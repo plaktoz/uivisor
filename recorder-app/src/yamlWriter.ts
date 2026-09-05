@@ -108,6 +108,16 @@ function commandToRecord(cmd: Command): Record<string, unknown> {
     case 'waitFor':
       return { waitFor: cmd.ms };
 
+    case 'within': {
+      const parts = cmd.selector.split('=');
+      const attrKey = parts[0];
+      const attrVal = parts.slice(1).join('=');
+      const record: Record<string, unknown> = { [attrKey]: attrVal };
+      if (cmd.nth !== undefined) record['nth'] = cmd.nth;
+      record['do'] = cmd.do.map((sc) => commandToRecord(sc.command));
+      return { within: record };
+    }
+
     default: {
       const _exhaustive: never = cmd;
       throw new Error(`Unknown command type: ${JSON.stringify(_exhaustive)}`);
