@@ -1,0 +1,15 @@
+# Pipeline Log: feat-flow-yaml-config-variables
+
+| Timestamp | Role | Model | Provider | Handoff From | Handoff To | Action | Artifact | Input Tokens | Output Tokens | Cost (USD) | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-09-05 | Orchestrator | claude-sonnet-4-6 | anthropic | — | analyst | Created run folder, worktree, execution plan, Gate 0 | pipeline/feat-flow-yaml-config-variables/state.md#gate-0 | 1200 | 400 | 0.02 | complete |
+| 2026-09-05 | Analyst | claude-sonnet-5 | anthropic | orchestrator | architect | Wrote PRD spec with 22 ACs and file change list | pipeline/feat-flow-yaml-config-variables/state.md#gate-1 | 4800 | 1800 | 0.04 | complete |
+| 2026-09-05 | Orchestrator | claude-sonnet-4-6 | anthropic | — | — | Gate 1 revision 1: changed default delimiter from | to : per user feedback | pipeline/feat-flow-yaml-config-variables/state.md#gate-1 | 200 | 100 | 0.002 | complete |
+| 2026-09-05 | Orchestrator | claude-sonnet-4-6 | anthropic | — | — | Gate 1 revision 2: added config: header field, loadConfigFile(), 6 new ACs (23-28), updated priority order | pipeline/feat-flow-yaml-config-variables/state.md#gate-1 | 300 | 150 | 0.003 | complete |
+| 2026-09-05 | Orchestrator | claude-sonnet-4-6 | anthropic | — | — | Gate 1 revision 3: allow dots in variable names, reserve env prefix, update AC4 and error cases | pipeline/feat-flow-yaml-config-variables/state.md#gate-1 | 150 | 80 | 0.001 | complete |
+| 2026-09-05 | Orchestrator | claude-sonnet-4-6 | anthropic | — | — | Gate 1 revision 4: cascade nested YAML support for vars: and config file; add flattenVars(), ACs 6a/6b, update AC25 | pipeline/feat-flow-yaml-config-variables/state.md#gate-1 | 150 | 100 | 0.002 | complete |
+| 2026-09-05 | Architect | claude-opus-4-8 | anthropic | orchestrator | tester_ensemble | Produced 7-ticket breakdown with seam notes and design notes | pipeline/feat-flow-yaml-config-variables/state.md#feature-task-breakdown | 5200 | 1800 | 0.21 | complete |
+| 2026-09-05 | Tester Generator A | claude-haiku-4-5 | anthropic | architect | tester_consolidator | Generated 56 test cases covering all ACs and error paths | pipeline/feat-flow-yaml-config-variables/state.md#tests-generator-a | 3200 | 1200 | 0.007 | complete |
+| 2026-09-05 | Tester Generator B | gpt-5.4 | openai | architect | tester_consolidator | Generated 59 test cases with edge cases (empty name, lone dot, empty default) | pipeline/feat-flow-yaml-config-variables/state.md#tests-generator-b | 3400 | 1300 | 0.020 | complete |
+| 2026-09-05 | Tester Consolidator | claude-haiku-4-5 | anthropic | tester_generator_a/b | tester_arbiter | Deduplicated to 72 test cases; AC:18 unique to B (TC-034) | pipeline/feat-flow-yaml-config-variables/state.md#tests | 6800 | 2200 | 0.014 | complete |
+| 2026-09-05 | Tester Arbiter | claude-sonnet-5 | anthropic | tester_consolidator | coder | FAIL → CORRECTED: removed TC-057/058 (wrong layer); 70 cases approved; AC:24 covered by TC-072 | pipeline/feat-flow-yaml-config-variables/state.md#tests | 1200 | 800 | 0.015 | complete |
