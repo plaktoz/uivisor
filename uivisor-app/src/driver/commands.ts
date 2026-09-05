@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { Page, Locator } from 'playwright';
 import type { Selector, RunContext } from '@uivisor/core';
 import { resolveSelector } from '../matcher/index.js';
+import { matchesPattern } from '../utils/patterns.js';
 
 export async function executeGoto(page: Page, url: string): Promise<void> {
   try {
@@ -59,14 +60,6 @@ export async function executeAssertNotVisible(page: Page, selector: Selector): P
 
 export async function executeWait(ms: number): Promise<void> {
   await new Promise<void>((r) => setTimeout(r, ms));
-}
-
-function matchesPattern(pattern: string, actual: string): boolean {
-  if (!pattern.includes('*')) return pattern === actual;
-  const regex = new RegExp(
-    '^' + pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'
-  );
-  return regex.test(actual);
 }
 
 export async function executeAssertUrl(page: Page, expectedPath: string): Promise<void> {
