@@ -310,6 +310,83 @@ describe('round-trip', () => {
     expect((parsed.commands[0] as { assertVisible: { text: string } }).assertVisible.text).toBe('Submit');
   });
 
+  // T-within-01 — within with nth serialises correctly
+  it('within with nth: container attr inline, nth present, do array', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'data-testid=row-item',
+      nth: 2,
+      do: [
+        { command: { type: 'tapOn', selector: 'data-testid=btn' } },
+      ],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinCmd = parsed.commands[0] as { within: Record<string, unknown> };
+    expect(withinCmd.within).toBeDefined();
+    expect(withinCmd.within['data-testid']).toBe('row-item');
+    expect(withinCmd.within['nth']).toBe(2);
+    expect(Array.isArray(withinCmd.within['do'])).toBe(true);
+  });
+
+  // T-within-02 — within without nth omits nth field
+  it('within without nth omits nth field', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'id=btn',
+      do: [
+        { command: { type: 'tapOn', selector: 'data-testid=link' } },
+      ],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinCmd = parsed.commands[0] as { within: Record<string, unknown> };
+    expect(withinCmd.within).toBeDefined();
+    expect(withinCmd.within['id']).toBe('btn');
+    expect('nth' in withinCmd.within).toBe(false);
+  });
+
+  // T-within-03 — within with nth: 0 emits nth: 0 (not suppressed by falsy check)
+  it('within with nth: 0 emits nth: 0', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'data-testid=row',
+      nth: 0,
+      do: [
+        { command: { type: 'tapOn', selector: 'data-testid=cell' } },
+      ],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinCmd = parsed.commands[0] as { within: Record<string, unknown> };
+    expect(withinCmd.within['nth']).toBe(0);
+  });
+
+  // T-within-04 — existing command types unchanged: tapOn string, goto, wait
+  it('existing command types unaffected after within addition', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, { type: 'tapOn', selector: 'Login Button' });
+    appendCommand(outPath, { type: 'goto', url: 'https://example.com' });
+    appendCommand(outPath, { type: 'wait', ms: 1000 });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    expect(parsed.commands).toHaveLength(3);
+    expect('tapOn' in parsed.commands[0]!).toBe(true);
+    expect('goto' in parsed.commands[1]!).toBe(true);
+    expect('wait' in parsed.commands[2]!).toBe(true);
+  });
+
   // T25 — Output YAML does not throw on js-yaml.load (syntactic validity smoke test)
   it('output YAML does not throw on js-yaml.load', () => {
     const dir = makeTmpDir();

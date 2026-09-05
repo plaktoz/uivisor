@@ -32,24 +32,24 @@ describe('CAPTURE_SCRIPT', () => {
     expect(typeof (mod as any).CAPTURE_SCRIPT).toBe('string');
   });
 
-  // CS-04: click on button with text emits tapOn with text selector
-  it('CS-04: click on button with text emits tapOn with text selector', () => {
+  // CS-04: click on button with text emits tapOn with pipe text= selector
+  it('CS-04: click on button with text emits tapOn with text= pipe selector', () => {
     const btn = document.createElement('button');
     btn.textContent = 'Submit';
     document.body.appendChild(btn);
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
-    expect(capture.mock.calls[0][0]).toEqual({ type: 'tapOn', selector: { text: 'Submit' } });
+    expect(capture.mock.calls[0][0]).toEqual({ type: 'tapOn', selector: 'text=Submit' });
   });
 
-  // CS-05: click on button with data-testid emits tapOn with testId selector
-  it('CS-05: click on button with data-testid emits tapOn with testId selector', () => {
+  // CS-05: click on button with data-testid emits tapOn with pipe data-testid= selector
+  it('CS-05: click on button with data-testid emits tapOn with data-testid= pipe selector', () => {
     const btn = document.createElement('button');
     btn.setAttribute('data-testid', 'btn');
     document.body.appendChild(btn);
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
-    expect(capture.mock.calls[0][0]).toEqual({ type: 'tapOn', selector: { testId: 'btn' } });
+    expect(capture.mock.calls[0][0]).toEqual({ type: 'tapOn', selector: 'data-testid=btn' });
   });
 
   // CS-06: click on id="uivisor-hud" element does NOT emit
@@ -250,5 +250,377 @@ describe('CAPTURE_SCRIPT', () => {
     expect(() => btn.click()).not.toThrow();
     expect(capture).not.toHaveBeenCalled();
     (window as any).__uivisorCapture = saved;
+  });
+
+  // -------------------------------------------------------------------------
+  // Pipe selector (buildPipeSelector) — ACs 1–7, 22–23
+  // -------------------------------------------------------------------------
+
+  // AC-1: all 5 attributes present → correct pipe string
+  it('AC-1: all 5 attributes → correct priority-ordered pipe string', () => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'my-btn');
+    btn.setAttribute('id', 'btn-id');
+    btn.setAttribute('name', 'btn-name');
+    btn.setAttribute('placeholder', 'btn-ph');
+    btn.textContent = 'Submit';
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel).toContain('data-testid=my-btn');
+    expect(sel).toContain('id=btn-id');
+    expect(sel).toContain('name=btn-name');
+    expect(sel).toContain('placeholder=btn-ph');
+    expect(sel).toContain('text=Submit');
+    // data-* comes before id which comes before name which comes before placeholder which comes before text
+    expect(sel.indexOf('data-testid=')).toBeLessThan(sel.indexOf('id='));
+    expect(sel.indexOf('id=')).toBeLessThan(sel.indexOf('name='));
+    expect(sel.indexOf('name=')).toBeLessThan(sel.indexOf('placeholder='));
+    expect(sel.indexOf('placeholder=')).toBeLessThan(sel.indexOf('text='));
+  });
+
+  // AC-2: only data-testid → single segment, no pipe char
+  it('AC-2: only data-testid → single segment, no pipe char', () => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'lone-btn');
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel).toBe('data-testid=lone-btn');
+    expect(sel).not.toContain('|');
+  });
+
+  // AC-3: text fallback → text=Submit
+  it('AC-3: text fallback → text=Submit', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'Submit';
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].selector).toBe('text=Submit');
+  });
+
+  // AC-4: id + placeholder (no data-*) → id=btn|placeholder=Enter name
+  it('AC-4: id + placeholder (no data-*) → id=btn|placeholder=Enter name', () => {
+    const input = document.createElement('input');
+    input.setAttribute('id', 'btn');
+    input.setAttribute('placeholder', 'Enter name');
+    document.body.appendChild(input);
+    input.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].selector).toBe('id=btn|placeholder=Enter name');
+  });
+
+  // AC-5: two data-* attributes → alphabetically sorted
+  it('AC-5: two data-* attributes → alphabetically sorted in pipe string', () => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-zone', 'z-val');
+    btn.setAttribute('data-action', 'a-val');
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel.startsWith('data-action=a-val')).toBe(true);
+    expect(sel).toContain('data-zone=z-val');
+    expect(sel.indexOf('data-action=')).toBeLessThan(sel.indexOf('data-zone='));
+  });
+
+  // AC-6: css= fallback when nothing qualifies
+  it('AC-6: css= fallback when no attributes qualify', () => {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+    div.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel.startsWith('css=')).toBe(true);
+    expect(sel).toContain('nth-child');
+  });
+
+  // AC-7: name + placeholder priority
+  it('AC-7: name + placeholder → name before placeholder in pipe string', () => {
+    const input = document.createElement('input');
+    input.setAttribute('name', 'email');
+    input.setAttribute('placeholder', 'Enter email');
+    document.body.appendChild(input);
+    input.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel).toBe('name=email|placeholder=Enter email');
+  });
+
+  // AC-22: 60-char text cap (61-char input truncated)
+  it('AC-22: 61-char text is capped at 60 chars in pipe selector', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'a'.repeat(61);
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel).toBe('text=' + 'a'.repeat(60));
+  });
+
+  // AC-23: empty data-testid skipped (empty value not included)
+  it('AC-23: empty data-testid is skipped', () => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', '');
+    btn.textContent = 'Click me';
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const sel = capture.mock.calls[0][0].selector as string;
+    expect(sel).not.toContain('data-testid=');
+    expect(sel).toBe('text=Click me');
+  });
+
+  // -------------------------------------------------------------------------
+  // Within detection — ACs 8–18
+  // -------------------------------------------------------------------------
+
+  // AC-8a: semantic container tr triggers within
+  it('AC-8a: click inside <tr> wraps in within', () => {
+    const table = document.createElement('table');
+    const tbody = document.createElement('tbody');
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'tr-btn');
+    td.appendChild(btn);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    table.appendChild(tbody);
+    document.body.appendChild(table);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('within');
+  });
+
+  // AC-8b: semantic container li triggers within
+  it('AC-8b: click inside <li> wraps in within', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    li.setAttribute('data-testid', 'list-row');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'li-btn');
+    li.appendChild(btn);
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=list-row');
+  });
+
+  // AC-8c: semantic container role=row triggers within
+  it('AC-8c: click inside role="row" element wraps in within', () => {
+    const container = document.createElement('div');
+    container.setAttribute('role', 'row');
+    container.setAttribute('data-testid', 'role-row');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'row-btn');
+    container.appendChild(btn);
+    document.body.appendChild(container);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=role-row');
+  });
+
+  // AC-8d: semantic container role=listitem triggers within
+  it('AC-8d: click inside role="listitem" element wraps in within', () => {
+    const container = document.createElement('div');
+    container.setAttribute('role', 'listitem');
+    container.setAttribute('data-testid', 'role-listitem');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'li-inner-btn');
+    container.appendChild(btn);
+    document.body.appendChild(container);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('within');
+  });
+
+  // AC-9: count-based ≥2 siblings triggers within, 1 sibling does not
+  it('AC-9a: ≥2 siblings with same tag triggers within', () => {
+    const parent = document.createElement('div');
+    const row1 = document.createElement('div');
+    const row2 = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'count-btn');
+    row1.appendChild(btn);
+    parent.appendChild(row1);
+    parent.appendChild(row2);
+    document.body.appendChild(parent);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('within');
+  });
+
+  it('AC-9b: 1 sibling does NOT trigger within', () => {
+    const parent = document.createElement('div');
+    const row1 = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'singleton-btn');
+    row1.appendChild(btn);
+    parent.appendChild(row1);
+    document.body.appendChild(parent);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+  });
+
+  // AC-10: 3rd container → nth: 2 (0-based)
+  it('AC-10: clicking button in 3rd <li> produces nth: 2', () => {
+    const ul = document.createElement('ul');
+    for (let i = 0; i < 3; i++) {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', `row-${i}`);
+      const btn = document.createElement('button');
+      btn.setAttribute('data-testid', 'action');
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    document.body.appendChild(ul);
+    const thirdBtn = ul.children[2].querySelector('button') as HTMLElement;
+    thirdBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.nth).toBe(2);
+  });
+
+  // AC-11: container with data-testid uses single attr in within.selector (not pipe)
+  it('AC-11: container selector uses single data-testid attr (not pipe)', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    li.setAttribute('data-testid', 'the-row');
+    li.setAttribute('id', 'also-has-id');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'inner-action');
+    li.appendChild(btn);
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    // data-testid wins over id (first alphabetically among data-*)
+    expect(cmd.selector).toBe('data-testid=the-row');
+    expect(cmd.selector).not.toContain('|');
+  });
+
+  // AC-12: unique element → no within, bare tapOn
+  it('AC-12: unique element selector → bare tapOn without within', () => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'truly-unique-btn');
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=truly-unique-btn');
+  });
+
+  // AC-13: non-unique, ancestor walk finds unique wrapper → within
+  it('AC-13: non-unique selector resolved by ancestor walk → within (reactive path)', () => {
+    const section = document.createElement('section');
+    section.setAttribute('id', 'section-a');
+    const btn1 = document.createElement('button');
+    btn1.setAttribute('data-testid', 'shared-action');
+    section.appendChild(btn1);
+
+    const footer = document.createElement('footer');
+    const btn2 = document.createElement('button');
+    btn2.setAttribute('data-testid', 'shared-action');
+    footer.appendChild(btn2);
+
+    document.body.appendChild(section);
+    document.body.appendChild(footer);
+
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('id=section-a');
+  });
+
+  // AC-14: no ancestor resolves ambiguous selector → css= nth-child tapOn, no within
+  it('AC-14: no ancestor resolves → css= nth-child tapOn, no within', () => {
+    const btn1 = document.createElement('button');
+    btn1.setAttribute('data-testid', 'bare-dup');
+    document.body.appendChild(btn1);
+
+    const btn2 = document.createElement('button');
+    btn2.setAttribute('data-testid', 'bare-dup');
+    document.body.appendChild(btn2);
+
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect((cmd.selector as string)).toContain('nth-child');
+  });
+
+  // AC-15: reactive within omits nth (ancestor is document-unique)
+  it('AC-15: reactive path within omits nth', () => {
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-unique', 'yes');
+    const btn1 = document.createElement('button');
+    btn1.setAttribute('data-testid', 'reactive-btn');
+    wrapper.appendChild(btn1);
+
+    const footer = document.createElement('footer');
+    const btn2 = document.createElement('button');
+    btn2.setAttribute('data-testid', 'reactive-btn');
+    footer.appendChild(btn2);
+
+    document.body.appendChild(wrapper);
+    document.body.appendChild(footer);
+
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect('nth' in cmd).toBe(false);
+  });
+
+  // AC-16: role= token matching (role="row grid" triggers)
+  it('AC-16: role="row grid" token matches row → within fires', () => {
+    const container = document.createElement('div');
+    container.setAttribute('role', 'row grid');
+    container.setAttribute('data-testid', 'multi-role');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'multi-role-btn');
+    container.appendChild(btn);
+    document.body.appendChild(container);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('within');
+  });
+
+  // AC-17: clicking directly on a <li> — within still fires
+  it('AC-17: click directly on <li> element — within still fires', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    li.setAttribute('data-testid', 'direct-li');
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    li.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+  });
+
+  // AC-18: one click → one __uivisorCapture call
+  it('AC-18: one click → exactly one __uivisorCapture call', () => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'single-click');
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
   });
 });
