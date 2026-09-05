@@ -1,6 +1,6 @@
 import type { SessionDef } from '@uivisor/core';
 
-const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'shared', 'sessions']);
+const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'shared', 'sessions', 'vars', 'config']);
 
 export function validateHeader(raw: unknown, filePath?: string): string {
   if (typeof raw !== 'object' || raw === null) {
@@ -49,6 +49,12 @@ export function validateHeader(raw: unknown, filePath?: string): string {
 export function validateCommandList(rawCommands: unknown): void {
   if (!Array.isArray(rawCommands) || rawCommands.length === 0) {
     throw new Error('No commands found in flow.');
+  }
+}
+
+export function validateVars(raw: unknown, filePath?: string): void {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(`Invalid vars: must be a plain object${filePath ? ' in ' + filePath : ''}`);
   }
 }
 

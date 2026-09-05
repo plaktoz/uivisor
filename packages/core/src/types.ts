@@ -50,6 +50,7 @@ export interface FlowFile {
   sessions: SessionDef[];
   tags: string[];
   shared: boolean;
+  vars?: Record<string, string>;
 }
 
 export interface RunOptions {
