@@ -142,6 +142,50 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'waitFor', ms: value };
     }
 
+    case 'within': {
+      if (typeof value !== 'object' || value === null) {
+        throw new Error(`within value must be an object with a selector key and a do array`);
+      }
+      const withinObj = value as Record<string, unknown>;
+
+      // Extract required `do` array
+      if (!('do' in withinObj)) {
+        throw new Error(`within: missing required 'do' key`);
+      }
+      const doRaw = withinObj['do'];
+      if (!Array.isArray(doRaw)) {
+        throw new Error(`within: 'do' must be an array of commands`);
+      }
+      const doCommands = doRaw.map((item) => parseSessionedCommand(item));
+
+      // Extract optional `nth`
+      let nth: number | undefined;
+      if ('nth' in withinObj) {
+        const rawNth = withinObj['nth'];
+        if (typeof rawNth !== 'number' || !Number.isInteger(rawNth)) {
+          throw new Error(`within: nth must be an integer, got ${String(rawNth)}`);
+        }
+        nth = rawNth;
+      }
+
+      // Build selector from remaining key(s) (exclude 'do' and 'nth')
+      const selectorKeys = Object.keys(withinObj).filter((k) => k !== 'do' && k !== 'nth');
+      if (selectorKeys.length === 0) {
+        throw new Error(`within: missing selector key (e.g. text: Alice)`);
+      }
+      if (selectorKeys.length > 1) {
+        throw new Error(
+          `within: multiple selector keys are not allowed: ${selectorKeys.join(', ')}. ` +
+          `Use a single key (e.g. text: Alice) or pipe syntax via a selector string.`,
+        );
+      }
+      const selAttr = selectorKeys[0] as string;
+      const selValue = withinObj[selAttr];
+      const selector = `${selAttr}=${String(selValue)}`;
+
+      return { type: 'within', selector, nth, do: doCommands };
+    }
+
     default:
       throw new Error(`Unknown command: ${key}`);
   }

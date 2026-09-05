@@ -105,6 +105,11 @@ export type Command = {
 } | {
     type: 'waitFor';
     ms: number;
+} | {
+    type: 'within';
+    selector: string;
+    nth?: number;
+    do: SessionedCommand[];
 };
 export type SessionDef = {
     id: string;
