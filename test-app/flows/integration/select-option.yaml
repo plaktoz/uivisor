@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: selectOption — pick an option from a <select> element by value
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Default selection is apple
   - assertValue:
       testId: int-select

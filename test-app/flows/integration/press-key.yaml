@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: pressKey — send a keyboard key to the focused element
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Focus the key input
   - tapOn:
       testId: int-key-input

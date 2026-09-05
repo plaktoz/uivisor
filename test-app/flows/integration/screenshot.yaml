@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: screenshot — capture a PNG screenshot to a file path relative to the run dir
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   - assertVisible:
       testId: int-screenshot-target
   # Capture the full page at this point

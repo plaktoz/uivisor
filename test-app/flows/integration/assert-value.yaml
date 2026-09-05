@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: assertValue — assert the .value property of an input or select
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Pre-filled input with a known defaultValue
   - assertValue:
       testId: int-value-input

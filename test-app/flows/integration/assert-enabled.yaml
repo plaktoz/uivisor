@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: assertEnabled — assert a button or input is not disabled
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Enabled button
   - assertEnabled:
       testId: int-btn-enabled

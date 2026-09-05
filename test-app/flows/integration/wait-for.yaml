@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: waitFor — pause execution (positive integer ms, validated at parse time)
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   - assertVisible:
       testId: int-wait-target
   # Short pause

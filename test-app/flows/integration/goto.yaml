@@ -1,14 +1,15 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: goto — navigate to a URL and verify the page loads
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   - assertUrl: /integration
   - assertVisible:
       testId: int-goto-marker
   # Navigate to a second URL and back to confirm goto works from any state
-  - goto: http://localhost:5173/login
+  - goto: ${base}/login
   - assertUrl: /login
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   - assertUrl: /integration
   - assertVisible:
       testId: integration-page

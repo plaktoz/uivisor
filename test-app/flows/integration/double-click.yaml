@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: doubleClick — fire a double-click event on an element
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Counter starts at zero
   - assertText:
       testId: int-dblclick-count

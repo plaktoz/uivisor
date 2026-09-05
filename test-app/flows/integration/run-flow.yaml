@@ -1,4 +1,5 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: runFlow — include a shared flow file and continue with assertions afterward
 commands:
   # Delegate navigation and initial assertions to the shared setup

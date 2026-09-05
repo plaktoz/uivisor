@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: assertNotVisible — element is hidden or absent from DOM
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # int-tap-result is only rendered after clicking int-tap-btn
   - assertNotVisible:
       testId: int-tap-result

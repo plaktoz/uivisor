@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: setViewport — resize the browser viewport using presets and custom dimensions
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   - assertVisible:
       testId: int-viewport-display
   # Named preset: mobile (390 × 844)

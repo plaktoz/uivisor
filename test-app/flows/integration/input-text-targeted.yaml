@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: inputText (targeted) — element key selects the target without a prior tapOn
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Type directly by specifying the element selector
   - inputText:
       element:
@@ -19,7 +20,7 @@ commands:
       testId: int-input-targeted
       expected: Second write
   # Label selector — navigate to login page which has a labeled Username input
-  - goto: http://localhost:5173/login
+  - goto: ${base}/login
   - inputText:
       element:
         label: Username

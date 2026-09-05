@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: assertText — assert exact innerText of an element
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Static text element
   - assertText:
       testId: int-text-content
