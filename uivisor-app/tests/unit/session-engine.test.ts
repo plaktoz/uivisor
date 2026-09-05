@@ -142,7 +142,7 @@ describe('AC-3: per-command session routing', () => {
       ctx,
     );
 
-    expect(pageA.getByText).toHaveBeenCalledWith('some-text');
+    expect(pageA.getByText).toHaveBeenCalledWith('some-text', { exact: true });
     expect(pageB.getByText).not.toHaveBeenCalled();
   });
 });

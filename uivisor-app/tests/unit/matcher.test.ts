@@ -1,11 +1,11 @@
 /**
  * tests/unit/matcher.test.ts
  *
- * Unit tests for the Element Matcher.
- * Covers ACs 28–34: Selector → Playwright Locator dispatch.
+ * Unit tests for the Element Matcher (object-selector forms).
+ * These tests cover backward-compatible object selectors (AC-25 / TC-056–058).
+ * Bare-string cascade and pipe tests are in resolveSelector.test.ts.
  *
- * Playwright's Page is fully mocked — no browser is launched.
- * Each test verifies which getBy* method is called and with what arguments.
+ * resolveSelector is now async — all tests use await.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -15,52 +15,44 @@ import { resolveSelector } from '../../src/matcher/index';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Build a minimal mock Page whose getBy* methods are vi.fn stubs returning a
- * consistent mock Locator.  Call-counts are checked per test.
+ * Build a minimal mock Page whose getBy* methods return a mock Locator.
+ * For object selectors, .count() is never called so the locator needs no count method.
  */
 function makeMockPage() {
   const mockLocator = { _brand: 'locator' } as unknown as Locator;
 
   const page = {
+    // Needed for object selectors:
     getByText: vi.fn().mockReturnValue(mockLocator),
     getByRole: vi.fn().mockReturnValue(mockLocator),
     getByLabel: vi.fn().mockReturnValue(mockLocator),
     getByPlaceholder: vi.fn().mockReturnValue(mockLocator),
     getByTestId: vi.fn().mockReturnValue(mockLocator),
+    // Needed for bare-string cascade (returns 0-count locators to exhaust cascade in tests
+    // that might accidentally trigger it — but object selectors don't use locator()):
+    locator: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0) }),
   } as unknown as Page;
 
   return { page, mockLocator };
 }
 
-// ─── resolveSelector ─────────────────────────────────────────────────────────
+// ─── Object selector forms (AC-25) ───────────────────────────────────────────
 
-describe('resolveSelector', () => {
-  // AC28: shorthand string → getByText
-  it('AC28: shorthand string selector calls page.getByText with the string', () => {
+describe('resolveSelector — object selectors (unchanged behaviour)', () => {
+  // { text } → getByText
+  it('{ text: "Submit" } calls page.getByText("Submit")', async () => {
     const { page, mockLocator } = makeMockPage();
 
-    const result = resolveSelector(page, 'Sign In');
-
-    expect(page.getByText).toHaveBeenCalledOnce();
-    expect(page.getByText).toHaveBeenCalledWith('Sign In');
-    expect(page.getByRole).not.toHaveBeenCalled();
-    expect(result).toBe(mockLocator);
-  });
-
-  // AC29: explicit { text } → getByText
-  it('AC29: { text: "Submit" } calls page.getByText("Submit")', () => {
-    const { page, mockLocator } = makeMockPage();
-
-    const result = resolveSelector(page, { text: 'Submit' });
+    const result = await resolveSelector(page, { text: 'Submit' });
 
     expect(page.getByText).toHaveBeenCalledOnce();
     expect(page.getByText).toHaveBeenCalledWith('Submit');
     expect(result).toBe(mockLocator);
   });
 
-  it('AC29: { text } does not call any other getBy* method', () => {
+  it('{ text } does not call any other getBy* method', async () => {
     const { page } = makeMockPage();
-    resolveSelector(page, { text: 'Submit' });
+    await resolveSelector(page, { text: 'Submit' });
 
     expect(page.getByRole).not.toHaveBeenCalled();
     expect(page.getByLabel).not.toHaveBeenCalled();
@@ -68,11 +60,11 @@ describe('resolveSelector', () => {
     expect(page.getByTestId).not.toHaveBeenCalled();
   });
 
-  // AC30: { role, name } → getByRole
-  it('AC30: { role: "button", name: "Sign In" } calls getByRole("button", { name: "Sign In" })', () => {
+  // { role, name } → getByRole
+  it('{ role: "button", name: "Sign In" } calls getByRole("button", { name: "Sign In" })', async () => {
     const { page, mockLocator } = makeMockPage();
 
-    const result = resolveSelector(page, { role: 'button', name: 'Sign In' });
+    const result = await resolveSelector(page, { role: 'button', name: 'Sign In' });
 
     expect(page.getByRole).toHaveBeenCalledOnce();
     expect(page.getByRole).toHaveBeenCalledWith('button', { name: 'Sign In' });
@@ -80,17 +72,17 @@ describe('resolveSelector', () => {
     expect(result).toBe(mockLocator);
   });
 
-  it('AC30: { role: "link", name: "Home" } calls getByRole("link", { name: "Home" })', () => {
+  it('{ role: "link", name: "Home" } calls getByRole("link", { name: "Home" })', async () => {
     const { page } = makeMockPage();
-    resolveSelector(page, { role: 'link', name: 'Home' });
+    await resolveSelector(page, { role: 'link', name: 'Home' });
     expect(page.getByRole).toHaveBeenCalledWith('link', { name: 'Home' });
   });
 
-  // AC31: { label } → getByLabel
-  it('AC31: { label: "Email" } calls page.getByLabel("Email")', () => {
+  // { label } → getByLabel
+  it('{ label: "Email" } calls page.getByLabel("Email")', async () => {
     const { page, mockLocator } = makeMockPage();
 
-    const result = resolveSelector(page, { label: 'Email' });
+    const result = await resolveSelector(page, { label: 'Email' });
 
     expect(page.getByLabel).toHaveBeenCalledOnce();
     expect(page.getByLabel).toHaveBeenCalledWith('Email');
@@ -98,11 +90,11 @@ describe('resolveSelector', () => {
     expect(result).toBe(mockLocator);
   });
 
-  // AC32: { placeholder } → getByPlaceholder
-  it('AC32: { placeholder: "Enter email" } calls page.getByPlaceholder("Enter email")', () => {
+  // { placeholder } → getByPlaceholder
+  it('{ placeholder: "Enter email" } calls page.getByPlaceholder("Enter email")', async () => {
     const { page, mockLocator } = makeMockPage();
 
-    const result = resolveSelector(page, { placeholder: 'Enter email' });
+    const result = await resolveSelector(page, { placeholder: 'Enter email' });
 
     expect(page.getByPlaceholder).toHaveBeenCalledOnce();
     expect(page.getByPlaceholder).toHaveBeenCalledWith('Enter email');
@@ -110,11 +102,11 @@ describe('resolveSelector', () => {
     expect(result).toBe(mockLocator);
   });
 
-  // AC33: { testId } → getByTestId
-  it('AC33: { testId: "submit-btn" } calls page.getByTestId("submit-btn")', () => {
+  // { testId } → getByTestId
+  it('{ testId: "submit-btn" } calls page.getByTestId("submit-btn")', async () => {
     const { page, mockLocator } = makeMockPage();
 
-    const result = resolveSelector(page, { testId: 'submit-btn' });
+    const result = await resolveSelector(page, { testId: 'submit-btn' });
 
     expect(page.getByTestId).toHaveBeenCalledOnce();
     expect(page.getByTestId).toHaveBeenCalledWith('submit-btn');
@@ -122,20 +114,20 @@ describe('resolveSelector', () => {
     expect(result).toBe(mockLocator);
   });
 
-  // AC34: unrecognized key → throws, does not call any getBy*
-  it('AC34: an unrecognized selector key throws an error', () => {
+  // unrecognized key → throws
+  it('an unrecognized selector key throws an error', async () => {
     const { page } = makeMockPage();
 
-    expect(() => resolveSelector(page, { dataAttr: 'foo' } as never)).toThrow(
+    await expect(resolveSelector(page, { dataAttr: 'foo' } as never)).rejects.toThrow(
       /unrecognized|unknown/i,
     );
   });
 
-  it('AC34: error for unrecognized key does not call any getBy* method', () => {
+  it('error for unrecognized key does not call any getBy* method', async () => {
     const { page } = makeMockPage();
 
     try {
-      resolveSelector(page, { xpath: '//div' } as never);
+      await resolveSelector(page, { xpath: '//div' } as never);
     } catch {
       // expected
     }
@@ -147,24 +139,24 @@ describe('resolveSelector', () => {
     expect(page.getByTestId).not.toHaveBeenCalled();
   });
 
-  it('AC34: error message for unrecognized key includes the offending key name', () => {
+  it('error message for unrecognized key includes the offending key name', async () => {
     const { page } = makeMockPage();
 
-    expect(() => resolveSelector(page, { xpath: '//div' } as never)).toThrow(
+    await expect(resolveSelector(page, { xpath: '//div' } as never)).rejects.toThrow(
       /xpath|unrecognized|unknown/i,
     );
   });
 
-  // Return value is always the Locator from the matching getBy* call
-  it('returns the Locator produced by getByLabel', () => {
+  // Return value is the Locator from the matching getBy* call
+  it('returns the Locator produced by getByLabel', async () => {
     const { page, mockLocator } = makeMockPage();
-    const result = resolveSelector(page, { label: 'Password' });
+    const result = await resolveSelector(page, { label: 'Password' });
     expect(result).toBe(mockLocator);
   });
 
-  it('returns the Locator produced by getByPlaceholder', () => {
+  it('returns the Locator produced by getByPlaceholder', async () => {
     const { page, mockLocator } = makeMockPage();
-    const result = resolveSelector(page, { placeholder: 'Search…' });
+    const result = await resolveSelector(page, { placeholder: 'Search…' });
     expect(result).toBe(mockLocator);
   });
 });

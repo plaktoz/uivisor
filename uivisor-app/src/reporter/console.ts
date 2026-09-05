@@ -88,6 +88,7 @@ export class ConsoleReporter {
       case 'setViewport': return `setViewport: ${cmd.width}x${cmd.height}`;
       case 'screenshot': return `screenshot: ${cmd.path}`;
       case 'waitFor': return `waitFor: ${cmd.ms}ms`;
+      case 'within': return `within: ${cmd.selector}`;
     }
   }
 }
