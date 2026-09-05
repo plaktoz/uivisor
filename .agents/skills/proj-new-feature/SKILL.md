@@ -105,6 +105,9 @@ Reason through the task and produce an execution plan. Write it to `state.md` un
    Reads: state.md in full
    Output: signoff_package.md → pipeline/[run-name]/signoff_package.md
 9. Deployer → skill: proj-deploy
+10. Delivery Manager (autonomous — no gate)
+    Reads: pipeline/[run-name]/log.md + state.md#gate-0 Run Estimates
+    Output: pipeline/[run-name]/retro.md
 
 ## Run Estimates
 
@@ -175,8 +178,109 @@ On TDD failure: increment retry counter, send failure report back to Coder. If r
 
 ---
 
-## Step 4: Gate 3 — Await Deploy Approval
+## Step 3.5: Build Verification (after Quality Gate PASS, before Gate 3)
 
-Present test results. Wait for "yes" before invoking `/proj-deploy`.
+Activate `build_verifier` role immediately after the Quality Gate passes. Do not wait for user input — this runs autonomously like the Quality Gate.
+
+**Context brief to provide:**
+- Working directory / worktree path
+- List of new or modified source files from `state.md#code-artifacts`
+- Language/stack detected from the repo (check for `requirements.txt`, `package.json`, `pyproject.toml`, `Makefile`, `Dockerfile`)
+
+**What the build verifier must do:**
+
+1. **Dependency check** — confirm all dependencies introduced by this run are declared in the project manifest:
+   - Python: `requirements.txt` or `pyproject.toml`
+   - Node: `package.json`
+   - If a new import exists in changed files but is absent from the manifest, this is a **blocking finding**
+
+2. **Install check** — verify deps are installable:
+   - Python: `pip install -r requirements.txt --dry-run` (or `pip check` if already installed)
+   - Node: `npm install --dry-run`
+   - If `deploy.build_tool` is `none` and no manifest exists, log as `skipped`
+
+3. **Smoke test** — verify new entry points load and parse cleanly:
+   - For each new Python script: `python3 -c "import [module]"` and `python3 [script] --help` (if CLI)
+   - For each new Node entry: `node -e "require('./[file]')"` 
+   - A non-zero exit from any smoke test is a **blocking finding**
+
+4. **Lint** (if `lint` is in `deploy.pre_deploy_checks`):
+   - Python: `python3 -m py_compile [file]` for each changed file (syntax check without external linter dep)
+
+**Output contract** — write `pipeline/[run]/build_check.md`:
+
+```markdown
+# Build Check: [run-name]
+
+**Verdict:** PASS | FAIL
+**Timestamp:** [ISO 8601]
+
+## Dependency check
+[manifest file found | not found | skipped]
+[list of new imports vs manifest — OK or MISSING]
+
+## Install check
+[command run + exit code + output summary]
+
+## Smoke tests
+| Script | Import | CLI (--help) | Result |
+|---|---|---|---|
+| scripts/foo.py | OK | OK | PASS |
+
+## Lint
+[files checked + result]
+
+## Blocking findings
+[none | list]
+```
+
+Also append to `state.md`:
+```markdown
+## Build Check
+**Verdict:** [PASS | FAIL]
+**Manifest:** [file found]
+**Smoke tests:** [N/N passed]
+**Blocking findings:** [count]
+```
+
+**On PASS** — proceed to Gate 3.
+**On FAIL** — send blocking findings to Coder (same retry loop as Quality Gate failure). Increment the tester retry counter. If retry limit reached, escalate per proj-protocol escalation rules.
+
+---
+
+## Step 4: Dist Review (before Gate 3)
+
+Before presenting Gate 3 to the user, review `dist/` and update any files that are stale relative to the changes in this run.
+
+Check each dist file for references to:
+- Scripts in `scripts/` — any new or renamed scripts must be listed
+- Pipeline diagram — any new autonomous roles (e.g. Build Verifier) must appear
+- Architecture notes — any new architectural patterns introduced must be described
+- Install/validate steps — any new CLI flags or entry points must be documented
+
+Files to check: `dist/README.md`, `dist/install.sh`, `dist/uninstall.sh`
+
+Update as needed. If no changes are required, note "dist/ — no updates required" in log.md.
+This step runs autonomously — do not ask the user for approval.
+
+---
+
+## Step 5: Gate 3 — Await Deploy Approval
+
+Present test results **and build check verdict**. Wait for "yes" before invoking `/proj-deploy`.
 
 **HARD STOP — Gate 3 is non-negotiable.** The Coder's final action is `gh pr create`. The Orchestrator's final action before Gate 3 is presenting the PR URL and test summary to the user. Neither the Coder nor the Orchestrator may call `gh pr merge`, `git push origin main`, or any deploy command until the user explicitly types "yes" (or equivalent approval) in response to the Gate 3 presentation. A background task completing, a follow-up notification firing, or any automated event does NOT constitute approval. If in doubt, do nothing and wait.
+
+---
+
+## Step 6: Retro Phase (Autonomous — after Deployer)
+
+After the Deployer completes, activate the `delivery_manager` role. No gate, no user approval required.
+
+Follow the Retro Phase activation rules in `proj-protocol`. Delivery Manager writes `pipeline/[run-name]/retro.md`.
+
+After `retro.md` is written, surface to the user:
+```
+Measure complete: pipeline/[run-name]/retro.md
+Top finding: [one-sentence summary of the #1 priority action from the file]
+```
