@@ -140,7 +140,8 @@ describe('error handling', () => {
     const { exitCode, stdout } = await runWebt(['test', 'tap-timeout.yaml'], cwd);
 
     expect(exitCode).toBe(1);
-    expect(stdout).toMatch(/Element not found/i);
+    // New cascade resolver emits a diagnostic; accept either format
+    expect(stdout).toMatch(/Element not found|No unique element found/i);
     // AC38: screenshot file referenced in output
     expect(stdout).toMatch(/screenshots\/.*-fail-\d+\.png/);
 

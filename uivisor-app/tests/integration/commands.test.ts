@@ -130,7 +130,8 @@ describe('tapOn', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.message).toMatch(/Element not found/i);
+    // New cascade resolver emits a diagnostic message; accept either format
+    expect(result.message).toMatch(/Element not found|No unique element found/i);
   }, 10_000);
 
   // AC11: role+name ARIA match → click + ✓
@@ -249,8 +250,16 @@ describe('assertVisible', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.expected).toMatch(/visible/i);
-    expect(result.got).toMatch(/element not found|not visible/i);
+    // Cascade resolver now throws a diagnostic; accept message or legacy expected/got format
+    const hasStructured = result.expected !== undefined && result.got !== undefined;
+    const hasDiagnostic = result.message !== undefined;
+    expect(hasStructured || hasDiagnostic).toBe(true);
+    if (hasStructured) {
+      expect(result.expected).toMatch(/visible/i);
+      expect(result.got).toMatch(/element not found|not visible/i);
+    } else {
+      expect(result.message).toMatch(/No unique element found|element not found/i);
+    }
   }, 10_000);
 });
 
@@ -688,7 +697,7 @@ describe('check', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.message).toMatch(/Element not found/i);
+    expect(result.message).toMatch(/Element not found|No unique element found/i);
   }, 10_000);
 });
 
@@ -718,7 +727,7 @@ describe('uncheck', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.message).toMatch(/Element not found/i);
+    expect(result.message).toMatch(/Element not found|No unique element found/i);
   }, 10_000);
 });
 
@@ -747,7 +756,7 @@ describe('hover', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.message).toMatch(/Element not found/i);
+    expect(result.message).toMatch(/Element not found|No unique element found/i);
   }, 10_000);
 });
 
@@ -776,7 +785,7 @@ describe('doubleClick', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.message).toMatch(/Element not found/i);
+    expect(result.message).toMatch(/Element not found|No unique element found/i);
   }, 10_000);
 });
 
@@ -806,7 +815,7 @@ describe('clearText', () => {
       ctx,
     );
     expect(result.passed).toBe(false);
-    expect(result.message).toMatch(/Element not found/i);
+    expect(result.message).toMatch(/Element not found|No unique element found/i);
   }, 10_000);
 });
 
