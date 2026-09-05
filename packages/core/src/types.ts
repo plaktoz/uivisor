@@ -37,7 +37,8 @@ export type Command =
   | { type: 'goForward' }
   | { type: 'setViewport'; width: number; height: number }
   | { type: 'screenshot';  path: string }
-  | { type: 'waitFor';     ms: number };
+  | { type: 'waitFor';     ms: number }
+  | { type: 'within';     selector: string; nth?: number; do: SessionedCommand[] };
 
 export type SessionDef = { id: string; label?: string };
 
