@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: clearText — remove all text from an input field
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Input has a pre-filled value
   - assertValue:
       testId: int-clear-input

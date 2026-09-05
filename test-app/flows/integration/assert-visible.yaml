@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: assertVisible — element exists in DOM and is visible
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Assert several known-visible elements using different selector types
   - assertVisible:
       testId: int-tap-btn

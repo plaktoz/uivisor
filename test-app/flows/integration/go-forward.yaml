@@ -1,8 +1,9 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: goForward — navigate forward after going back
 # Uses link-click navigation (tapOn) to build a traversable history stack
 commands:
-  - goto: http://localhost:5173/login
+  - goto: ${base}/login
   # Click through to integration so /login is in the back history
   - tapOn:
       testId: login-integration-link

@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: inputText (shorthand) — tapOn to focus, then inputText with a plain string
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Focus the input first
   - tapOn:
       testId: int-input-shorthand

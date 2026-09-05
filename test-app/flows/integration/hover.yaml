@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: hover — move the mouse over an element and assert the side-effect
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Tooltip is absent before hover
   - assertNotVisible:
       testId: int-hover-tooltip

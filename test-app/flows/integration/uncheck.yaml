@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: uncheck — uncheck a checked checkbox
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Verify starting state
   - assertChecked:
       testId: int-checkbox-pre-checked

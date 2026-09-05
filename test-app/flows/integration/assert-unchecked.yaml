@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: assertUnchecked — assert a checkbox is in the unchecked state
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # The pre-unchecked checkbox starts unchecked
   - assertUnchecked:
       testId: int-checkbox-pre-unchecked

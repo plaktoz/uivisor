@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: reload — reload the current page and verify transient state is reset
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Click the tap button to create transient state
   - tapOn:
       testId: int-tap-btn

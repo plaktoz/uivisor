@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: scroll — move the viewport in all four directions
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Scroll down through the long page
   - scroll: down
   - scroll: down

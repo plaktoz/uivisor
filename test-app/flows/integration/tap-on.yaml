@@ -1,7 +1,8 @@
-appId: http://localhost:5173/integration
+appId: ${base}/integration
+config: config.yml
 # Tests: tapOn — click an element and assert the visible side-effect
 commands:
-  - goto: http://localhost:5173/integration
+  - goto: ${base}/integration
   # Result element is absent before the click
   - assertNotVisible:
       testId: int-tap-result
