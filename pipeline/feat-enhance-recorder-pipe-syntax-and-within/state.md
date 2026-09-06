@@ -2,7 +2,7 @@
 
 **Task:** Enhance recorder-app to emit pipe syntax and auto-generate within blocks
 **Started:** 2026-09-05
-**Status:** in_progress
+**Status:** complete
 
 ---
 
