@@ -1,5 +1,5 @@
 /**
- * tests/unit/matchesPattern.test.ts
+ * src/matchesPattern.test.ts
  *
  * Unit tests for the matchesPattern pure utility.
  * Covers TC-021 through TC-022, TC-024 through TC-025, TC-027, TC-030 through TC-031,
@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { matchesPattern } from '@uivisor/core';
+import { matchesPattern } from './commands.js';
 
 describe('matchesPattern — exact match (no wildcard)', () => {
   // TC-062: no wildcard means case-sensitive exact match

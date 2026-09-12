@@ -1,15 +1,6 @@
-/**
- * tests/unit/resolveSelector.test.ts
- *
- * Unit tests for the new async resolveSelector function.
- * Covers TC-001 through TC-029, TC-056 through TC-058.
- *
- * All Playwright Page interactions are mocked — no browser is launched.
- */
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Page, Locator } from 'playwright';
-import { resolveLocator } from '@uivisor/core';
+import { resolveLocator } from './playwrightLocator.js';
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 

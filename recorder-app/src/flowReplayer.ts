@@ -1,143 +1,42 @@
-// TODO(arch): migrate shared dispatch to @uivisor/core
-
 import * as fs from 'fs';
 import * as path from 'path';
 import yaml from 'js-yaml';
-import type { Page, Locator } from 'playwright';
-import type { Command, Selector, SessionedCommand } from '@uivisor/core';
-import { parseSelector } from '@uivisor/core';
-
-// ─── Replay context ───────────────────────────────────────────────────────────
-
-interface ReplayContext {
-  lastTappedLocator: Locator | null;
-}
-
-// ─── Inline wildcard pattern matcher (mirrors uivisor-app/src/utils/patterns) ─
-
-function matchesPattern(pattern: string, actual: string): boolean {
-  if (!pattern.includes('*')) return pattern === actual;
-  const regexStr = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*');
-  return new RegExp(`^${regexStr}$`).test(actual);
-}
-
-// ─── Inline Playwright selector resolution ────────────────────────────────────
-
-type PageRoot = Page | Locator;
-
-function resolveAttrLocator(root: PageRoot, attr: string, value: string): Locator {
-  switch (attr) {
-    case 'text':
-      return (root as Page).getByText(value, { exact: true });
-    case 'label':
-      return (root as Page).getByLabel(value);
-    case 'role':
-      return (root as Page).getByRole(value as Parameters<Page['getByRole']>[0]);
-    default:
-      // data-*, id, name, placeholder, and other plain attributes
-      return (root as Page).locator(`[${attr}="${value}"]`);
-  }
-}
-
-async function resolveLocator(page: Page, selector: Selector): Promise<Locator> {
-  // Object selector forms — direct Playwright dispatch
-  if (typeof selector !== 'string') {
-    if ('css' in selector) return page.locator(selector.css);
-    if ('testId' in selector) return page.getByTestId(selector.testId);
-    if ('text' in selector) return page.getByText(selector.text);
-    if ('role' in selector)
-      return page.getByRole(selector.role as Parameters<Page['getByRole']>[0], {
-        name: selector.name,
-      });
-    if ('label' in selector) return page.getByLabel(selector.label);
-    if ('placeholder' in selector) return page.getByPlaceholder(selector.placeholder);
-    const key = Object.keys(selector as object)[0] ?? 'unknown';
-    throw new Error(`Unrecognized selector type: ${key}`);
-  }
-
-  // Pipe mode: attr=value|attr=value — try each segment left-to-right
-  if (selector.includes('=')) {
-    const segments = selector.split('|');
-    for (const seg of segments) {
-      const eqIdx = seg.indexOf('=');
-      if (eqIdx === -1) continue;
-      const attr = seg.slice(0, eqIdx);
-      const value = seg.slice(eqIdx + 1);
-      const loc = resolveAttrLocator(page, attr, value);
-      if ((await loc.count()) === 1) return loc;
-    }
-    throw new Error(`No unique element found for selector '${selector}'`);
-  }
-
-  // Cascade mode: bare string — data-testid → text → name → id → placeholder
-  for (const attr of ['data-testid', 'text', 'name', 'id', 'placeholder'] as const) {
-    const loc =
-      attr === 'text'
-        ? page.getByText(selector, { exact: true })
-        : page.locator(`[${attr}="${selector}"]`);
-    if ((await loc.count()) === 1) return loc;
-  }
-  throw new Error(`No unique element found for bare selector '${selector}'`);
-}
-
-/**
- * Like resolveLocator but accepts count >= 1 (for within container resolution).
- */
-async function resolveContainerLocator(page: Page, selector: string): Promise<Locator> {
-  if (selector.includes('=')) {
-    const segments = selector.split('|');
-    for (const seg of segments) {
-      const eqIdx = seg.indexOf('=');
-      if (eqIdx === -1) continue;
-      const attr = seg.slice(0, eqIdx);
-      const value = seg.slice(eqIdx + 1);
-      const loc = resolveAttrLocator(page, attr, value);
-      if ((await loc.count()) >= 1) return loc;
-    }
-  } else {
-    for (const attr of ['data-testid', 'text', 'name', 'id', 'placeholder'] as const) {
-      const loc =
-        attr === 'text'
-          ? page.getByText(selector, { exact: true })
-          : page.locator(`[${attr}="${selector}"]`);
-      if ((await loc.count()) >= 1) return loc;
-    }
-  }
-  throw new Error(`within: No container found for selector '${selector}'`);
-}
-
-/**
- * Create a Proxy around realPage that routes locator-query methods through
- * the given scope Locator. Non-locator Page methods are delegated unchanged.
- */
-function createScopedPage(realPage: Page, scope: Locator): Page {
-  const overrides: Record<string, unknown> = {
-    locator: (css: string, opts?: unknown) => scope.locator(css, opts as never),
-    getByText: (text: string | RegExp, opts?: unknown) =>
-      (scope as unknown as Page).getByText(text as string, opts as never),
-    getByLabel: (text: string, opts?: unknown) =>
-      (scope as unknown as Page).getByLabel(text, opts as never),
-    getByRole: (role: string, opts?: unknown) =>
-      (scope as unknown as Page).getByRole(
-        role as Parameters<Page['getByRole']>[0],
-        opts as never,
-      ),
-    getByPlaceholder: (text: string, opts?: unknown) =>
-      (scope as unknown as Page).getByPlaceholder(text, opts as never),
-    getByTestId: (id: string) => scope.getByTestId(id),
-  };
-  return new Proxy(realPage, {
-    get(target, prop: string) {
-      if (prop in overrides) return overrides[prop];
-      const val = (target as unknown as Record<string, unknown>)[prop];
-      return typeof val === 'function'
-        ? (val as (...args: unknown[]) => unknown).bind(target)
-        : val;
-    },
-  });
-}
+import type { Page } from 'playwright';
+import type { Command, Selector, SessionedCommand, PlaywrightContext } from '@uivisor/core';
+import {
+  parseSelector,
+  resolveContainerLocator,
+  createScopedPage,
+  executeGoto,
+  executeTapOn,
+  executeInputText,
+  executeInputTextTargeted,
+  executeAssertVisible,
+  executeAssertNotVisible,
+  executeAssertUrl,
+  executeWait,
+  executeWaitFor,
+  executeScroll,
+  executeAssertText,
+  executeAssertValue,
+  executeAssertCount,
+  executeAssertEnabled,
+  executeAssertDisabled,
+  executeAssertChecked,
+  executeAssertUnchecked,
+  executePressKey,
+  executeSelectOption,
+  executeCheck,
+  executeUncheck,
+  executeHover,
+  executeDoubleClick,
+  executeClearText,
+  executeReload,
+  executeGoBack,
+  executeGoForward,
+  executeSetViewport,
+  executeScreenshot,
+} from '@uivisor/core';
 
 // ─── YAML command parser ──────────────────────────────────────────────────────
 
@@ -324,288 +223,126 @@ function loadFlowYaml(absPath: string): { appId: string; commands: Command[] } {
 async function dispatchCommand(
   page: Page,
   cmd: Command,
-  ctx: ReplayContext,
+  ctx: PlaywrightContext,
   fileAbsPath: string,
   callStack: Set<string>,
 ): Promise<void> {
   switch (cmd.type) {
     case 'goto':
-      try {
-        await page.goto(cmd.url, { waitUntil: 'load' });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Navigation failed: ${cmd.url} — ${msg}`);
-      }
+      await executeGoto(page, cmd.url);
       break;
 
-    case 'tapOn': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.click({ timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
-      ctx.lastTappedLocator = loc;
+    case 'tapOn':
+      await executeTapOn(page, cmd.selector, ctx);
       break;
-    }
 
     case 'inputText':
-      if (ctx.lastTappedLocator === null) {
-        throw new Error('inputText shorthand used before any tapOn');
-      }
-      await ctx.lastTappedLocator.fill(cmd.text);
+      await executeInputText(ctx, cmd.text);
       break;
 
-    case 'inputTextTargeted': {
-      const loc = await resolveLocator(page, cmd.element);
-      try {
-        await loc.fill(cmd.text, { timeout: 5000 });
-      } catch {
-        throw new Error('Element not found for inputText targeted.');
-      }
+    case 'inputTextTargeted':
+      await executeInputTextTargeted(page, cmd.element, cmd.text);
       break;
-    }
 
-    case 'assertVisible': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'visible', timeout: 5000 });
-      } catch {
-        throw new Error('Expected: visible\nGot: element not found');
-      }
+    case 'assertVisible':
+      await executeAssertVisible(page, cmd.selector);
       break;
-    }
 
-    case 'assertNotVisible': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'hidden', timeout: 5000 });
-      } catch {
-        throw new Error('Expected: not visible\nGot: visible');
-      }
+    case 'assertNotVisible':
+      await executeAssertNotVisible(page, cmd.selector);
       break;
-    }
 
-    case 'assertUrl': {
-      const url = new URL(page.url());
-      const actual = url.pathname + url.search + url.hash;
-      if (!matchesPattern(cmd.path, actual)) {
-        throw new Error(`Expected: ${cmd.path}\nGot: ${actual}`);
-      }
+    case 'assertUrl':
+      await executeAssertUrl(page, cmd.path);
       break;
-    }
 
     case 'wait':
-      await new Promise<void>((r) => setTimeout(r, cmd.ms));
+      await executeWait(cmd.ms);
       break;
 
     case 'waitFor':
-      await new Promise<void>((r) => setTimeout(r, cmd.ms));
+      await executeWaitFor(cmd.ms);
       break;
 
     case 'scroll':
-      await page.evaluate((dir) => {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (dir === 'down') window.scrollBy(0, h);
-        else if (dir === 'up') window.scrollBy(0, -h);
-        else if (dir === 'right') window.scrollBy(w, 0);
-        else if (dir === 'left') window.scrollBy(-w, 0);
-      }, cmd.direction);
+      await executeScroll(page, cmd.direction);
       break;
 
-    case 'assertText': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'visible', timeout: 5000 });
-      } catch {
-        throw new Error(`Expected: ${cmd.expected}\nGot: element not found`);
-      }
-      const actual = (await loc.innerText()).trim();
-      if (actual !== cmd.expected) {
-        throw new Error(`Expected: ${cmd.expected}\nGot: ${actual}`);
-      }
+    case 'assertText':
+      await executeAssertText(page, cmd.selector, cmd.expected);
       break;
-    }
 
-    case 'assertValue': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'attached', timeout: 5000 });
-      } catch {
-        throw new Error(`Expected: ${cmd.expected}\nGot: element not found`);
-      }
-      const actual = await loc.inputValue();
-      if (actual !== cmd.expected) {
-        throw new Error(`Expected: ${cmd.expected}\nGot: ${actual}`);
-      }
+    case 'assertValue':
+      await executeAssertValue(page, cmd.selector, cmd.expected);
       break;
-    }
 
-    case 'assertCount': {
-      const actual = await page.locator(cmd.css).count();
-      if (actual !== cmd.expected) {
-        throw new Error(`Expected: ${cmd.expected}\nGot: ${actual}`);
-      }
+    case 'assertCount':
+      await executeAssertCount(page, cmd.css, cmd.expected);
       break;
-    }
 
-    case 'assertEnabled': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'attached', timeout: 5000 });
-      } catch {
-        throw new Error('Expected: enabled\nGot: element not found');
-      }
-      if (!(await loc.isEnabled())) {
-        throw new Error('Expected: enabled\nGot: disabled');
-      }
+    case 'assertEnabled':
+      await executeAssertEnabled(page, cmd.selector);
       break;
-    }
 
-    case 'assertDisabled': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'attached', timeout: 5000 });
-      } catch {
-        throw new Error('Expected: disabled\nGot: element not found');
-      }
-      if (!(await loc.isDisabled())) {
-        throw new Error('Expected: disabled\nGot: enabled');
-      }
+    case 'assertDisabled':
+      await executeAssertDisabled(page, cmd.selector);
       break;
-    }
 
-    case 'assertChecked': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'attached', timeout: 5000 });
-      } catch {
-        throw new Error('Expected: checked\nGot: element not found');
-      }
-      if (!(await loc.isChecked())) {
-        throw new Error('Expected: checked\nGot: unchecked');
-      }
+    case 'assertChecked':
+      await executeAssertChecked(page, cmd.selector);
       break;
-    }
 
-    case 'assertUnchecked': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'attached', timeout: 5000 });
-      } catch {
-        throw new Error('Expected: unchecked\nGot: element not found');
-      }
-      if (await loc.isChecked()) {
-        throw new Error('Expected: unchecked\nGot: checked');
-      }
+    case 'assertUnchecked':
+      await executeAssertUnchecked(page, cmd.selector);
       break;
-    }
 
     case 'pressKey':
-      await page.keyboard.press(cmd.key);
+      await executePressKey(page, cmd.key);
       break;
 
-    case 'selectOption': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.waitFor({ state: 'attached', timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
-      try {
-        await loc.selectOption(cmd.value, { timeout: 5000 });
-      } catch {
-        throw new Error('Option not found.');
-      }
+    case 'selectOption':
+      await executeSelectOption(page, cmd.selector, cmd.value);
       break;
-    }
 
-    case 'check': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.check({ timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
+    case 'check':
+      await executeCheck(page, cmd.selector);
       break;
-    }
 
-    case 'uncheck': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.uncheck({ timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
+    case 'uncheck':
+      await executeUncheck(page, cmd.selector);
       break;
-    }
 
-    case 'hover': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.hover({ timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
+    case 'hover':
+      await executeHover(page, cmd.selector);
       break;
-    }
 
-    case 'doubleClick': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.dblclick({ timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
+    case 'doubleClick':
+      await executeDoubleClick(page, cmd.selector);
       break;
-    }
 
-    case 'clearText': {
-      const loc = await resolveLocator(page, cmd.selector);
-      try {
-        await loc.clear({ timeout: 5000 });
-      } catch {
-        throw new Error('Element not found.');
-      }
+    case 'clearText':
+      await executeClearText(page, cmd.selector);
       break;
-    }
 
     case 'reload':
-      await page.reload({ waitUntil: 'load' });
+      await executeReload(page);
       break;
 
-    case 'goBack': {
-      const urlBefore = page.url();
-      await page.goBack({ waitUntil: 'commit' });
-      const urlAfter = page.url();
-      if (urlAfter === urlBefore || urlAfter.startsWith('about:')) {
-        throw new Error('No previous page in history.');
-      }
+    case 'goBack':
+      await executeGoBack(page);
       break;
-    }
 
-    case 'goForward': {
-      const urlBefore = page.url();
-      await page.goForward({ waitUntil: 'commit' });
-      const urlAfter = page.url();
-      if (urlAfter === urlBefore || urlAfter.startsWith('about:')) {
-        throw new Error('No next page in history.');
-      }
+    case 'goForward':
+      await executeGoForward(page);
       break;
-    }
 
     case 'setViewport':
-      await page.setViewportSize({ width: cmd.width, height: cmd.height });
+      await executeSetViewport(page, cmd.width, cmd.height);
       break;
 
-    case 'screenshot': {
-      // Resolve screenshot path relative to the flow file's directory
-      const screenshotPath = path.resolve(path.dirname(fileAbsPath), cmd.path);
-      fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
-      await page.screenshot({ path: screenshotPath });
+    case 'screenshot':
+      await executeScreenshot(page, cmd.path, path.dirname(fileAbsPath));
       break;
-    }
 
     case 'runFlow': {
       const flowDir = path.dirname(fileAbsPath);
@@ -666,7 +403,7 @@ async function dispatchCommand(
 async function replayFlowFile(
   absPath: string,
   page: Page,
-  ctx: ReplayContext,
+  ctx: PlaywrightContext,
   callStack: Set<string>,
 ): Promise<void> {
   const { commands } = loadFlowYaml(absPath);
@@ -733,7 +470,7 @@ export async function replayFlows(
 
     stack.add(absPath);
     // Each top-level flow gets a fresh lastTappedLocator context
-    const ctx: ReplayContext = { lastTappedLocator: null };
+    const ctx: PlaywrightContext = { lastTappedLocator: null };
     try {
       await replayFlowFile(absPath, page, ctx, stack);
     } finally {

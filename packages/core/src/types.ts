@@ -1,3 +1,9 @@
+import type { Locator } from 'playwright';
+
+export interface PlaywrightContext {
+  lastTappedLocator: Locator | null;
+}
+
 export type Selector =
   | string
   | { text: string }
@@ -91,8 +97,7 @@ export interface RunResult {
   durationMs: number;
 }
 
-export interface RunContext {
-  lastTappedLocator: import('playwright').Locator | null;
+export interface RunContext extends PlaywrightContext {
   callStack: Set<string>;
   indentLevel: number;
   runDir: string;
