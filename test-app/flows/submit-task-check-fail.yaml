@@ -1,6 +1,7 @@
 appId: http://localhost:5173/login
 tags: [feat-task]
 commands:
+  - goto: http://localhost:5173/login
   - runFlow: ./shared-login.yaml
   - tapOn:
       text: "Delete unused apps"

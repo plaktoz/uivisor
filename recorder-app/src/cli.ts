@@ -61,6 +61,7 @@ export async function main(): Promise<void> {
   }
 
   startSession(outputPath, url);
+  appendCommand(outputPath, { type: 'goto', url });
 
   // Write runFlow: references for each input flow path
   if (runFlowPaths.length > 0) {
