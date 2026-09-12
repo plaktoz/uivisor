@@ -110,8 +110,63 @@ The runner navigates to `appId` before executing the first command.
 |-----|----------|-------------|
 | `appId` | Yes | Base URL — the browser navigates here before the first command runs |
 | `commands` | Yes | List of commands to execute |
+| `vars` | No | Inline variable definitions; values are interpolated with `${varName}` |
+| `config` | No | Path to an external YAML config file; keys override inline `vars` |
 | `tags` | No | Array of strings for `--tag` filtering |
 | `shared` | No | If `true`, the flow can only be invoked via `runFlow`, not run directly |
+
+---
+
+## Variables & Config
+
+### Inline vars
+
+Define reusable values in a `vars` block. Reference them anywhere in the flow with `${varName}`. Nested objects use dot notation.
+
+```yaml
+appId: http://localhost:${port}
+vars:
+  port: 3000
+  username: alice
+  timeout:
+    short: 500
+    long: 2000
+commands:
+  - inputText:
+      element:
+        testId: username
+      text: ${username}
+  - wait: ${timeout.short}
+```
+
+All variable values are coerced to strings. `wait` and `waitFor` accept whole-number strings (e.g. `"500"`) so they work naturally with vars.
+
+### External config file
+
+Move shared values (like a base URL) to a separate YAML file and reference it with `config:`. Config file values override any inline `vars` with the same name.
+
+```yaml
+# flows/login.yaml
+appId: ${base}/login
+config: config.yml
+commands:
+  - goto: ${base}/login
+```
+
+```yaml
+# flows/config.yml
+base: http://localhost:5173
+```
+
+### Environment variables
+
+Use `${env.VAR_NAME}` to read from the environment. Add a default after `:` in case the variable is not set:
+
+```yaml
+appId: ${env.APP_URL:http://localhost:3000}
+vars:
+  apiKey: ${env.API_KEY}
+```
 
 ---
 
@@ -131,6 +186,7 @@ Use an object with exactly one (or two) keys:
 | `{ placeholder: "Search..." }` | `placeholder` attribute |
 | `{ role: "button", name: "Submit" }` | ARIA role + accessible name (both required) |
 | `{ css: "ul > li:has-text('Home')" }` | Raw CSS / Playwright extended CSS selector |
+| `{ xpath: "//button[@type='submit']" }` | XPath expression |
 
 ### Pipe-syntax selector
 
@@ -143,7 +199,9 @@ A string containing `=` is treated as a pipe-syntax selector: `attr=value`. Chai
 - tapOn: id=main-nav|text=Menu     # tries id first, then falls back to text
 ```
 
-Supported attributes: `id`, `name`, `placeholder`, `label`, `role`, `text`, and any `data-*` attribute.
+Supported attributes: `id`, `name`, `placeholder`, `label`, `role`, `text`, `xpath`, and any `data-*` attribute.
+
+> **XPath and `|`:** XPath union expressions contain `|` which conflicts with the pipe-syntax segment separator. Use the object form for unions: `tapOn: { xpath: '//a | //button' }`. Simple XPath expressions without `|` work fine in pipe syntax: `tapOn: xpath=//button[@type="submit"]`.
 
 Wildcard matching is supported for all attributes except `label` and `role`:
 
@@ -238,6 +296,10 @@ Clicks an element.
     label: Email
 - tapOn:
     css: "#main-nav > a:has-text('Home')"
+- tapOn:
+    xpath: "//button[@type='submit']"
+- tapOn:
+    xpath: "//table//tr[td='Alice']"   # XPath with union: use object form
 ```
 
 #### `inputText`
@@ -467,18 +529,20 @@ Asserts a checkbox is unchecked.
 
 #### `wait`
 
-Pauses for the given number of milliseconds. Value must be an integer.
+Pauses for the given number of milliseconds. Accepts an integer literal or a variable that resolves to a whole-number string.
 
 ```yaml
 - wait: 500
+- wait: ${timeout.short}   # works when vars.timeout.short is e.g. 500
 ```
 
 #### `waitFor`
 
-Pauses for the given number of milliseconds. Value must be a positive integer (> 0).
+Pauses for the given number of milliseconds. Value must be a positive integer (> 0). Also accepts a variable resolving to a whole-number string.
 
 ```yaml
 - waitFor: 3000
+- waitFor: ${pollInterval}
 ```
 
 ---
@@ -554,7 +618,17 @@ Optional `nth` (0-based) selects which container to use when multiple match:
       - assertVisible: text=Save
 ```
 
-**Supported selector keys for `within`:** `id`, `text`, `name`, `placeholder`, `label`, `role`, `data-*`, `css`
+**Supported selector keys for `within`:** `id`, `text`, `name`, `placeholder`, `label`, `role`, `data-*`, `css`, `xpath`
+
+```yaml
+# Scope to a dialog by XPath
+- within:
+    xpath: "//div[@role='dialog']"
+    do:
+      - tapOn:
+          role: button
+          name: Confirm
+```
 
 ---
 

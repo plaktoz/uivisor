@@ -36,6 +36,7 @@ Arguments:
 Options:
   -o, --output <file>     Output YAML file path  (default: recorded.yaml)
   --base-url <url>        Override the base URL
+  --run-flow <files>      Replay one or more flow files before recording starts (comma-delimited)
   -h, --help              Show this help
 ```
 
@@ -49,7 +50,24 @@ npm run uivisor-record -- http://localhost:5173/integration \
 # Record the login flow
 npm run uivisor-record -- http://localhost:5173/login \
   -o recorder-app/sample/login-flow.yaml
+
+# Replay a login flow first, then record from the authenticated state
+npm run uivisor-record -- --run-flow ./flows/login.yaml \
+  -o recordings/post-login.yaml
 ```
+
+### Continue recording after replaying existing flows
+
+Use `--run-flow` to replay one or more flow files first, then pick up live recording from that browser state. Useful when you want to record a flow that requires authentication or multi-step setup.
+
+```bash
+npm run uivisor-record -- --run-flow ./flows/setup.yaml,./flows/login.yaml \
+  -o ./recordings/checkout.yaml
+```
+
+The output file starts with `runFlow:` references to the input flows so it is self-contained and re-runnable. The input flow files are never modified.
+
+If `--run-flow` is given without an explicit URL, `appId` is read from the first flow file.
 
 ## In-browser keyboard shortcuts
 
