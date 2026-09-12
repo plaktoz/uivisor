@@ -1,5 +1,6 @@
 appId: https://www.w3schools.com
 commands:
+- goto: https://www.w3schools.com
 - within:
     id: subtopnav
     do:

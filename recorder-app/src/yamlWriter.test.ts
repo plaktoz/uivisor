@@ -397,3 +397,37 @@ describe('round-trip', () => {
     expect(() => yaml.load(content)).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// TC-17 / TC-18 — goto command placement
+// ---------------------------------------------------------------------------
+describe('TC-17: startSession + appendCommand(goto) → commands[0].goto', () => {
+  // TC-17 — startSession + appendCommand(goto) → valid YAML with commands[0].goto
+  it('TC-17: commands[0].goto equals the URL passed to appendCommand', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    const url = 'http://localhost:5173/login';
+    startSession(outPath, url);
+    appendCommand(outPath, { type: 'goto', url });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    expect(Array.isArray(parsed.commands)).toBe(true);
+    expect((parsed.commands[0] as { goto: string }).goto).toBe(url);
+  });
+
+  // TC-18 — goto stays at index 0 after subsequent capture events
+  it('TC-18: goto is still at commands[0] after appending more commands', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    const url = 'http://localhost:5173/login';
+    startSession(outPath, url);
+    appendCommand(outPath, { type: 'goto', url });
+    appendCommand(outPath, { type: 'tapOn', selector: { testId: 'login-submit' } });
+    appendCommand(outPath, { type: 'inputText', text: 'alice' });
+    appendCommand(outPath, { type: 'screenshot', path: 'step1.png' });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    expect((parsed.commands[0] as { goto: string }).goto).toBe(url);
+    expect(parsed.commands.length).toBe(4);
+  });
+});

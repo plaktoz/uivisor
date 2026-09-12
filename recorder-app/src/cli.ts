@@ -9,6 +9,7 @@ async function main(): Promise<void> {
   const { url, outputPath } = parseArgs(process.argv);
 
   startSession(outputPath, url);
+  appendCommand(outputPath, { type: 'goto', url });
 
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
