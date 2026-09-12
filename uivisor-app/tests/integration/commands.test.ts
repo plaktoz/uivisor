@@ -955,3 +955,50 @@ describe('waitFor', () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(500);
   }, 10_000);
 });
+
+// ─── within — xpath container ─────────────────────────────────────────────────
+
+describe('within — xpath container', () => {
+  it('finds container by xpath and asserts visible text inside it', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      {
+        type: 'within',
+        selector: 'xpath=//section[@data-card="alpha"]',
+        do: [{ command: { type: 'assertVisible', selector: 'Card Alpha' } }],
+      },
+      ctx,
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  it('scopes correctly — text from sibling card is not found inside xpath container', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      {
+        type: 'within',
+        selector: 'xpath=//section[@data-card="alpha"]',
+        do: [{ command: { type: 'assertVisible', selector: 'Card Beta' } }],
+      },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+  }, 10_000);
+
+  it('returns passed: false with "No container found" when xpath matches nothing', async () => {
+    const ctx = freshCtx();
+    const result = await dispatch(
+      page,
+      {
+        type: 'within',
+        selector: 'xpath=//section[@data-card="does-not-exist"]',
+        do: [{ command: { type: 'assertVisible', selector: 'Card Alpha' } }],
+      },
+      ctx,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/No container found/i);
+  });
+});
