@@ -1,0 +1,83 @@
+appId: ${base}/integration-within
+config: config.yml
+# Tests: within — container scoping (basic, nth, input, assertCount, nested)
+commands:
+  - goto: ${base}/integration-within
+
+  # ── Basic within ──────────────────────────────────────────────────────
+  # Result is absent before any interaction
+  - assertNotVisible:
+      testId: int-within-basic-result
+  # Tap the button and assert result inside the container scope
+  - within:
+      testId: int-within-basic-container
+      do:
+        - tapOn:
+            testId: int-within-basic-btn
+        - assertVisible:
+            testId: int-within-basic-result
+  # Confirm DOM mutation is visible at page scope too
+  - assertVisible:
+      testId: int-within-basic-result
+
+  # ── nth within — first container (nth: 0) ─────────────────────────────
+  - within:
+      testId: int-within-row
+      nth: 0
+      do:
+        - assertText:
+            testId: int-within-row-label
+            expected: Row A
+
+  # ── nth within — second container (nth: 1) ────────────────────────────
+  - within:
+      testId: int-within-row
+      nth: 1
+      do:
+        - assertText:
+            testId: int-within-row-label
+            expected: Row B
+
+  # ── within + inputText + assertValue ─────────────────────────────────
+  - within:
+      testId: int-within-input-container
+      do:
+        - tapOn:
+            testId: int-within-input-field
+        - inputText: "scoped input"
+        - assertValue:
+            testId: int-within-input-field
+            expected: "scoped input"
+
+  # ── within + assertCount (scoped count differs per container) ─────────
+  - within:
+      testId: int-within-count-a
+      do:
+        - assertCount:
+            css: "[data-testid='int-within-count-item']"
+            expected: 2
+  - within:
+      testId: int-within-count-b
+      do:
+        - assertCount:
+            css: "[data-testid='int-within-count-item']"
+            expected: 3
+
+  # ── Nested within (two levels) ────────────────────────────────────────
+  - within:
+      testId: int-within-outer
+      do:
+        - within:
+            testId: int-within-inner
+            do:
+              - assertText:
+                  testId: int-within-deep-target
+                  expected: Deep target
+
+  # ── Single-level outer scope reaches deep-target (TC-I-19) ───────────
+  - within:
+      testId: int-within-outer
+      do:
+        - assertText:
+            testId: int-within-deep-target
+            expected: Deep target
