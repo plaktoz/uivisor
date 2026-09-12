@@ -10,7 +10,7 @@ commands:
       testId: int-within-basic-result
   # Tap the button and assert result inside the container scope
   - within:
-      testId: int-within-basic-container
+      data-testid: int-within-basic-container
       do:
         - tapOn:
             testId: int-within-basic-btn
@@ -22,7 +22,7 @@ commands:
 
   # ── nth within — first container (nth: 0) ─────────────────────────────
   - within:
-      testId: int-within-row
+      data-testid: int-within-row
       nth: 0
       do:
         - assertText:
@@ -31,7 +31,7 @@ commands:
 
   # ── nth within — second container (nth: 1) ────────────────────────────
   - within:
-      testId: int-within-row
+      data-testid: int-within-row
       nth: 1
       do:
         - assertText:
@@ -40,7 +40,7 @@ commands:
 
   # ── within + inputText + assertValue ─────────────────────────────────
   - within:
-      testId: int-within-input-container
+      data-testid: int-within-input-container
       do:
         - tapOn:
             testId: int-within-input-field
@@ -51,13 +51,13 @@ commands:
 
   # ── within + assertCount (scoped count differs per container) ─────────
   - within:
-      testId: int-within-count-a
+      data-testid: int-within-count-a
       do:
         - assertCount:
             css: "[data-testid='int-within-count-item']"
             expected: 2
   - within:
-      testId: int-within-count-b
+      data-testid: int-within-count-b
       do:
         - assertCount:
             css: "[data-testid='int-within-count-item']"
@@ -65,10 +65,10 @@ commands:
 
   # ── Nested within (two levels) ────────────────────────────────────────
   - within:
-      testId: int-within-outer
+      data-testid: int-within-outer
       do:
         - within:
-            testId: int-within-inner
+            data-testid: int-within-inner
             do:
               - assertText:
                   testId: int-within-deep-target
@@ -76,7 +76,7 @@ commands:
 
   # ── Single-level outer scope reaches deep-target (TC-I-19) ───────────
   - within:
-      testId: int-within-outer
+      data-testid: int-within-outer
       do:
         - assertText:
             testId: int-within-deep-target
