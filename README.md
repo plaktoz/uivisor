@@ -79,6 +79,28 @@ npm run uivisor-record -- https://example.com -o my-flow.yaml
 
 Close the browser window when done. The recorded YAML is written to `my-flow.yaml`.
 
+### Continue recording after replaying existing flows
+
+Use `--run-flow` to replay one or more flow files first, then pick up recording from that browser state:
+
+```bash
+npm run uivisor-record -- --run-flow ./flows/setup.yaml,./flows/login.yaml -o ./recordings/checkout.yaml
+```
+
+The recorder replays each flow in sequence, then enters live-recording mode. The output file starts with `runFlow:` references to the input flows so it is self-contained and re-runnable:
+
+```yaml
+appId: http://localhost:5173
+commands:
+  - runFlow: ../flows/setup.yaml
+  - runFlow: ../flows/login.yaml
+  - tapOn: ...     # newly recorded
+```
+
+- **Multiple flows** are comma-delimited and replayed in order.
+- **The input flow files are never modified** — the output is always a new file.
+- If `--run-flow` is given without an explicit URL, `appId` is read from the first flow file.
+
 ---
 
 ## Writing Flows by Hand
