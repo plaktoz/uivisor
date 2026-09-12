@@ -79,6 +79,18 @@
   <input id="uncheck-box" type="checkbox" checked  data-testid="uncheck-box">
   <input id="prefilled-text" type="text" value="clear me" data-testid="prefilled-text">
 
+  <!-- within+xpath: two sibling cards with identical buttons for xpath scoping tests -->
+  <div id="xpath-cards">
+    <section data-card="alpha">
+      <h3>Card Alpha</h3>
+      <button class="card-action">Select</button>
+    </section>
+    <section data-card="beta">
+      <h3>Card Beta</h3>
+      <button class="card-action">Select</button>
+    </section>
+  </div>
+
   <!-- tall container to enable scroll testing (ACs 22-23) -->
   <div id="tall-content">
     <p>Top of scrollable content</p>
