@@ -47,8 +47,9 @@ npx uivisor test <target> [options]
 |------|-------------|
 | `--headed` | Run the browser in headed (visible) mode |
 | `--slow-mo <ms>` | Delay in milliseconds between each action |
-| `--reporter html` | Write an HTML report to `target/<YYYYMMDD-HHmm>/uivisor-report.html` |
-| `--reporter md` | Write a Markdown report to `target/<YYYYMMDD-HHmm>/uivisor-report.md` |
+| `--reporter html` | Write an HTML report to `<output-dir>/<YYYYMMDD-HHmm>/uivisor-report.html` |
+| `--reporter md` | Write a Markdown report to `<output-dir>/<YYYYMMDD-HHmm>/uivisor-report.md` |
+| `--output-dir <path>` | Base directory for report output (default: `target/`) |
 | `--tag <name>` | Only run flows with this tag (repeatable; multiple flags use OR semantics) |
 
 ### Examples
@@ -63,14 +64,26 @@ npx uivisor test flows/
 # Run headed with slow motion for debugging
 npx uivisor test flows/login-happy.yaml --headed --slow-mo 500
 
-# Generate an HTML report
+# Generate an HTML report (written to target/<timestamp>/uivisor-report.html)
 npx uivisor test flows/ --reporter html
+
+# Write the report to a custom folder
+npx uivisor test flows/ --reporter html --output-dir reports/
+
+# Write the report to an absolute path
+npx uivisor test flows/ --reporter md --output-dir /tmp/ci-results
+
+# Generate both HTML and MD reports in CI, separate from source
+npx uivisor test flows/ --reporter html --output-dir /artifacts/uivisor
 
 # Run only flows tagged "checkout"
 npx uivisor test flows/ --tag checkout
 
 # Run flows tagged "checkout" or "payment"
 npx uivisor test flows/ --tag checkout --tag payment
+
+# Tag filtering combined with a custom output directory
+npx uivisor test flows/ --tag smoke --reporter html --output-dir test-results/
 ```
 
 The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI pipelines.
