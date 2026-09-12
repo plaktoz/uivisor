@@ -1,124 +1,202 @@
 # uivisor
 
-A YAML-driven web UI test runner. Write user flows in plain YAML — navigate, type, tap, assert — and run them against a real browser via Playwright.
+A YAML-driven web UI test runner. Write user flows in plain YAML — navigate, type, tap, assert, screenshot — and run them against a real browser via Playwright.
 
-This repo is a monorepo with two packages:
+This repo is an npm workspace with four packages:
 
 | Package | Description |
 |---------|-------------|
-| [`uivisor-app/`](./uivisor-app/) | The `uivisor` CLI — the test runner itself |
+| [`packages/core/`](./packages/core/) | Shared types, selector parser, capture script, and selector heuristics |
+| [`uivisor-app/`](./uivisor-app/) | The `uivisor` CLI — the test runner |
+| [`recorder-app/`](./recorder-app/) | The `uivisor-record` CLI — opens a browser and records interactions to YAML |
 | [`test-app/`](./test-app/) | A sample React app to run tests against |
 
 ---
 
 ## Prerequisites
 
-- **Node.js 24+** (both packages require it; use [nvm](https://github.com/nvm-sh/nvm) and run `nvm use` in each directory)
+- **Node.js 24+** (use [nvm](https://github.com/nvm-sh/nvm) and run `nvm use` in each directory)
 - **npm 10+**
 
 ---
 
 ## Setup
 
-### 1. Clone the repo
+### 1. Clone and install
 
 ```bash
 git clone <repo-url>
 cd uivisor
+npm install          # installs all workspace packages
 ```
 
-### 2. Set up the test app
-
-The test app is a small React app with login, profile, and task management — it's the target the flows run against.
+### 2. Build all packages
 
 ```bash
-cd test-app
-nvm use          # switches to Node 24
-npm install
-npm run dev      # starts the app — note the port printed in the output
+bash scripts/build.sh
 ```
 
-Leave this running, then open a new terminal for the next steps.
+This does a clean install and builds `packages/core`, `uivisor-app`, and `recorder-app` in dependency order.
 
-### 3. Set up the test runner
+### 3. Install Playwright browsers
 
 ```bash
 cd uivisor-app
-nvm use          # switches to Node 24
-npm install
 npx playwright install chromium
-npm run build
+cd ..
 ```
-
-### 4. (Optional) Link the CLI globally
-
-```bash
-npm link
-```
-
-This makes the `uivisor` command available anywhere in your terminal. Without it, use `npx uivisor` from the workspace root instead.
 
 ---
 
 ## Running Flows
 
-With the test app running, run the included example flows:
+Start the test app (or point at any running web app), then run your flows from the repo root:
 
 ```bash
-# Run all flows in a directory
-npx uivisor test test-app/flows/
-
 # Run a single flow
-npx uivisor test test-app/flows/login-happy.yaml
+npx uivisor test flows/login-happy.yaml
+
+# Run all flows in a directory
+npx uivisor test flows/
 
 # Run headed with slow motion (useful for watching/debugging)
-npx uivisor test test-app/flows/login-happy.yaml --headed --slow-mo 500
+npx uivisor test flows/login-happy.yaml --headed --slow-mo 500
 
 # Generate an HTML report
-npx uivisor test test-app/flows/ --reporter html
+npx uivisor test flows/ --reporter html
+
+# Generate a Markdown report
+npx uivisor test flows/ --reporter md
 ```
 
-The CLI exits with code `0` if all flows pass, or `1` if any fail — compatible with CI pipelines.
+The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI.
 
 ---
 
-## Writing Your Own Flows
+## Recording Flows
 
-Create a `.yaml` file in your project:
+Open a browser, interact with your app, and get a YAML flow written automatically:
+
+```bash
+node recorder-app/dist/cli.js https://example.com -o my-flow.yaml
+```
+
+Close the browser window when done. The recorded YAML is written to `my-flow.yaml`.
+
+---
+
+## Writing Flows by Hand
 
 ```yaml
 appId: http://localhost:3000
 commands:
-  - goto: http://localhost:3000/login
-  - inputText:
-      element:
-        testId: "username"
-      text: "alice"
-  - tapOn:
-      testId: "submit"
+  - within:
+      id: nav
+      do:
+        - tapOn: text=Dashboard
   - assertUrl: /dashboard
-  - assertVisible: "Welcome, Alice"
+  - screenshot: after-nav.png
+  - tapOn:
+      testId: submit-btn
+  - assertVisible: Success
 ```
 
-See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full command reference and selector options.
+### Top-level keys
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `appId` | Yes | Base URL — the runner navigates here before the first command |
+| `commands` | Yes | List of commands to execute |
+| `tags` | No | Array of strings for `--tag` filtering |
+| `shared` | No | If `true`, the flow can only be invoked via `runFlow`, not run directly |
 
 ---
 
-## Running Tests (for `uivisor-app` development)
+## Selector Reference
+
+All interaction and assertion commands accept these selector forms:
+
+| Form | Matches by |
+|------|-----------|
+| `"some text"` | Visible text (shorthand string) |
+| `{ text: "label" }` | Visible text (explicit) |
+| `{ testId: "my-id" }` | `data-testid` attribute |
+| `{ label: "Email" }` | Associated `<label>` text |
+| `{ placeholder: "Search..." }` | `placeholder` attribute |
+| `{ role: "button", name: "Submit" }` | ARIA role + accessible name |
+| `{ css: ".class > a:has-text('Go')" }` | Raw CSS / Playwright extended CSS |
+
+### Pipe-syntax selectors
+
+Inside a bare string, use `attr=value` to target a specific attribute. Pipe multiple segments with `|` for fallback:
+
+```yaml
+- tapOn: text=Sign In
+- tapOn: id=submit-btn
+- tapOn: data-state=active
+- tapOn: id=main-nav|text=Menu     # tries id first, then text
+```
+
+Supported plain attributes: `id`, `name`, `placeholder`, `text`, `label`, `role`, and any `data-*` attribute.
+
+Wildcard matching: `prefix*`, `*suffix`, `*contains*`.
+
+### `within` scoping
+
+Scope all nested commands to a matched container:
+
+```yaml
+- within:
+    id: subtopnav
+    do:
+      - tapOn: text=HTML
+      - assertVisible: text=CSS
+```
+
+---
+
+## Command Reference
+
+See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full command reference covering navigation, interaction, assertions, waiting, viewport, screenshots, and flow composition.
+
+---
+
+## Reports
+
+### Console (default)
+
+Steps print as they run with pass/fail icons and timings. Failed steps print the error and a screenshot path.
+
+### HTML report (`--reporter html`)
+
+Writes `target/<YYYYMMDD-HHmm>/uivisor-report.html`. Opens in any browser — collapsible step list, pass/fail badges, and screenshots embedded inline as base64 images (including passing `screenshot` commands).
+
+### Markdown report (`--reporter md`)
+
+Writes `target/<YYYYMMDD-HHmm>/uivisor-report.md`. Includes `![image](filename.png)` inline for every screenshot command, using the basename relative to the run directory — ready to paste into a PR description or commit as a test artifact.
+
+---
+
+## Development
 
 ```bash
-cd uivisor-app
+# Run all tests
+npm test --workspace=uivisor-app
 
-npm test              # all tests
-npm run test:unit     # unit tests only
-npm run test:integration  # integration tests only
+# Unit tests only
+npm run test:unit --workspace=uivisor-app
+
+# Integration tests only
+npm run test:integration --workspace=uivisor-app
+
+# Rebuild after source changes
+npm run build --workspace=packages/core
+npm run build --workspace=uivisor-app
 ```
 
 ---
 
 ## Docker / Podman
-
-To build and run the test runner in a container:
 
 ```bash
 cd uivisor-app

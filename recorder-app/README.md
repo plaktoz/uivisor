@@ -4,25 +4,27 @@ A browser-based interaction recorder for uivisor. It opens a real Chromium windo
 
 ## How it works
 
-1. You run `uivisor-record <url>` — a headed Chromium window opens at that URL.
+1. You run `node recorder-app/dist/cli.js <url>` from the repo root — a headed Chromium window opens at that URL.
 2. As you click, type, and navigate, every interaction is captured automatically.
 3. Use keyboard shortcuts to insert assertion, wait, and screenshot commands.
 4. Close the browser tab when done — the YAML flow file is ready to replay.
 
 ## Build
 
-```bash
-# From the recorder-app directory:
-npm run build
+From the repo root:
 
-# Or from the workspace root (builds everything):
-npm install
+```bash
+bash scripts/build.sh
 ```
+
+This installs all workspace packages and builds `packages/core`, `uivisor-app`, and `recorder-app` in the correct order.
 
 ## Usage
 
+All commands are run from the **repo root**.
+
 ```
-uivisor-record [url] [options]
+node recorder-app/dist/cli.js [url] [options]
 
 Arguments:
   url                     URL to open  (default: http://localhost:5173)
@@ -37,11 +39,11 @@ Options:
 
 ```bash
 # Record interactions on the integration test page, save to a named file
-npx uivisor-record http://localhost:5173/integration \
+node recorder-app/dist/cli.js http://localhost:5173/integration \
   -o recorder-app/sample/test-app-integration/my-recording.yaml
 
 # Record the login flow
-npx uivisor-record http://localhost:5173/login \
+node recorder-app/dist/cli.js http://localhost:5173/login \
   -o recorder-app/sample/login-flow.yaml
 ```
 
@@ -60,12 +62,10 @@ A HUD in the bottom-right corner of the browser window shows the active shortcut
 
 ## Replaying a recorded flow
 
-Use `uivisor test` (from the uivisor-app workspace package) to replay any flow:
+Use `npx uivisor test` from the repo root to replay any flow:
 
 ```bash
-# Replay a single flow — headed browser, configurable step delay
-SLOW_MO=800   # milliseconds between steps — increase for a slower walkthrough
-npx uivisor test <flow.yaml> --headed --slow-mo $SLOW_MO
+npx uivisor test <flow.yaml> --headed --slow-mo 600
 ```
 
 ### Recommended step delays
@@ -81,15 +81,13 @@ npx uivisor test <flow.yaml> --headed --slow-mo $SLOW_MO
 ### Run all sample flows visually
 
 ```bash
-SLOW_MO=600   # adjust to taste
-npx uivisor test recorder-app/sample/test-app-integration/ --headed --slow-mo $SLOW_MO
+npx uivisor test recorder-app/sample/test-app-integration/ --headed --slow-mo 600
 ```
 
 ### Run a single sample flow
 
 ```bash
-SLOW_MO=600
-npx uivisor test recorder-app/sample/test-app-integration/tap-on.yaml --headed --slow-mo $SLOW_MO
+npx uivisor test recorder-app/sample/test-app-integration/tap-on.yaml --headed --slow-mo 600
 ```
 
 ### Generate an HTML report
@@ -154,17 +152,16 @@ cd test-app && npm run dev
 # Terminal 1 — dev server
 cd test-app && npm run dev
 
-# Terminal 2 — recorder (replace port if needed)
-npx uivisor-record http://localhost:5173/integration \
+# Terminal 2 — recorder (from repo root; replace port if needed)
+node recorder-app/dist/cli.js http://localhost:5173/integration \
   -o recorder-app/sample/test-app-integration/my-session.yaml
 ```
 
 Interact with the browser. Press `Shift+A` whenever you want to add an assertion. Close the tab when done, then replay:
 
 ```bash
-SLOW_MO=600
 npx uivisor test recorder-app/sample/test-app-integration/my-session.yaml \
-  --headed --slow-mo $SLOW_MO
+  --headed --slow-mo 600
 ```
 
 ## Project structure
@@ -176,7 +173,7 @@ src/
   overlay.ts       # In-browser HUD + assertion picker (keyboard shortcuts)
   yamlWriter.ts    # Serialises captured commands to YAML
   *.test.ts        # Unit tests
-dist/              # Compiled output (run npm run build first)
+dist/              # Compiled output (run scripts/build.sh first)
 sample/
   test-app-integration/   # Integration-test sample flows for the test-app
 ```

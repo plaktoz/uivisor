@@ -1,55 +1,28 @@
 # uivisor — YAML-Driven Web UI Test Runner
 
-`uivisor` is a lightweight CLI tool for writing and running web UI tests using a simple YAML flow format. You describe user interactions in plain YAML — navigate, type, tap, assert — and `uivisor` drives a real browser via Playwright to execute them.
+`uivisor` is a lightweight CLI tool for writing and running web UI tests using a simple YAML flow format. You describe user interactions in plain YAML — navigate, type, tap, assert, screenshot — and `uivisor` drives a real browser via Playwright to execute them.
 
-No test framework boilerplate. No TypeScript required to write tests. Just YAML flows.
-
----
-
-## What It Does
-
-- Runs one or more YAML flow files against a live web app
-- Executes each command step-by-step in a Playwright-controlled browser
-- Reports pass/fail per step with timing and screenshots on failure
-- Outputs results to the console, an HTML report, or a Markdown report
+No test framework boilerplate. No TypeScript required. Just YAML flows.
 
 ---
 
 ## Prerequisites
 
-- **Node.js** 18+
-- **npm** 9+
-- A running web app to test against (local or remote)
+- **Node.js 24+**
+- **npm 10+**
 
 ---
 
 ## Setup
 
-**1. Install dependencies**
+From the repo root:
 
 ```bash
-npm install
+bash scripts/build.sh
+npx playwright install chromium   # run once after first install
 ```
 
-**2. Install Playwright browsers**
-
-```bash
-npx playwright install chromium
-```
-
-**3. Build the TypeScript source**
-
-```bash
-npm run build
-```
-
-**4. (Optional) Link the CLI globally**
-
-```bash
-npm link
-```
-
-After linking, the `uivisor` command is available anywhere in your terminal.
+`scripts/build.sh` installs all workspace packages and builds `packages/core`, `uivisor-app`, and `recorder-app` in the correct order.
 
 ---
 
@@ -57,79 +30,130 @@ After linking, the `uivisor` command is available anywhere in your terminal.
 
 ### Basic usage
 
-```bash
-npx tsx src/cli/index.ts test <target> [options]
-```
-
-Or if you ran `npm link`:
+From the repo root:
 
 ```bash
-uivisor test <target> [options]
+npx uivisor test <target> [options]
 ```
 
 ### Target
 
-The `<target>` can be:
-
-- A path to a single flow file: `flows/login-happy.yaml`
-- A directory containing `.yaml` files: `flows/`
+- A single flow file: `flows/login-happy.yaml`
+- A directory of `.yaml` files: `flows/`
 
 ### Options
 
 | Flag | Description |
 |------|-------------|
-| `--headed` | Run the browser in headed (visible) mode instead of headless |
-| `--slow-mo <ms>` | Add a delay in milliseconds between each action (useful for debugging) |
-| `--reporter html` | Write an HTML report to a timestamped `target/<YYYYMMDD-HHmm>/uivisor-report.html` |
-| `--reporter md` | Write a Markdown report to a timestamped `target/<YYYYMMDD-HHmm>/uivisor-report.md` |
-| `--tag <name>` | Only run flows with this tag (repeatable; multiple `--tag` flags use OR semantics) |
+| `--headed` | Run the browser in headed (visible) mode |
+| `--slow-mo <ms>` | Delay in milliseconds between each action |
+| `--reporter html` | Write an HTML report to `target/<YYYYMMDD-HHmm>/uivisor-report.html` |
+| `--reporter md` | Write a Markdown report to `target/<YYYYMMDD-HHmm>/uivisor-report.md` |
+| `--tag <name>` | Only run flows with this tag (repeatable; multiple flags use OR semantics) |
 
 ### Examples
 
 ```bash
 # Run a single flow
-uivisor test flows/login-happy.yaml
+npx uivisor test flows/login-happy.yaml
 
 # Run all flows in a directory
-uivisor test flows/
+npx uivisor test flows/
 
 # Run headed with slow motion for debugging
-uivisor test flows/login-happy.yaml --headed --slow-mo 500
+npx uivisor test flows/login-happy.yaml --headed --slow-mo 500
 
-# Run and generate an HTML report
-uivisor test flows/ --reporter html
+# Generate an HTML report
+npx uivisor test flows/ --reporter html
 
 # Run only flows tagged "checkout"
-uivisor test flows/ --tag checkout
+npx uivisor test flows/ --tag checkout
 
 # Run flows tagged "checkout" or "payment"
-uivisor test flows/ --tag checkout --tag payment
+npx uivisor test flows/ --tag checkout --tag payment
 ```
 
-The CLI exits with code `0` if all flows pass, or `1` if any flow fails — compatible with CI pipelines.
+The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI pipelines.
 
 ---
 
 ## Flow YAML Format
-
-Each flow is a `.yaml` file with two top-level keys:
 
 ```yaml
 appId: <base URL of the app>
 commands:
   - <command>
   - <command>
-  ...
 ```
+
+The runner navigates to `appId` before executing the first command.
 
 ### Top-level keys
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `appId` or `url` | Yes | Base URL of the app under test (both are equivalent) |
+| `appId` | Yes | Base URL — the browser navigates here before the first command runs |
 | `commands` | Yes | List of commands to execute |
 | `tags` | No | Array of strings for `--tag` filtering |
 | `shared` | No | If `true`, the flow can only be invoked via `runFlow`, not run directly |
+
+---
+
+## Selectors
+
+All interaction and assertion commands accept a selector. There are three forms.
+
+### Object selector
+
+Use an object with exactly one (or two) keys:
+
+| Form | Matches by |
+|------|-----------|
+| `{ text: "Sign In" }` | Visible text content |
+| `{ testId: "submit-btn" }` | `data-testid` attribute |
+| `{ label: "Email" }` | Associated `<label>` text |
+| `{ placeholder: "Search..." }` | `placeholder` attribute |
+| `{ role: "button", name: "Submit" }` | ARIA role + accessible name (both required) |
+| `{ css: "ul > li:has-text('Home')" }` | Raw CSS / Playwright extended CSS selector |
+
+### Pipe-syntax selector
+
+A string containing `=` is treated as a pipe-syntax selector: `attr=value`. Chain multiple segments with `|` for left-to-right fallback — the first segment that finds exactly one matching element wins.
+
+```yaml
+- tapOn: text=Sign In
+- tapOn: id=submit-btn
+- tapOn: data-state=active
+- tapOn: id=main-nav|text=Menu     # tries id first, then falls back to text
+```
+
+Supported attributes: `id`, `name`, `placeholder`, `label`, `role`, `text`, and any `data-*` attribute.
+
+Wildcard matching is supported for all attributes except `label` and `role`:
+
+| Pattern | Matches |
+|---------|---------|
+| `prefix*` | Starts with prefix |
+| `*suffix` | Ends with suffix |
+| `*contains*` | Substring match |
+| `value` | Exact match |
+
+```yaml
+- tapOn: data-status=active*      # starts with "active"
+- tapOn: id=*-submit              # ends with "-submit"
+- tapOn: text=*Welcome*           # contains "Welcome"
+```
+
+### Bare string (cascade mode)
+
+A string with no `=` is tried against attributes in this order, stopping at the first that finds exactly one match: `data-testid` → `text` (exact) → `name` → `id` → `placeholder`.
+
+```yaml
+- tapOn: Sign In        # finds the element with text "Sign In"
+- tapOn: submit-btn     # finds by data-testid, name, or id
+```
+
+If the string matches zero or more than one element at every level, an error is thrown suggesting the more specific pipe-syntax form.
 
 ---
 
@@ -144,15 +168,6 @@ Navigates to an absolute URL and waits for the page to load.
 ```yaml
 - goto: http://localhost:3000/login
 - goto: https://staging.example.com/dashboard
-```
-
-#### `assertUrl`
-
-Asserts the current URL path matches the given string. Supports `*` as a wildcard suffix.
-
-```yaml
-- assertUrl: /dashboard
-- assertUrl: /singpass/authorized*    # matches any URL starting with /singpass/authorized
 ```
 
 #### `reload`
@@ -185,51 +200,46 @@ Goes forward one step in browser history. Fails if there is no next page.
 
 #### `tapOn`
 
-Clicks an element. Accepts a shorthand string or an explicit selector object.
+Clicks an element.
 
 ```yaml
-# By visible text (shorthand)
+# Bare string — cascade mode
 - tapOn: Sign In
 
-# By visible text (explicit)
+# Pipe syntax
+- tapOn: text=Sign In
+- tapOn: id=submit-btn
+
+# Object selector
 - tapOn:
     text: Sign In
-
-# By ARIA role + accessible name
 - tapOn:
     role: button
     name: Submit
-
-# By associated <label> text
-- tapOn:
-    label: Email
-
-# By placeholder attribute
-- tapOn:
-    placeholder: Search…
-
-# By data-testid attribute
 - tapOn:
     testId: submit-btn
+- tapOn:
+    label: Email
+- tapOn:
+    css: "#main-nav > a:has-text('Home')"
 ```
 
 #### `inputText`
 
-Types text into an element. Two forms:
+Types text into a field. Two forms:
 
 ```yaml
-# Shorthand: types into the element last clicked by tapOn
+# Shorthand — types into the element last clicked by tapOn
 - tapOn:
     testId: username
 - inputText: alice
 
-# Targeted: clears the element first, then types
+# Targeted — clears the field first, then types
 - inputText:
     element:
       testId: username
     text: alice
 
-# Targeted with any selector type
 - inputText:
     element:
       label: Email
@@ -238,14 +248,13 @@ Types text into an element. Two forms:
 
 #### `pressKey`
 
-Sends a keyboard key to the currently focused element.
+Sends a keyboard key to the currently focused element. Accepts any [Playwright key name](https://playwright.dev/docs/api/class-keyboard).
 
 ```yaml
 - pressKey: Enter
 - pressKey: Tab
 - pressKey: Escape
 - pressKey: ArrowDown
-- pressKey: a
 ```
 
 #### `selectOption`
@@ -259,7 +268,7 @@ Selects an `<option>` by value in a `<select>` element.
 
 - selectOption:
     label: Country
-    value: my
+    value: Canada
 ```
 
 #### `check`
@@ -292,7 +301,6 @@ Moves the pointer over an element (triggers hover/tooltip states).
     role: button
     name: More options
 
-# Shorthand by visible text
 - hover: Help
 ```
 
@@ -304,7 +312,6 @@ Double-clicks an element.
 - doubleClick:
     testId: editable-cell
 
-# Shorthand by visible text
 - doubleClick: Edit
 ```
 
@@ -337,7 +344,7 @@ Scrolls the page by one viewport in the given direction.
 
 #### `assertVisible`
 
-Waits up to 5 s for an element to be visible on the page.
+Waits up to 5 s for an element to be visible.
 
 ```yaml
 - assertVisible: Welcome, Alice
@@ -353,6 +360,15 @@ Waits up to 5 s for an element to be hidden or absent.
 - assertNotVisible: Error message
 - assertNotVisible:
     testId: loading-spinner
+```
+
+#### `assertUrl`
+
+Asserts the current URL path (including query string and hash) matches the given string. Supports `*` as a wildcard.
+
+```yaml
+- assertUrl: /dashboard
+- assertUrl: /auth/callback*    # matches any URL starting with /auth/callback
 ```
 
 #### `assertText`
@@ -381,7 +397,7 @@ Asserts the current value of an input element.
 
 #### `assertCount`
 
-Asserts the number of elements matching a CSS selector.
+Asserts the number of elements matching a CSS selector. Note: this command takes a `css` key directly — not a standard selector object.
 
 ```yaml
 - assertCount:
@@ -395,7 +411,7 @@ Asserts the number of elements matching a CSS selector.
 
 #### `assertEnabled`
 
-Asserts an element is not disabled.
+Asserts an element is enabled (not disabled).
 
 ```yaml
 - assertEnabled:
@@ -429,17 +445,13 @@ Asserts a checkbox is unchecked.
     testId: agree-checkbox
 ```
 
-#### `assertUrl`
-
-See [Navigation → assertUrl](#asserturl) above.
-
 ---
 
-### Waiting
+### Timing
 
 #### `wait`
 
-Pauses for the given number of milliseconds.
+Pauses for the given number of milliseconds. Value must be an integer.
 
 ```yaml
 - wait: 500
@@ -473,11 +485,11 @@ Sets the browser window size. Named presets or explicit dimensions.
 
 #### `screenshot`
 
-Saves a PNG screenshot to `<runDir>/<path>`. Directories are created automatically.
+Saves a PNG screenshot to `<runDir>/<path>`. Parent directories are created automatically. The screenshot path appears inline in HTML and Markdown reports.
 
 ```yaml
 - screenshot: after-login.png
-- screenshot: screenshots/checkout-confirmation.png
+- screenshot: shots/checkout-confirmation.png
 ```
 
 ---
@@ -486,54 +498,77 @@ Saves a PNG screenshot to `<runDir>/<path>`. Directories are created automatical
 
 #### `runFlow`
 
-Runs a nested flow file inline. Path is resolved relative to the calling flow. Circular references are detected and fail with an error.
+Runs a nested flow file inline. The path is resolved relative to the calling flow. Circular references are detected and fail with an error.
 
 ```yaml
 - runFlow: ./shared/login.yaml
 - runFlow: ../helpers/setup.yaml
 ```
 
+#### `within`
+
+Scopes all nested commands to a matched container element. Useful for disambiguating selectors when the same text or attribute appears in multiple places.
+
+```yaml
+- within:
+    <selector-key>: <value>
+    do:
+      - <command>
+      - <command>
+```
+
+The selector is specified as a single key-value pair using any pipe-syntax attribute (`id`, `text`, `name`, `placeholder`, `data-*`). The `do` list accepts any commands that would be valid at the top level.
+
+Optional `nth` (0-based) selects which container to use when multiple match:
+
+```yaml
+# Scope to the nav bar
+- within:
+    id: main-nav
+    do:
+      - tapOn: text=Dashboard
+      - assertVisible: text=Profile
+
+# Scope to the second card on the page
+- within:
+    css: .card
+    nth: 1
+    do:
+      - tapOn: text=Edit
+      - assertVisible: text=Save
+```
+
+**Supported selector keys for `within`:** `id`, `text`, `name`, `placeholder`, `label`, `role`, `data-*`, `css`
+
 ---
 
-## Selectors
+## Reports
 
-All interaction and assertion commands accept these selector forms:
+### Console (default)
 
-| Form | Matches by |
-|------|-----------|
-| `"some text"` | Visible text content (shorthand string) |
-| `{ text: "label" }` | Visible text content (explicit) |
-| `{ testId: "my-id" }` | `data-testid` attribute |
-| `{ label: "Email" }` | Associated `<label>` text |
-| `{ placeholder: "Search..." }` | `placeholder` attribute |
-| `{ role: "button", name: "Submit" }` | ARIA role + accessible name |
-| `{ css: ".class-name" }` | Raw CSS selector (assertions only) |
+Steps print as they run with pass/fail icons and durations. Failed steps show the error and a path to an auto-captured screenshot.
+
+### HTML report (`--reporter html`)
+
+Writes `target/<YYYYMMDD-HHmm>/uivisor-report.html`. Open in any browser. Shows each flow with pass/fail badges, durations, and screenshots embedded inline as base64 images — including passing `screenshot` commands.
+
+### Markdown report (`--reporter md`)
+
+Writes `target/<YYYYMMDD-HHmm>/uivisor-report.md`. Renders `![image](filename.png)` inline for every screenshot command using the basename relative to the run directory — paste directly into a PR description or commit as a test artifact.
 
 ---
 
 ## Test Case Patterns
 
-These templates show the recommended structure for positive and negative test cases.
-
-### Positive test case (happy path)
-
-A happy path test verifies that valid inputs produce the expected successful outcome. The pattern is:
-
-1. Navigate to the starting page
-2. Perform the actions with valid inputs
-3. Assert the successful outcome — the right URL, a success message, or the expected UI state
+### Happy path
 
 ```yaml
-# flows/feature-name-pass.yaml
+# flows/login-pass.yaml
 appId: http://localhost:3000
 tags:
-  - feature-name
+  - login
 
 commands:
-  # 1. Navigate to the starting point
-  - goto: http://localhost:3000/login
-
-  # 2. Perform actions with valid inputs
   - inputText:
       element:
         testId: username
@@ -544,32 +579,20 @@ commands:
       text: correct-password
   - tapOn:
       testId: submit-btn
-
-  # 3. Assert the successful outcome
   - assertUrl: /dashboard
   - assertVisible: Welcome, Alice
   - assertNotVisible: Error
 ```
 
-### Negative test case (unhappy path)
-
-An unhappy path test verifies that invalid inputs or prohibited actions are correctly rejected. The pattern is:
-
-1. Navigate to the starting page
-2. Perform the actions with invalid or boundary-violating inputs
-3. Assert the error state — an error message is shown, the user stays on the same page, and no success state appears
+### Unhappy path
 
 ```yaml
-# flows/feature-name-fail.yaml
+# flows/login-fail.yaml
 appId: http://localhost:3000
 tags:
-  - feature-name
+  - login
 
 commands:
-  # 1. Navigate to the starting point
-  - goto: http://localhost:3000/login
-
-  # 2. Perform actions with invalid inputs
   - inputText:
       element:
         testId: username
@@ -580,23 +603,18 @@ commands:
       text: wrong-password
   - tapOn:
       testId: submit-btn
-
-  # 3. Assert the error state
   - assertVisible: Invalid username or password.
-  - assertUrl: /login                # stayed on the same page
-  - assertNotVisible: Welcome        # no success state leaked through
+  - assertUrl: /login
+  - assertNotVisible: Welcome
 ```
 
-### Using shared flows
-
-For flows that share a setup (e.g. login before every test), extract the setup into a shared flow and reference it with `runFlow`:
+### Shared setup with `runFlow`
 
 ```yaml
 # flows/shared/login.yaml
 shared: true
 appId: http://localhost:3000
 commands:
-  - goto: http://localhost:3000/login
   - inputText:
       element:
         testId: username
@@ -617,56 +635,11 @@ tags:
   - checkout
 
 commands:
-  - runFlow: ./shared/login.yaml     # reuse the login setup
+  - runFlow: ./shared/login.yaml
   - tapOn:
       text: Checkout
   - assertUrl: /checkout
   - assertVisible: Order Summary
-```
-
----
-
-## Example Flows
-
-### Happy path login (`flows/login-happy.yaml`)
-
-```yaml
-appId: http://localhost:5173/login
-commands:
-  - goto: http://localhost:5173/login
-  - inputText:
-      element:
-        testId: "login-username"
-      text: "alice"
-  - inputText:
-      element:
-        testId: "login-password"
-      text: "password1"
-  - tapOn:
-      testId: "login-submit"
-  - assertUrl: "/tasks"
-  - tapOn:
-      text: "Buy groceries"
-  - assertVisible: "2 / 3 done"
-```
-
-### Unhappy path login (`flows/login-unhappy.yaml`)
-
-```yaml
-appId: http://localhost:5173/login
-commands:
-  - goto: http://localhost:5173/login
-  - inputText:
-      element:
-        testId: "login-username"
-      text: "alice"
-  - inputText:
-      element:
-        testId: "login-password"
-      text: "wrongpassword"
-  - tapOn:
-      testId: "login-submit"
-  - assertVisible: "Invalid username or password."
 ```
 
 ---
@@ -676,48 +649,35 @@ commands:
 ```
 src/
   cli/          Entry point, argument parsing, flow resolver, runner loop
-  driver/       Playwright command implementations (goto, tapOn, inputText, etc.)
+  driver/       Playwright command implementations
   engine/       Dispatcher (routes commands to driver) and run context
-  matcher/      Selector resolution — maps YAML selector shapes to Playwright locators
+  matcher/      Selector resolution — maps YAML selectors to Playwright locators
   parser/       YAML reader, command parser, selector parser, validator
-  reporter/     Console output, HTML report, Markdown report, screenshot capture
-  types.ts      Shared TypeScript types
-flows/          YAML test flows (your test cases live here)
+  reporter/     Console, HTML report, Markdown report, screenshot capture
+  utils/        Shared utilities (pattern matching, etc.)
+flows/          YAML test flows
 tests/
-  unit/         Parser, args, matcher, and reporter unit tests
+  unit/         Parser, matcher, and reporter unit tests
   integration/  Full CLI and all commands against a real headless browser
 ```
 
 ---
 
-## Reports
-
-### Console (default)
-
-Steps print as they run with pass/fail icons and durations. Failed steps show the failure message and the path to a screenshot (saved to `screenshots/`).
-
-### HTML report (`--reporter html`)
-
-Writes `uivisor-report.html` to a timestamped run directory. Open it in any browser. Shows each flow with a collapsible step list, pass/fail badges, durations, and embedded screenshot links.
-
-### Markdown report (`--reporter md`)
-
-Writes `uivisor-report.md` to a timestamped run directory — useful for committing test results or pasting into a PR description.
-
----
-
 ## Development
+
+From the repo root:
 
 ```bash
 # Run unit and integration tests
-npm test
+npm test --workspace=uivisor-app
 
 # Run only unit tests
-npm run test:unit
+npm run test:unit --workspace=uivisor-app
 
 # Run only integration tests
-npm run test:integration
+npm run test:integration --workspace=uivisor-app
 
-# Rebuild after source changes
-npm run build
+# Rebuild after source changes (build core first, then app)
+npm run build --workspace=packages/core
+npm run build --workspace=uivisor-app
 ```

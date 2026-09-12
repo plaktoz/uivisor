@@ -36,20 +36,16 @@ The `flows/integration/` directory contains one flow file per uivisor command. E
 npm run dev
 ```
 
-**Run a single flow:**
+**Run a single flow** (from the repo root):
 
 ```bash
-npx uivisor run flows/integration/tap-on.yaml
+npx uivisor test test-app/flows/integration/tap-on.yaml
 ```
 
-**Run all integration flows:**
+**Run all integration flows** (from the repo root):
 
 ```bash
-for f in flows/integration/*.yaml; do
-  [[ "$f" == *shared* ]] && continue
-  echo "--- $f ---"
-  npx uivisor run "$f"
-done
+npx uivisor test test-app/flows/integration/
 ```
 
 **Available flow files:**
