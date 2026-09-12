@@ -125,8 +125,27 @@ commands:
 |-----|----------|-------------|
 | `appId` | Yes | Base URL — the runner navigates here before the first command |
 | `commands` | Yes | List of commands to execute |
+| `vars` | No | Inline variable definitions referenced with `${varName}` |
+| `config` | No | Path to an external YAML config file; its keys override inline `vars` |
 | `tags` | No | Array of strings for `--tag` filtering |
 | `shared` | No | If `true`, the flow can only be invoked via `runFlow`, not run directly |
+
+### Variables
+
+Define reusable values with `vars` and interpolate them anywhere using `${varName}`. Use `${env.VAR_NAME}` for environment variables (with optional default: `${env.VAR:fallback}`). Shared config values (e.g. a base URL) can live in an external YAML file referenced by `config:`.
+
+```yaml
+appId: ${base}/login
+config: config.yml       # base: http://localhost:5173
+vars:
+  username: alice
+  timeout: 500
+commands:
+  - inputText:
+      element: { testId: username }
+      text: ${username}
+  - wait: ${timeout}
+```
 
 ---
 
@@ -143,6 +162,7 @@ All interaction and assertion commands accept these selector forms:
 | `{ placeholder: "Search..." }` | `placeholder` attribute |
 | `{ role: "button", name: "Submit" }` | ARIA role + accessible name |
 | `{ css: ".class > a:has-text('Go')" }` | Raw CSS / Playwright extended CSS |
+| `{ xpath: "//button[@type='submit']" }` | XPath expression |
 
 ### Pipe-syntax selectors
 
@@ -155,13 +175,13 @@ Inside a bare string, use `attr=value` to target a specific attribute. Pipe mult
 - tapOn: id=main-nav|text=Menu     # tries id first, then text
 ```
 
-Supported plain attributes: `id`, `name`, `placeholder`, `text`, `label`, `role`, and any `data-*` attribute.
+Supported plain attributes: `id`, `name`, `placeholder`, `text`, `label`, `role`, `xpath`, and any `data-*` attribute. XPath expressions containing `|` (union) must use the object form `{ xpath: '...' }` since `|` is the pipe-syntax segment separator.
 
 Wildcard matching: `prefix*`, `*suffix`, `*contains*`.
 
 ### `within` scoping
 
-Scope all nested commands to a matched container:
+Scope all nested commands to a matched container. Accepts any pipe-syntax attribute key (`id`, `text`, `name`, `placeholder`, `label`, `role`, `data-*`, `css`, `xpath`) plus an optional `nth` (0-based) to pick one of multiple matching containers.
 
 ```yaml
 - within:
@@ -169,6 +189,14 @@ Scope all nested commands to a matched container:
     do:
       - tapOn: text=HTML
       - assertVisible: text=CSS
+
+# Scope by XPath
+- within:
+    xpath: "//div[@role='dialog']"
+    do:
+      - tapOn:
+          role: button
+          name: Confirm
 ```
 
 ---
