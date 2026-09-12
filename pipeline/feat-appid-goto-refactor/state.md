@@ -462,4 +462,9 @@ All 11 uivisor-app failures and all 24 recorder-app failures are pre-existing on
 **Smoke tests:** 2/2 passed (uivisor-app tsc, recorder-app tsc)
 **Blocking findings:** 0
 
-**Last checkpoint:** Build Verification PASS at 2026-09-12
+## PR
+**URL:** https://github.com/plaktoz/uivisor/pull/64
+**Branch:** feat-appid-goto-refactor (deleted after merge)
+**Status:** merged (squash) — commit 74a7470
+
+**Last checkpoint:** Deployed at 2026-09-12
