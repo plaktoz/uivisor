@@ -4,7 +4,7 @@ A browser-based interaction recorder for uivisor. It opens a real Chromium windo
 
 ## How it works
 
-1. You run `node recorder-app/dist/cli.js <url>` from the repo root — a headed Chromium window opens at that URL.
+1. You run `npx uivisor-record <url>` from the repo root — a headed Chromium window opens at that URL.
 2. As you click, type, and navigate, every interaction is captured automatically.
 3. Use keyboard shortcuts to insert assertion, wait, and screenshot commands.
 4. Close the browser tab when done — the YAML flow file is ready to replay.
@@ -24,7 +24,7 @@ This installs all workspace packages and builds `packages/core`, `uivisor-app`, 
 All commands are run from the **repo root**.
 
 ```
-node recorder-app/dist/cli.js [url] [options]
+npx uivisor-record [url] [options]
 
 Arguments:
   url                     URL to open  (default: http://localhost:5173)
@@ -39,11 +39,11 @@ Options:
 
 ```bash
 # Record interactions on the integration test page, save to a named file
-node recorder-app/dist/cli.js http://localhost:5173/integration \
+npx uivisor-record http://localhost:5173/integration \
   -o recorder-app/sample/test-app-integration/my-recording.yaml
 
 # Record the login flow
-node recorder-app/dist/cli.js http://localhost:5173/login \
+npx uivisor-record http://localhost:5173/login \
   -o recorder-app/sample/login-flow.yaml
 ```
 
@@ -153,7 +153,7 @@ cd test-app && npm run dev
 cd test-app && npm run dev
 
 # Terminal 2 — recorder (from repo root; replace port if needed)
-node recorder-app/dist/cli.js http://localhost:5173/integration \
+npx uivisor-record http://localhost:5173/integration \
   -o recorder-app/sample/test-app-integration/my-session.yaml
 ```
 
