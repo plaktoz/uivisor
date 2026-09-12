@@ -97,8 +97,7 @@ npm run uivisor -- test recorder-app/sample/test-app-integration/tap-on.yaml --h
 ### Generate an HTML report
 
 ```bash
-npm run uivisor -- test recorder-app/sample/test-app-integration/ \
-  --headed --slow-mo 600 --reporter html
+npm run uivisor -- test recorder-app/sample/test-app-integration/ --reporter html
 # Report is written to target/<timestamp>/uivisor-report.html
 ```
 
