@@ -8,7 +8,7 @@ type Root = Page | Locator;
 
 // ─── Valid pipe-syntax attributes ────────────────────────────────────────────
 
-const PLAIN_VALID_ATTRS = new Set(['id', 'name', 'placeholder', 'text', 'label', 'role']);
+const PLAIN_VALID_ATTRS = new Set(['id', 'name', 'placeholder', 'text', 'label', 'role', 'xpath']);
 
 function isValidAttr(attr: string): boolean {
   return PLAIN_VALID_ATTRS.has(attr) || /^data-[a-zA-Z0-9-]+$/.test(attr);
@@ -110,6 +110,14 @@ function parsePipeString(raw: string): PipeSegment[] {
     }
     const attr = seg.slice(0, eqIdx);
     const value = seg.slice(eqIdx + 1);
+    // T5: XPath union conflict detection — if attr is 'xpath' and multiple segments exist,
+    // the '|' was inside an XPath expression, conflicting with pipe syntax
+    if (attr === 'xpath' && segments.length > 1) {
+      const xpathExpr = raw.slice(raw.indexOf('=') + 1);
+      throw new Error(
+        `XPath union '|' conflicts with pipe syntax. Use the object form: { xpath: '${xpathExpr}' }`
+      );
+    }
     if (!isValidAttr(attr)) {
       throw new Error(
         `Unknown attribute '${attr}' in '${raw}'. Use tapOn: { text: '${raw}' } for text containing '='.`
@@ -129,6 +137,8 @@ function buildLocatorForAttr(root: Root, attr: string, value: string): Locator {
       return (root as Page).getByLabel(value);
     case 'role':
       return (root as Page).getByRole(value as Parameters<Page['getByRole']>[0]);
+    case 'xpath':
+      return (root as Page).locator('xpath=' + value);
     default:
       // data-*, id, name, placeholder
       return (root as Page).locator(buildAttrCss(attr, value));
@@ -218,6 +228,33 @@ export async function resolveSelector(
     }
     if ('placeholder' in selector) {
       return (root as Page).getByPlaceholder(selector.placeholder);
+    }
+    if ('xpath' in selector) {
+      const expr = (selector as { xpath: string }).xpath;
+      if (!expr || !expr.trim()) {
+        throw new Error(`Invalid xpath selector: expression must not be empty`);
+      }
+      let loc: Locator;
+      try {
+        loc = (root as Page).locator('xpath=' + expr);
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
+        throw new Error(`Invalid XPath expression: ${expr} — ${detail}`);
+      }
+      let n: number;
+      try {
+        n = await loc.count();
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
+        throw new Error(`Invalid XPath expression: ${expr} — ${detail}`);
+      }
+      if (n === 0) {
+        throw new Error(`No element found for xpath selector '${expr}'.`);
+      }
+      if (n > 1) {
+        throw new Error(`No unique element found for xpath selector '${expr}' (${n} matches — use 'within' to narrow scope).`);
+      }
+      return loc;
     }
     const key = Object.keys(selector as object)[0] ?? 'unknown';
     throw new Error(`Unrecognized selector type: ${key}`);

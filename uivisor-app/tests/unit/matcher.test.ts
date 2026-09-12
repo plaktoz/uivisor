@@ -123,15 +123,18 @@ describe('resolveSelector — object selectors (unchanged behaviour)', () => {
     );
   });
 
-  it('error for unrecognized key does not call any getBy* method', async () => {
+  it('xpath branch (count=0) uses page.locator not getBy* methods', async () => {
     const { page } = makeMockPage();
 
+    // After T1+T6: xpath IS recognized. locator('xpath=//div') is called, count=0 → throws.
+    // Either way, getBy* are never called — this is a structural assertion.
     try {
-      await resolveSelector(page, { xpath: '//div' } as never);
+      await resolveSelector(page, { xpath: '//div' });
     } catch {
-      // expected
+      // expected — either "No element found" (post-T6) or "Unrecognized" (pre-T6)
     }
 
+    expect(page.locator).toHaveBeenCalledWith('xpath=//div');
     expect(page.getByText).not.toHaveBeenCalled();
     expect(page.getByRole).not.toHaveBeenCalled();
     expect(page.getByLabel).not.toHaveBeenCalled();
@@ -139,11 +142,12 @@ describe('resolveSelector — object selectors (unchanged behaviour)', () => {
     expect(page.getByTestId).not.toHaveBeenCalled();
   });
 
-  it('error message for unrecognized key includes the offending key name', async () => {
+  it('xpath branch (count=0) throws "No element found for xpath selector" error', async () => {
     const { page } = makeMockPage();
 
-    await expect(resolveSelector(page, { xpath: '//div' } as never)).rejects.toThrow(
-      /xpath|unrecognized|unknown/i,
+    // Post-T6: "No element found for xpath selector '//div'" (count=0 in mock).
+    await expect(resolveSelector(page, { xpath: '//div' })).rejects.toThrow(
+      /No element found for xpath selector/i,
     );
   });
 

@@ -127,10 +127,64 @@ describe('parseSelector', () => {
     );
   });
 
-  it('throws on a selector object with multiple unrecognized keys', () => {
-    expect(() => parseSelector({ xpath: '//div', css: '.foo' } as never)).toThrow(
-      /unrecognized|unknown/i,
-    );
+  // REPLACES: 'throws on a selector object with multiple unrecognized keys'
+  // (that test was stale — css checked before xpath, so it returned { css } not threw)
+  it('when both xpath and css keys are present, first-wins returns { xpath } (xpath checked before css after T2)', () => {
+    expect(parseSelector({ xpath: '//div', css: '.foo' } as never)).toEqual({ xpath: '//div' });
+  });
+
+  // ── XPath selector: AC1 ──────────────────────────────────────────────────────
+
+  // TC-XPATH-P1 [FAILING before T2]
+  it('TC-XPATH-P1: parseSelector({ xpath: "//button" }) returns { xpath: "//button" }', () => {
+    expect(parseSelector({ xpath: '//button' })).toEqual({ xpath: '//button' });
+  });
+
+  // TC-XPATH-P2 [FAILING before T2]
+  it('TC-XPATH-P2: parseSelector with attribute predicate returns the full xpath string intact', () => {
+    expect(parseSelector({ xpath: '//input[@type="text"]' })).toEqual({ xpath: '//input[@type="text"]' });
+  });
+
+  // TC-XPATH-P3 [FAILING before T2]
+  it('TC-XPATH-P3: parseSelector({ xpath: "//h1" }) returns { xpath: "//h1" }', () => {
+    expect(parseSelector({ xpath: '//h1' })).toEqual({ xpath: '//h1' });
+  });
+
+  // TC-XPATH-P4 [FAILING before T2]
+  it('TC-XPATH-P4: parseSelector({ xpath: "//button[@type=\\"submit\\"]" }) does not throw', () => {
+    expect(() => parseSelector({ xpath: '//button[@type="submit"]' })).not.toThrow();
+  });
+
+  // TC-XPATH-P5 [FAILING before T2]
+  it('TC-XPATH-P5: parseSelector handles xpath with contains() function', () => {
+    expect(parseSelector({ xpath: '//div[contains(@class,"modal")]' })).toEqual({
+      xpath: '//div[contains(@class,"modal")]',
+    });
+  });
+
+  // TC-XPATH-P7 [PASSING] — regression: string selector still passes through unchanged
+  it('TC-XPATH-P7 [PASSING]: parseSelector string passthrough unaffected by xpath addition', () => {
+    expect(parseSelector('Submit')).toBe('Submit');
+  });
+
+  // TC-XPATH-P8 [PASSING] — regression: { text } unaffected
+  it('TC-XPATH-P8 [PASSING]: parseSelector({ text }) unchanged', () => {
+    expect(parseSelector({ text: 'Sign In' })).toEqual({ text: 'Sign In' });
+  });
+
+  // TC-XPATH-P9 [PASSING] — regression: { role, name } unaffected
+  it('TC-XPATH-P9 [PASSING]: parseSelector({ role, name }) unchanged', () => {
+    expect(parseSelector({ role: 'button', name: 'Submit' })).toEqual({ role: 'button', name: 'Submit' });
+  });
+
+  // TC-XPATH-P10 [PASSING] — regression: { css } unaffected
+  it('TC-XPATH-P10 [PASSING]: parseSelector({ css }) unchanged', () => {
+    expect(parseSelector({ css: '.my-class' })).toEqual({ css: '.my-class' });
+  });
+
+  // TC-XPATH-P11 [PASSING] — regression: unknownKey still throws
+  it('TC-XPATH-P11 [PASSING]: parseSelector({ unknownKey: "value" }) still throws', () => {
+    expect(() => parseSelector({ unknownKey: 'value' } as never)).toThrow(/unrecognized|unknown/i);
   });
 });
 
@@ -277,6 +331,46 @@ describe('parseCommand', () => {
     expect(() => parseCommand({ clickElement: '#id' })).toThrow(
       /clickElement|unknown|unrecognized/i,
     );
+  });
+
+  // ── XPath selector in commands: AC1 (parse round-trip) ──────────────────────
+
+  // TC-XPATH-CMD1 [FAILING before T1+T2]
+  it('TC-XPATH-CMD1: parseCommand({ tapOn: { xpath: "//button" } }) → tapOn with xpath selector', () => {
+    expect(parseCommand({ tapOn: { xpath: '//button' } })).toEqual({
+      type: 'tapOn',
+      selector: { xpath: '//button' },
+    });
+  });
+
+  // TC-XPATH-CMD2 [FAILING before T1+T2]
+  it('TC-XPATH-CMD2: parseCommand({ assertVisible: { xpath: "//div[@id=\\"modal\\"]" } }) → assertVisible with xpath', () => {
+    expect(parseCommand({ assertVisible: { xpath: '//div[@id="modal"]' } })).toEqual({
+      type: 'assertVisible',
+      selector: { xpath: '//div[@id="modal"]' },
+    });
+  });
+
+  // TC-XPATH-CMD3 [FAILING before T1+T2] — AC4: assertText with xpath + expected
+  it('TC-XPATH-CMD3: parseCommand({ assertText: { xpath: "//h1", expected: "Welcome" } }) → extracts expected correctly', () => {
+    expect(parseCommand({ assertText: { xpath: '//h1', expected: 'Welcome' } })).toEqual({
+      type: 'assertText',
+      selector: { xpath: '//h1' },
+      expected: 'Welcome',
+    });
+  });
+
+  // TC-XPATH-CMD4 [FAILING before T1+T2]
+  it('TC-XPATH-CMD4: parseCommand({ assertNotVisible: { xpath: "//div[@id=\\"spinner\\"]" } }) → assertNotVisible', () => {
+    expect(parseCommand({ assertNotVisible: { xpath: '//div[@id="spinner"]' } })).toEqual({
+      type: 'assertNotVisible',
+      selector: { xpath: '//div[@id="spinner"]' },
+    });
+  });
+
+  // TC-XPATH-CMD5 [PASSING] — regression: tapOn with string selector unchanged
+  it('TC-XPATH-CMD5 [PASSING]: parseCommand({ tapOn: "Sign In" }) still parses correctly', () => {
+    expect(parseCommand({ tapOn: 'Sign In' })).toEqual({ type: 'tapOn', selector: 'Sign In' });
   });
 });
 
