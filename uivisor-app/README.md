@@ -18,11 +18,14 @@ No test framework boilerplate. No TypeScript required. Just YAML flows.
 From the repo root:
 
 ```bash
+# macOS / Linux
 bash scripts/build.sh
-npx playwright install chromium   # run once after first install
+
+# Windows
+scripts\build.bat
 ```
 
-`scripts/build.sh` installs all workspace packages and builds `packages/core`, `uivisor-app`, and `recorder-app` in the correct order.
+The build script installs all workspace packages, builds `packages/core`, `uivisor-app`, and `recorder-app` in the correct order, and installs the Playwright Chromium browser.
 
 ---
 
@@ -33,7 +36,7 @@ npx playwright install chromium   # run once after first install
 From the repo root:
 
 ```bash
-npx uivisor test <target> [options]
+npm run uivisor -- test <target> [options]
 ```
 
 ### Target
@@ -56,34 +59,34 @@ npx uivisor test <target> [options]
 
 ```bash
 # Run a single flow
-npx uivisor test flows/login-happy.yaml
+npm run uivisor -- test flows/login-happy.yaml
 
 # Run all flows in a directory
-npx uivisor test flows/
+npm run uivisor -- test flows/
 
 # Run headed with slow motion for debugging
-npx uivisor test flows/login-happy.yaml --headed --slow-mo 500
+npm run uivisor -- test flows/login-happy.yaml --headed --slow-mo 500
 
 # Generate an HTML report (written to target/<timestamp>/uivisor-report.html)
-npx uivisor test flows/ --reporter html
+npm run uivisor -- test flows/ --reporter html
 
 # Write the report to a custom folder
-npx uivisor test flows/ --reporter html --output-dir reports/
+npm run uivisor -- test flows/ --reporter html --output-dir reports/
 
 # Write the report to an absolute path
-npx uivisor test flows/ --reporter md --output-dir /tmp/ci-results
+npm run uivisor -- test flows/ --reporter md --output-dir /tmp/ci-results
 
 # Generate both HTML and MD reports in CI, separate from source
-npx uivisor test flows/ --reporter html --output-dir /artifacts/uivisor
+npm run uivisor -- test flows/ --reporter html --output-dir /artifacts/uivisor
 
 # Run only flows tagged "checkout"
-npx uivisor test flows/ --tag checkout
+npm run uivisor -- test flows/ --tag checkout
 
 # Run flows tagged "checkout" or "payment"
-npx uivisor test flows/ --tag checkout --tag payment
+npm run uivisor -- test flows/ --tag checkout --tag payment
 
 # Tag filtering combined with a custom output directory
-npx uivisor test flows/ --tag smoke --reporter html --output-dir test-results/
+npm run uivisor -- test flows/ --tag smoke --reporter html --output-dir test-results/
 ```
 
 The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI pipelines.

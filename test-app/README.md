@@ -39,13 +39,13 @@ npm run dev
 **Run a single flow** (from the repo root):
 
 ```bash
-npx uivisor test test-app/flows/integration/tap-on.yaml
+npm run uivisor -- test test-app/flows/integration/tap-on.yaml
 ```
 
 **Run all integration flows** (from the repo root):
 
 ```bash
-npx uivisor test test-app/flows/integration/
+npm run uivisor -- test test-app/flows/integration/
 ```
 
 **Available flow files:**
@@ -82,6 +82,7 @@ npx uivisor test test-app/flows/integration/
 | `set-viewport.yaml` | `setViewport` |
 | `screenshot.yaml` | `screenshot` |
 | `run-flow.yaml` | `runFlow` |
+| `within.yaml` | `within` |
 
 > **Note:** The flows assume the dev server is on `http://localhost:5173` (Vite's default). If it binds to a different port — shown in the `npm run dev` output — update the `appId` and `goto` URLs in the flow files to match.
 
