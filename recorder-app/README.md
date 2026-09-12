@@ -4,7 +4,7 @@ A browser-based interaction recorder for uivisor. It opens a real Chromium windo
 
 ## How it works
 
-1. You run `npx uivisor-record <url>` from the repo root — a headed Chromium window opens at that URL.
+1. You run `npm run uivisor-record -- <url>` from the repo root — a headed Chromium window opens at that URL.
 2. As you click, type, and navigate, every interaction is captured automatically.
 3. Use keyboard shortcuts to insert assertion, wait, and screenshot commands.
 4. Close the browser tab when done — the YAML flow file is ready to replay.
@@ -14,7 +14,11 @@ A browser-based interaction recorder for uivisor. It opens a real Chromium windo
 From the repo root:
 
 ```bash
+# macOS / Linux
 bash scripts/build.sh
+
+# Windows
+scripts\build.bat
 ```
 
 This installs all workspace packages and builds `packages/core`, `uivisor-app`, and `recorder-app` in the correct order.
@@ -24,7 +28,7 @@ This installs all workspace packages and builds `packages/core`, `uivisor-app`, 
 All commands are run from the **repo root**.
 
 ```
-npx uivisor-record [url] [options]
+npm run uivisor-record -- [url] [options]
 
 Arguments:
   url                     URL to open  (default: http://localhost:5173)
@@ -39,11 +43,11 @@ Options:
 
 ```bash
 # Record interactions on the integration test page, save to a named file
-npx uivisor-record http://localhost:5173/integration \
+npm run uivisor-record -- http://localhost:5173/integration \
   -o recorder-app/sample/test-app-integration/my-recording.yaml
 
 # Record the login flow
-npx uivisor-record http://localhost:5173/login \
+npm run uivisor-record -- http://localhost:5173/login \
   -o recorder-app/sample/login-flow.yaml
 ```
 
@@ -62,10 +66,10 @@ A HUD in the bottom-right corner of the browser window shows the active shortcut
 
 ## Replaying a recorded flow
 
-Use `npx uivisor test` from the repo root to replay any flow:
+Use `npm run uivisor` from the repo root to replay any flow:
 
 ```bash
-npx uivisor test <flow.yaml> --headed --slow-mo 600
+npm run uivisor -- test <flow.yaml> --headed --slow-mo 600
 ```
 
 ### Recommended step delays
@@ -81,19 +85,19 @@ npx uivisor test <flow.yaml> --headed --slow-mo 600
 ### Run all sample flows visually
 
 ```bash
-npx uivisor test recorder-app/sample/test-app-integration/ --headed --slow-mo 600
+npm run uivisor -- test recorder-app/sample/test-app-integration/ --headed --slow-mo 600
 ```
 
 ### Run a single sample flow
 
 ```bash
-npx uivisor test recorder-app/sample/test-app-integration/tap-on.yaml --headed --slow-mo 600
+npm run uivisor -- test recorder-app/sample/test-app-integration/tap-on.yaml --headed --slow-mo 600
 ```
 
 ### Generate an HTML report
 
 ```bash
-npx uivisor test recorder-app/sample/test-app-integration/ \
+npm run uivisor -- test recorder-app/sample/test-app-integration/ \
   --headed --slow-mo 600 --reporter html
 # Report is written to target/<timestamp>/uivisor-report.html
 ```
@@ -153,14 +157,14 @@ cd test-app && npm run dev
 cd test-app && npm run dev
 
 # Terminal 2 — recorder (from repo root; replace port if needed)
-npx uivisor-record http://localhost:5173/integration \
+npm run uivisor-record -- http://localhost:5173/integration \
   -o recorder-app/sample/test-app-integration/my-session.yaml
 ```
 
 Interact with the browser. Press `Shift+A` whenever you want to add an assertion. Close the tab when done, then replay:
 
 ```bash
-npx uivisor test recorder-app/sample/test-app-integration/my-session.yaml \
+npm run uivisor -- test recorder-app/sample/test-app-integration/my-session.yaml \
   --headed --slow-mo 600
 ```
 

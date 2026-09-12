@@ -33,18 +33,14 @@ npm install          # installs all workspace packages
 ### 2. Build all packages
 
 ```bash
+# macOS / Linux
 bash scripts/build.sh
+
+# Windows
+scripts\build.bat
 ```
 
-This does a clean install and builds `packages/core`, `uivisor-app`, and `recorder-app` in dependency order.
-
-### 3. Install Playwright browsers
-
-```bash
-cd uivisor-app
-npx playwright install chromium
-cd ..
-```
+This does a clean install, builds `packages/core`, `uivisor-app`, and `recorder-app` in dependency order, and installs the Playwright Chromium browser.
 
 ---
 
@@ -54,19 +50,19 @@ Start the test app (or point at any running web app), then run your flows from t
 
 ```bash
 # Run a single flow
-npx uivisor test flows/login-happy.yaml
+npm run uivisor -- test flows/login-happy.yaml
 
 # Run all flows in a directory
-npx uivisor test flows/
+npm run uivisor -- test flows/
 
 # Run headed with slow motion (useful for watching/debugging)
-npx uivisor test flows/login-happy.yaml --headed --slow-mo 500
+npm run uivisor -- test flows/login-happy.yaml --headed --slow-mo 500
 
 # Generate an HTML report
-npx uivisor test flows/ --reporter html
+npm run uivisor -- test flows/ --reporter html
 
 # Generate a Markdown report
-npx uivisor test flows/ --reporter md
+npm run uivisor -- test flows/ --reporter md
 ```
 
 The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI.
@@ -78,7 +74,7 @@ The CLI exits with code `0` if all flows pass, `1` if any fail — compatible wi
 Open a browser, interact with your app, and get a YAML flow written automatically:
 
 ```bash
-node recorder-app/dist/cli.js https://example.com -o my-flow.yaml
+npm run uivisor-record -- https://example.com -o my-flow.yaml
 ```
 
 Close the browser window when done. The recorded YAML is written to `my-flow.yaml`.

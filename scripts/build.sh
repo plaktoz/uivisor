@@ -35,6 +35,10 @@ npm run build --workspace=uivisor-app
 step "Building recorder-app"
 npm run build --workspace=recorder-app
 
+# ── playwright browsers ───────────────────────────────────────────────────────
+step "Installing Playwright browsers"
+npx playwright install chromium
+
 # ── test-app (standalone — not in workspace) ──────────────────────────────────
 step "Installing and building test-app"
 cd test-app
