@@ -5,7 +5,8 @@ export type Selector =
   | { label: string }
   | { placeholder: string }
   | { testId: string }
-  | { css: string };
+  | { css: string }
+  | { xpath: string };
 
 export type Command =
   | { type: 'goto';               url: string }

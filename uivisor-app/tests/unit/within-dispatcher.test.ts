@@ -195,3 +195,179 @@ describe('dispatcher — within command dispatch', () => {
     expect(result.message).toMatch(/within.*No container found.*text=NoSuchRow/i);
   });
 });
+
+// ─── TC-B-W: within + xpath selector (AC11 + AC12) ──────────────────────────
+
+describe('executeWithin — xpath container selector (AC11)', () => {
+
+  // TC-B-W-001 [FAILING before T3+T4]
+  it('TC-B-W-001: xpath container count=1 — inner dispatch IS called (scoping succeeds)', async () => {
+    const containerLoc = makeLocator(1);
+
+    const page: Page = {
+      locator: vi.fn().mockImplementation((selector: string) => {
+        if (selector === 'xpath=//div[@data-role="dialog"]') return containerLoc;
+        return makeLocator(0);
+      }),
+      getByText: vi.fn().mockReturnValue(makeLocator(0)),
+      getByLabel: vi.fn().mockReturnValue(makeLocator(0)),
+      getByRole: vi.fn().mockReturnValue(makeLocator(0)),
+      getByPlaceholder: vi.fn().mockReturnValue(makeLocator(0)),
+      getByTestId: vi.fn().mockReturnValue(makeLocator(0)),
+    } as unknown as Page;
+
+    const innerDispatch: WithinDispatch = vi.fn().mockResolvedValue({
+      commandResults: [],
+      passed: true,
+      filePath: '',
+      totalCommands: 0,
+      passedCommands: 0,
+      durationMs: 0,
+    });
+
+    const cmd = {
+      type: 'within' as const,
+      selector: 'xpath=//div[@data-role="dialog"]',
+      do: [{ command: { type: 'tapOn' as const, selector: 'text=OK' } }],
+    };
+
+    await executeWithin(page, cmd, makeCtx(), innerDispatch);
+
+    expect(innerDispatch).toHaveBeenCalledOnce();
+  });
+
+  // TC-B-W-002 [FAILING before T3+T4]
+  it('TC-B-W-002: xpath container count=0 — throws "No container found" error mentioning xpath selector; inner dispatch NOT called', async () => {
+    const page: Page = {
+      locator: vi.fn().mockReturnValue(makeLocator(0)),
+      getByText: vi.fn().mockReturnValue(makeLocator(0)),
+      getByLabel: vi.fn().mockReturnValue(makeLocator(0)),
+      getByRole: vi.fn().mockReturnValue(makeLocator(0)),
+      getByPlaceholder: vi.fn().mockReturnValue(makeLocator(0)),
+      getByTestId: vi.fn().mockReturnValue(makeLocator(0)),
+    } as unknown as Page;
+
+    const innerDispatch: WithinDispatch = vi.fn();
+
+    const cmd = {
+      type: 'within' as const,
+      selector: 'xpath=//div[@class="missing"]',
+      do: [],
+    };
+
+    await expect(
+      executeWithin(page, cmd, makeCtx(), innerDispatch)
+    ).rejects.toThrow(
+      /No container found.*xpath=\/\/div\[@class="missing"\]/
+    );
+
+    expect(innerDispatch).not.toHaveBeenCalled();
+  });
+
+  // TC-B-W-003 [FAILING before T5] — AC12: within container with xpath union |
+  it('TC-B-W-003: xpath container with union | ("xpath=//a | //b") — throws XPath union conflict; inner dispatch NOT called', async () => {
+    const page: Page = {
+      locator: vi.fn().mockReturnValue(makeLocator(0)),
+      getByText: vi.fn().mockReturnValue(makeLocator(0)),
+      getByLabel: vi.fn().mockReturnValue(makeLocator(0)),
+      getByRole: vi.fn().mockReturnValue(makeLocator(0)),
+      getByPlaceholder: vi.fn().mockReturnValue(makeLocator(0)),
+      getByTestId: vi.fn().mockReturnValue(makeLocator(0)),
+    } as unknown as Page;
+
+    const innerDispatch: WithinDispatch = vi.fn();
+
+    const cmd = {
+      type: 'within' as const,
+      selector: 'xpath=//a | //b',
+      do: [],
+    };
+
+    await expect(
+      executeWithin(page, cmd, makeCtx(), innerDispatch)
+    ).rejects.toThrow(/XPath union.*conflicts/i);
+
+    expect(innerDispatch).not.toHaveBeenCalled();
+  });
+
+  // TC-B-W-004 [FAILING before T3+T4]
+  it('TC-B-W-004: xpath container count=3, nth=1 (0-based: 2nd container) — inner dispatch called; nth(1) called on container', async () => {
+    const nth0 = makeLocator(0);
+    const nth1 = makeLocator(0);
+    const nth2 = makeLocator(0);
+    const containerLoc = {
+      count: vi.fn().mockResolvedValue(3),
+      nth: vi.fn().mockImplementation((n: number) => {
+        if (n === 0) return nth0;
+        if (n === 1) return nth1;
+        if (n === 2) return nth2;
+        return nth0;
+      }),
+    } as unknown as import('playwright').Locator;
+
+    const page: Page = {
+      locator: vi.fn().mockImplementation((selector: string) => {
+        if (selector === 'xpath=//tr') return containerLoc;
+        return makeLocator(0);
+      }),
+      getByText: vi.fn().mockReturnValue(makeLocator(0)),
+      getByLabel: vi.fn().mockReturnValue(makeLocator(0)),
+      getByRole: vi.fn().mockReturnValue(makeLocator(0)),
+      getByPlaceholder: vi.fn().mockReturnValue(makeLocator(0)),
+      getByTestId: vi.fn().mockReturnValue(makeLocator(0)),
+    } as unknown as Page;
+
+    const innerDispatch: WithinDispatch = vi.fn().mockResolvedValue({
+      passed: true,
+      message: undefined,
+      command: { type: 'goto', url: 'http://test' },
+      durationMs: 0,
+    });
+
+    const cmd = {
+      type: 'within' as const,
+      selector: 'xpath=//tr',
+      nth: 1, // 0-based: selects 2nd container → containerLoc.nth(1)
+      do: [{ command: { type: 'goto' as const, url: 'http://test' } }],
+    };
+
+    await executeWithin(page, cmd, makeCtx(), innerDispatch);
+
+    // nth=1 (0-based) → containerLoc.nth(1) called
+    expect(containerLoc.nth).toHaveBeenCalledWith(1);
+    expect(innerDispatch).toHaveBeenCalledOnce();
+  });
+
+  // TC-B-W-005 [FAILING before T3+T4]
+  it('TC-B-W-005: xpath container count=1, nth=3 out of range — throws "nth out of range" error; inner dispatch NOT called', async () => {
+    const containerLoc = makeLocator(1);
+
+    const page: Page = {
+      locator: vi.fn().mockImplementation((selector: string) => {
+        if (selector === 'xpath=//div') return containerLoc;
+        return makeLocator(0);
+      }),
+      getByText: vi.fn().mockReturnValue(makeLocator(0)),
+      getByLabel: vi.fn().mockReturnValue(makeLocator(0)),
+      getByRole: vi.fn().mockReturnValue(makeLocator(0)),
+      getByPlaceholder: vi.fn().mockReturnValue(makeLocator(0)),
+      getByTestId: vi.fn().mockReturnValue(makeLocator(0)),
+    } as unknown as Page;
+
+    const innerDispatch: WithinDispatch = vi.fn();
+
+    const cmd = {
+      type: 'within' as const,
+      selector: 'xpath=//div',
+      nth: 3,
+      do: [],
+    };
+
+    await expect(
+      executeWithin(page, cmd, makeCtx(), innerDispatch)
+    ).rejects.toThrow(/nth=3.*only 1.*containers/i);
+
+    expect(innerDispatch).not.toHaveBeenCalled();
+  });
+
+});
