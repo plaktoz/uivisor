@@ -55,16 +55,16 @@ function renderCommandRows(results: CommandResult[], indent = 0): string {
     let row = `<tr class="${status}"><td${padding}>${icon}</td><td>${label}</td><td>${r.durationMs}ms</td></tr>\n`;
     if (!r.passed) {
       if (r.expected) row += `<tr class="fail-detail"><td colspan="3">&nbsp;&nbsp;Expected: ${escapeHtml(r.expected)} / Got: ${escapeHtml(r.got ?? '')}</td></tr>\n`;
-      if (r.screenshotPath) {
-        let imgTag = '';
-        try {
-          const buf = fs.readFileSync(r.screenshotPath);
-          imgTag = `<img src="data:image/png;base64,${buf.toString('base64')}" alt="screenshot" style="max-width:400px">`;
-        } catch {
-          imgTag = `<a href="${escapeHtml(r.screenshotPath)}">${escapeHtml(r.screenshotPath)}</a>`;
-        }
-        row += `<tr class="fail-detail"><td colspan="3">${escapeHtml(r.screenshotPath)}<br>${imgTag}</td></tr>\n`;
+    }
+    if (r.screenshotPath) {
+      let imgTag = '';
+      try {
+        const buf = fs.readFileSync(r.screenshotPath);
+        imgTag = `<img src="data:image/png;base64,${buf.toString('base64')}" alt="screenshot" style="max-width:400px">`;
+      } catch {
+        imgTag = `<a href="${escapeHtml(r.screenshotPath)}">${escapeHtml(r.screenshotPath)}</a>`;
       }
+      row += `<tr class="fail-detail"><td colspan="3">${escapeHtml(r.screenshotPath)}<br>${imgTag}</td></tr>\n`;
     }
     if (r.nestedResult) {
       row += renderCommandRows(r.nestedResult.commandResults, indent + 1);

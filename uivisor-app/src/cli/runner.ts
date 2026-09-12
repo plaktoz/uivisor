@@ -38,6 +38,7 @@ export async function runAll(
         const ctx = createContext(options.runDir, sessions, defaultSessionId);
         reporter.startFlow(file.filePath, ctx.indentLevel);
         const firstPage = sessions.get(defaultSessionId)!;
+        if (file.baseUrl) await firstPage.goto(file.baseUrl);
         const result = await runFlow(file, firstPage, ctx);
         flowResults.push(result);
 
