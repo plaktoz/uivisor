@@ -229,16 +229,18 @@ export async function resolveSelector(
   if (selector.includes('=')) {
     const segments = parsePipeString(selector); // throws on unknown attr
     const tried: string[] = [];
+    let maxCount = 0;
     for (const seg of segments) {
       const loc = buildLocatorForAttr(root, seg.attr, seg.value);
       const n = await loc.count();
+      if (n > maxCount) maxCount = n;
       tried.push(`${seg.raw}: ${n} matches`);
       if (n === 1) return loc;
     }
-    throw new Error(
-      `No element found for pipe selector '${selector}'.\n` +
-        tried.map((t) => `  ${t}`).join('\n')
-    );
+    const heading = maxCount > 1
+      ? `No unique element found for pipe selector '${selector}' (${maxCount} matches — use 'within' to narrow scope).`
+      : `No element found for pipe selector '${selector}'.`;
+    throw new Error(heading + '\n' + tried.map((t) => `  ${t}`).join('\n'));
   }
 
   // Cascade mode: no `=`

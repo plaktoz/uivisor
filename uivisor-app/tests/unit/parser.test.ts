@@ -693,6 +693,118 @@ describe('parseCommand — page control & utilities', () => {
   });
 });
 
+// ─── wait / waitFor — string-coercion bug (fix-wait-waitfor-string-coercion) ──
+//
+// Consolidated test suite (tester_consolidator).
+// Covers the 10 ACs (shared by Generator A and Generator B) plus 8 edge-case
+// regression guards added by Generator B.
+//
+// CURRENTLY FAILING before the fix (marked [FAILING]):
+//   AC1, AC2, Edge-LargeValue — parsers throw instead of accepting numeric strings
+//
+// CURRENTLY PASSING before the fix (marked [PASSING]):
+//   AC3–AC10, Edge-* — error paths already throw the right messages;
+//   inline-number regressions pass; bad-input edge cases throw
+
+describe('parseCommand — wait/waitFor string coercion (fix-wait-waitfor-string-coercion)', () => {
+
+  // ── Core ACs (shared by Generator A and Generator B) ────────────────────────
+
+  // AC1 [FAILING]: numeric string "5000" must be coerced and accepted by wait
+  it('AC1 [FAILING]: parseCommand({ wait: "5000" }) returns { type: "wait", ms: 5000 }', () => {
+    expect(parseCommand({ wait: '5000' })).toEqual({ type: 'wait', ms: 5000 });
+  });
+
+  // AC2 [FAILING]: numeric string "1000" must be coerced and accepted by waitFor
+  it('AC2 [FAILING]: parseCommand({ waitFor: "1000" }) returns { type: "waitFor", ms: 1000 }', () => {
+    expect(parseCommand({ waitFor: '1000' })).toEqual({ type: 'waitFor', ms: 1000 });
+  });
+
+  // AC3 [PASSING]: non-numeric string for wait still throws
+  it('AC3 [PASSING]: parseCommand({ wait: "hello" }) throws matching /type error|must be.*integer/i', () => {
+    expect(() => parseCommand({ wait: 'hello' })).toThrow(/type error|must be.*integer/i);
+  });
+
+  // AC4 [PASSING]: non-numeric string for waitFor still throws
+  it('AC4 [PASSING]: parseCommand({ waitFor: "hello" }) throws matching /positive integer/i', () => {
+    expect(() => parseCommand({ waitFor: 'hello' })).toThrow(/positive integer/i);
+  });
+
+  // AC5 [PASSING]: regression — inline integer literal for wait must not break
+  it('AC5 [PASSING]: parseCommand({ wait: 500 }) returns { type: "wait", ms: 500 }', () => {
+    expect(parseCommand({ wait: 500 })).toEqual({ type: 'wait', ms: 500 });
+  });
+
+  // AC6 [PASSING]: regression — inline integer literal for waitFor must not break
+  it('AC6 [PASSING]: parseCommand({ waitFor: 3000 }) returns { type: "waitFor", ms: 3000 }', () => {
+    expect(parseCommand({ waitFor: 3000 })).toEqual({ type: 'waitFor', ms: 3000 });
+  });
+
+  // AC7 [PASSING]: string "0" for waitFor must still throw (zero is not positive)
+  it('AC7 [PASSING]: parseCommand({ waitFor: "0" }) throws matching /positive integer/i', () => {
+    expect(() => parseCommand({ waitFor: '0' })).toThrow(/positive integer/i);
+  });
+
+  // AC8 [PASSING]: negative numeric string for waitFor must still throw
+  it('AC8 [PASSING]: parseCommand({ waitFor: "-500" }) throws matching /positive integer/i', () => {
+    expect(() => parseCommand({ waitFor: '-500' })).toThrow(/positive integer/i);
+  });
+
+  // AC9 [PASSING]: float string for wait must still throw (must be integer)
+  it('AC9 [PASSING]: parseCommand({ wait: "1.5" }) throws matching /type error|must be.*integer/i', () => {
+    expect(() => parseCommand({ wait: '1.5' })).toThrow(/type error|must be.*integer/i);
+  });
+
+  // AC10 [PASSING]: float string for waitFor must still throw
+  it('AC10 [PASSING]: parseCommand({ waitFor: "1.5" }) throws matching /positive integer/i', () => {
+    expect(() => parseCommand({ waitFor: '1.5' })).toThrow(/positive integer/i);
+  });
+
+  // ── Edge-case regression guards (Generator B additions) ─────────────────────
+
+  // Edge-LargeValue [FAILING]: large numeric string must coerce correctly for wait
+  it('Edge-LargeValue [FAILING]: parseCommand({ wait: "999999" }) returns { type: "wait", ms: 999999 }', () => {
+    expect(parseCommand({ wait: '999999' })).toEqual({ type: 'wait', ms: 999999 });
+  });
+
+  // Edge-Whitespace [PASSING]: whitespace-padded string must throw — " 500 " cannot come
+  // from flattenVars coercing a number (which produces "500"), so it implies a typo in vars.
+  // The fix must use a strict digit-only check so this is rejected, not silently trimmed.
+  it('Edge-Whitespace [PASSING]: parseCommand({ wait: " 500 " }) throws — strict coercion rejects whitespace', () => {
+    expect(() => parseCommand({ wait: ' 500 ' })).toThrow(/type error|must be.*integer/i);
+  });
+
+  // Edge-NaN-wait [PASSING]: "NaN" is not a finite integer
+  it('Edge-NaN-wait [PASSING]: parseCommand({ wait: "NaN" }) throws matching /type error|must be.*integer/i', () => {
+    expect(() => parseCommand({ wait: 'NaN' })).toThrow(/type error|must be.*integer/i);
+  });
+
+  // Edge-Infinity-wait [PASSING]: "Infinity" is not a finite integer
+  it('Edge-Infinity-wait [PASSING]: parseCommand({ wait: "Infinity" }) throws matching /type error|must be.*integer/i', () => {
+    expect(() => parseCommand({ wait: 'Infinity' })).toThrow(/type error|must be.*integer/i);
+  });
+
+  // Edge-NaN-waitFor [PASSING]: "NaN" is not a positive integer
+  it('Edge-NaN-waitFor [PASSING]: parseCommand({ waitFor: "NaN" }) throws matching /positive integer/i', () => {
+    expect(() => parseCommand({ waitFor: 'NaN' })).toThrow(/positive integer/i);
+  });
+
+  // Edge-Infinity-waitFor [PASSING]: "Infinity" is not a positive integer
+  it('Edge-Infinity-waitFor [PASSING]: parseCommand({ waitFor: "Infinity" }) throws matching /positive integer/i', () => {
+    expect(() => parseCommand({ waitFor: 'Infinity' })).toThrow(/positive integer/i);
+  });
+
+  // Edge-EmptyString [PASSING]: empty string must throw
+  it('Edge-EmptyString [PASSING]: parseCommand({ wait: "" }) throws matching /type error|must be.*integer/i', () => {
+    expect(() => parseCommand({ wait: '' })).toThrow(/type error|must be.*integer/i);
+  });
+
+  // Edge-MixedContent [PASSING]: "500abc" is not a pure-digit string
+  it('Edge-MixedContent [PASSING]: parseCommand({ wait: "500abc" }) throws matching /type error|must be.*integer/i', () => {
+    expect(() => parseCommand({ wait: '500abc' })).toThrow(/type error|must be.*integer/i);
+  });
+});
+
 // ─── variable interpolation ───────────────────────────────────────────────────
 
 describe('variable interpolation', () => {

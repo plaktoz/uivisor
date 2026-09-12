@@ -40,10 +40,11 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'assertUrl', path: value as string };
 
     case 'wait': {
-      if (typeof value !== 'number' || !Number.isInteger(value)) {
+      const ms = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+      if (typeof ms !== 'number' || !Number.isInteger(ms)) {
         throw new Error(`Type error: wait value must be an integer, got ${String(value)}`);
       }
-      return { type: 'wait', ms: value };
+      return { type: 'wait', ms };
     }
 
     case 'runFlow':
@@ -136,10 +137,11 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'screenshot', path: value as string };
 
     case 'waitFor': {
-      if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+      const ms = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+      if (typeof ms !== 'number' || !Number.isInteger(ms) || ms <= 0) {
         throw new Error(`waitFor ms must be a positive integer, got ${String(value)}`);
       }
-      return { type: 'waitFor', ms: value };
+      return { type: 'waitFor', ms };
     }
 
     case 'within': {
