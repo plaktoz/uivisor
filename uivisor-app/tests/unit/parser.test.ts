@@ -1518,6 +1518,27 @@ describe('variable interpolation', () => {
       }
     });
 
+    // TC-13: loadAndParse with appId sets flowFile.baseUrl
+    it('TC-13: loadAndParse on YAML with appId sets flowFile.baseUrl', () => {
+      mockReadYamlFile.mockReturnValue({
+        appId: 'http://example.com',
+        commands: [{ goto: 'http://example.com' }],
+      });
+
+      const result = loadAndParse('/flows/flow.yaml');
+      expect(result.baseUrl).toBe('http://example.com');
+    });
+
+    // TC-20: loadAndParse with appId + commands: [] throws
+    it('TC-20: loadAndParse on YAML with appId + commands: [] throws', () => {
+      mockReadYamlFile.mockReturnValue({
+        appId: 'http://example.com',
+        commands: [],
+      });
+
+      expect(() => loadAndParse('/flows/flow.yaml')).toThrow('No commands found in flow.');
+    });
+
     // validateVars in loadAndParse — vars must be a plain object
     it('throws when vars: is a scalar (not a plain object)', () => {
       mockReadYamlFile.mockReturnValue({
