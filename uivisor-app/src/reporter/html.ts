@@ -117,11 +117,11 @@ export function generateHtmlReport(result: RunResult): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>webt Test Report</title>
+  <title>UIVisor Test Report</title>
   <style>${css}</style>
 </head>
 <body>
-  <h1>webt Test Report</h1>
+  <h1>UIVisor Test Report</h1>
   <div class="summary">
     <table>${summaryRows}</table>
   </div>

@@ -35,7 +35,7 @@ let baseUrl: string;
 let server: http.Server;
 
 /** Run the webt CLI via tsx and collect stdout / stderr / exitCode */
-function runWebt(
+function runUivsor(
   args: string[],
   cwd: string,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
@@ -96,7 +96,7 @@ describe('exit codes', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
     );
 
-    const { exitCode } = await runWebt(['test', 'pass.yaml'], cwd);
+    const { exitCode } = await runUivsor(['test', 'pass.yaml'], cwd);
     expect(exitCode).toBe(0);
   }, 30_000);
 
@@ -107,7 +107,7 @@ describe('exit codes', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "TextThatDefinitelyDoesNotExistXYZ"\n`,
     );
 
-    const { exitCode } = await runWebt(['test', 'fail.yaml'], cwd);
+    const { exitCode } = await runUivsor(['test', 'fail.yaml'], cwd);
     expect(exitCode).toBe(1);
   }, 30_000);
 });
@@ -122,7 +122,7 @@ describe('error handling', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: "http://127.0.0.1:1"\n  - assertVisible: "Should not reach here"\n`,
     );
 
-    const { exitCode, stdout } = await runWebt(['test', 'net-err.yaml'], cwd);
+    const { exitCode, stdout } = await runUivsor(['test', 'net-err.yaml'], cwd);
 
     expect(exitCode).toBe(1);
     expect(stdout).toMatch(/Navigation failed/i);
@@ -137,7 +137,7 @@ describe('error handling', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - tapOn: "ButtonThatNeverExists__XYZ"\n`,
     );
 
-    const { exitCode, stdout } = await runWebt(['test', 'tap-timeout.yaml'], cwd);
+    const { exitCode, stdout } = await runUivsor(['test', 'tap-timeout.yaml'], cwd);
 
     expect(exitCode).toBe(1);
     // New cascade resolver emits a diagnostic; accept either format
@@ -166,7 +166,7 @@ describe('error handling', () => {
       ].join('\n'),
     );
 
-    const { exitCode, stdout } = await runWebt(['test', 'assert-halt.yaml'], cwd);
+    const { exitCode, stdout } = await runUivsor(['test', 'assert-halt.yaml'], cwd);
 
     expect(exitCode).toBe(1);
     // Second assertVisible should NOT have been attempted
@@ -183,7 +183,7 @@ describe('error handling', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - runFlow: "./${path.basename(subFlowPath)}"\n  - assertVisible: "ShouldNotReachHere"\n`,
     );
 
-    const { exitCode, stdout } = await runWebt(['test', 'parent.yaml'], cwd);
+    const { exitCode, stdout } = await runUivsor(['test', 'parent.yaml'], cwd);
 
     expect(exitCode).toBe(1);
     // Parent's post-runFlow assertVisible should not have passed
@@ -201,7 +201,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
     );
 
-    await runWebt(['test', 'flow.yaml', '--reporter', 'html'], cwd);
+    await runUivsor(['test', 'flow.yaml', '--reporter', 'html'], cwd);
 
     const reportPath = path.join(cwd, 'uivisor-report.html');
     expect(fs.existsSync(reportPath)).toBe(true);
@@ -214,7 +214,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    await runWebt(['test', 'flow.yaml', '--reporter', 'html'], cwd);
+    await runUivsor(['test', 'flow.yaml', '--reporter', 'html'], cwd);
 
     const reportPath = path.join(cwd, 'uivisor-report.html');
     const content = fs.readFileSync(reportPath, 'utf8');
@@ -232,7 +232,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
     );
 
-    await runWebt(['test', 'flow.yaml', '--reporter', 'md'], cwd);
+    await runUivsor(['test', 'flow.yaml', '--reporter', 'md'], cwd);
 
     const reportPath = path.join(cwd, 'uivisor-report.md');
     expect(fs.existsSync(reportPath)).toBe(true);
@@ -245,7 +245,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
     );
 
-    await runWebt(['test', 'flow.yaml', '--reporter', 'md'], cwd);
+    await runUivsor(['test', 'flow.yaml', '--reporter', 'md'], cwd);
 
     const content = fs.readFileSync(path.join(cwd, 'uivisor-report.md'), 'utf8');
     // Must have at least one heading
@@ -261,7 +261,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    await runWebt(['test', 'flow.yaml'], cwd);
+    await runUivsor(['test', 'flow.yaml'], cwd);
 
     expect(fs.existsSync(path.join(cwd, 'uivisor-report.html'))).toBe(false);
     expect(fs.existsSync(path.join(cwd, 'uivisor-report.md'))).toBe(false);
@@ -274,7 +274,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    const { exitCode } = await runWebt(
+    const { exitCode } = await runUivsor(
       ['test', 'flow.yaml', '--headed', '--reporter', 'html'],
       cwd,
     );
@@ -289,7 +289,7 @@ describe('reporter files', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    const { exitCode } = await runWebt(
+    const { exitCode } = await runUivsor(
       ['test', 'flow.yaml', '--slow-mo', '50', '--reporter', 'md'],
       cwd,
     );
@@ -308,7 +308,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    const { stdout } = await runWebt(['test', 'my-flow.yaml'], cwd);
+    const { stdout } = await runUivsor(['test', 'my-flow.yaml'], cwd);
     expect(stdout).toContain('▶ Running: my-flow.yaml');
   }, 30_000);
 
@@ -319,7 +319,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    const { stdout } = await runWebt(['test', 'flow.yaml'], cwd);
+    const { stdout } = await runUivsor(['test', 'flow.yaml'], cwd);
     expect(stdout).toContain('✓');
   }, 30_000);
 
@@ -330,7 +330,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "NeverExistsXYZ"\n`,
     );
 
-    const { stdout } = await runWebt(['test', 'flow.yaml'], cwd);
+    const { stdout } = await runUivsor(['test', 'flow.yaml'], cwd);
     expect(stdout).toContain('✗');
   }, 30_000);
 
@@ -341,7 +341,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n`,
     );
 
-    const { stdout } = await runWebt(['test', 'flow.yaml'], cwd);
+    const { stdout } = await runUivsor(['test', 'flow.yaml'], cwd);
     expect(stdout).toMatch(/PASSED/);
   }, 30_000);
 
@@ -351,7 +351,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "NeverExistsXYZ"\n`,
     );
 
-    const { stdout } = await runWebt(['test', 'flow.yaml'], cwd);
+    const { stdout } = await runUivsor(['test', 'flow.yaml'], cwd);
     expect(stdout).toMatch(/FAILED/);
   }, 30_000);
 
@@ -362,7 +362,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
     );
 
-    await runWebt(['test', 'pass.yaml'], cwd);
+    await runUivsor(['test', 'pass.yaml'], cwd);
 
     expect(fs.existsSync(path.join(cwd, 'screenshots'))).toBe(false);
   }, 30_000);
@@ -377,7 +377,7 @@ describe('console output format', () => {
       `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`,
     );
 
-    const { stdout } = await runWebt(['test', '.'], cwd);
+    const { stdout } = await runUivsor(['test', '.'], cwd);
 
     // Both files should appear in output
     expect(stdout).toContain('flow-a.yaml');
@@ -391,7 +391,7 @@ describe('console output format', () => {
     const cwd = makeTmpDir();
     // No yaml files written
 
-    const { exitCode, stdout, stderr } = await runWebt(['test', '.'], cwd);
+    const { exitCode, stdout, stderr } = await runUivsor(['test', '.'], cwd);
 
     expect(exitCode).not.toBe(0);
     const combined = stdout + stderr;
@@ -402,7 +402,7 @@ describe('console output format', () => {
   it('AC47: missing target file exits non-zero with "File not found" message', async () => {
     const cwd = makeTmpDir();
 
-    const { exitCode, stdout, stderr } = await runWebt(['test', 'ghost.yaml'], cwd);
+    const { exitCode, stdout, stderr } = await runUivsor(['test', 'ghost.yaml'], cwd);
 
     expect(exitCode).not.toBe(0);
     const combined = stdout + stderr;

@@ -64,7 +64,7 @@ function renderFlow(flow: FlowResult): string {
 
 export function generateMarkdownReport(result: RunResult): string {
   const lines: string[] = [];
-  lines.push('# webt Test Report\n');
+  lines.push('# UIVisor Test Report\n');
   lines.push('## Summary\n');
   lines.push(`${result.totalFlows} flow total — ${result.passedFlows} passed, ${result.failedFlows} failed (${result.durationMs}ms)\n`);
   lines.push(`| Metric | Value |`);

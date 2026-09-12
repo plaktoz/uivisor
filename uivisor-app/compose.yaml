@@ -1,5 +1,5 @@
 services:
-  webt:
+  uivisor-app:
     build:
       context: .
       dockerfile: Dockerfile
