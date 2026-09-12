@@ -1,0 +1,24 @@
+appId: https://www.w3schools.com
+commands:
+- within:
+    id: subtopnav
+    do:
+      - tapOn: text=HTML
+- tapOn:
+    css: "#leftmenuinnerinner > a:has-text('HTML Tables')"
+- screenshot: html-tables.png
+- tapOn:
+    css: ":nth-match(.w3-example a, 3)"
+- screenshot: html-tables-tryit.png
+- tapOn:
+    css: "#leftmenuinnerinner > a:has-text('HTML Lists')"
+- screenshot: html-lists.png
+- tapOn:
+    css: "#leftmenuinnerinner > a:has-text('HTML JavaScript')"
+- screenshot: html-javascript.png
+- tapOn:
+    css: ":nth-match(.w3-example a, 3)"
+- screenshot: html-javascript-tryit.png
+- tapOn:
+    css: "#leftmenuinnerinner > a:has-text('HTML Lang Codes')"
+- screenshot: html-lang-codes.png

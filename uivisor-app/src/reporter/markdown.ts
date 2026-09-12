@@ -45,9 +45,9 @@ function renderCommandTable(results: CommandResult[]): string {
     table += `| ${icon} | ${label} | ${r.durationMs}ms |\n`;
     if (!r.passed) {
       if (r.expected) table += `| | Expected: ${r.expected} / Got: ${r.got ?? ''} | |\n`;
-      if (r.screenshotPath) {
-        table += `| | ![screenshot](${r.screenshotPath}) | |\n`;
-      }
+    }
+    if (r.screenshotPath) {
+      table += `| | ![image](${path.basename(r.screenshotPath)}) | |\n`;
     }
     if (r.nestedResult) {
       table += '\n**Nested flow:**\n\n' + renderCommandTable(r.nestedResult.commandResults);
