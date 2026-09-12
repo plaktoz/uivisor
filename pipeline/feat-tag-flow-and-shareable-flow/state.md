@@ -2,7 +2,7 @@
 
 **Task:** tag flow and shareable flow
 **Started:** 2026-08-17
-**Status:** in_progress
+**Status:** closed — code shipped, pipeline run abandoned 2026-09-12
 
 ## Gate 1: Spec
 

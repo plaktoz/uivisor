@@ -2,7 +2,7 @@
 
 **Task:** Allow users to specify flows location and report output directory as CLI inputs, so uivisor can be used as a standalone tool across multiple projects without modification.
 **Started:** 2026-08-30
-**Status:** awaiting_gate_3
+**Status:** closed — abandoned at gate 3, 2026-09-12
 
 ---
 
