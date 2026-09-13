@@ -56,6 +56,10 @@ Write the execution plan to `state.md` under `## Gate 0: Execution Plan`:
 4. Tester Ensemble Phase 2 → skill: tdd
    Reads: state.md#tests + all source files
    4a. tester_generator_a + tester_generator_b in parallel → each runs tests and reports
+       REQUIRED: both generators must run regardless of generator_a result.
+       A clean pass from generator_a does NOT skip generator_b — generator_b may
+       catch cases generator_a did not exercise. Never short-circuit Phase 2 to
+       generator_a → arbiter directly; always complete the full ensemble sequence.
    4b. tester_consolidator → merges results → state.md#test-results
    4c. tester_arbiter → resolves disagreements
    Output: test results → state.md#test-results

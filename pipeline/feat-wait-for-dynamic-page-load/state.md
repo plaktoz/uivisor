@@ -2,7 +2,7 @@
 
 **Task:** Add a `waitForLoad` command — waits for a dynamically loaded page to reach a stable state, with a hard 30-second timeout. From GitHub issue #71 (plaktoz/uivisor).
 **Started:** 2026-09-13
-**Status:** in_progress
+**Status:** delivered
 
 ---
 
@@ -352,8 +352,16 @@ Add helper: `waitForLoadCmd(selector?: string): Command`
 
 **Last checkpoint:** quality gate + build verifier PASS at 2026-09-13
 
+---
+
+## PR
+
+**URL:** https://github.com/plaktoz/uivisor/pull/74
+**Branch:** feat-wait-for-dynamic-page-load
+**Status:** open
+
 ## Worktree
 **Path:** .worktrees/feat-wait-for-dynamic-page-load
 **Branch:** feat-wait-for-dynamic-page-load
 **Created:** 2026-09-13
-**Status:** active
+**Status:** removed (merged 2026-09-13T07:00:07Z via PR #74)
