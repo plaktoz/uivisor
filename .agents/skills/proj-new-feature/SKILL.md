@@ -85,6 +85,9 @@ Reason through the task and produce an execution plan. Write it to `state.md` un
    Working directory: .worktrees/[run-name]
    Output: source files → state.md#code-artifacts
    Parallel execution: [per pipeline.parallel_execution in agent-config.yml]
+5.5. **Orchestrator — commit pipeline state into worktree** (autonomous, no gate)
+   Immediately after Coder completes, run the pipeline state commit block from proj-protocol §Push and PR.
+   This must happen before Phase 2 begins so state survives any context compaction between sessions.
 6. Tester Ensemble Phase 2 → skill: tdd + code-review
    Reads: state.md#tests + all source files
    6a. tester_generator_a + tester_generator_b in parallel → each runs tests and reports

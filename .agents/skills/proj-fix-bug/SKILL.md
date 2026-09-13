@@ -75,6 +75,9 @@ Write the execution plan to `state.md` under `## Gate 0: Execution Plan`:
    Reads: bug spec + failing tests from state.md
    Working directory: .worktrees/[run-name]
    Output: fix + source files → state.md#code-artifacts
+3.5. **Orchestrator — commit pipeline state into worktree** (autonomous, no gate)
+   Immediately after Coder completes, run the pipeline state commit block from proj-protocol §Push and PR.
+   This must happen before Phase 2 begins so state survives any context compaction between sessions.
 4. Tester Ensemble Phase 2 → skill: tdd
    Reads: state.md#tests + all source files
    4a. tester_generator_a + tester_generator_b in parallel → each runs tests and reports
