@@ -333,12 +333,13 @@ export async function executeWaitFor(ms: number): Promise<void> {
   await new Promise<void>((r) => setTimeout(r, ms));
 }
 
-export async function executeWaitForLoad(page: Page, selector?: string): Promise<void> {
-  if (selector) {
-    await page.waitForSelector(selector, { state: 'visible', timeout: 30000 });
-  } else {
-    await page.waitForLoadState('networkidle', { timeout: 30000 });
+export async function executeWaitForPageLoad(page: Page, path?: string, timeout?: number): Promise<void> {
+  const resolvedTimeout = timeout !== undefined ? timeout : 30000;
+  const glob = path ? '**/' + path.replace(/^\//, '') : undefined;
+  if (glob) {
+    await page.waitForURL(glob, { timeout: resolvedTimeout });
   }
+  await page.waitForLoadState('networkidle', { timeout: resolvedTimeout });
 }
 
 // ─── Within scoping command ───────────────────────────────────────────────────

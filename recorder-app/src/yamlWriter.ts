@@ -10,7 +10,7 @@ function selectorToObject(selector: unknown): Record<string, unknown> {
   return selector as Record<string, unknown>;
 }
 
-function commandToRecord(cmd: Command): Record<string, unknown> {
+export function commandToRecord(cmd: Command): Record<string, unknown> {
   switch (cmd.type) {
     case 'goto':
       return { goto: cmd.url };
@@ -108,8 +108,14 @@ function commandToRecord(cmd: Command): Record<string, unknown> {
     case 'waitFor':
       return { waitFor: cmd.ms };
 
-    case 'waitForLoad':
-      return cmd.selector !== undefined ? { waitForLoad: { selector: cmd.selector } } : { waitForLoad: null };
+    case 'waitForPageLoad': {
+      if (cmd.path === undefined && cmd.timeout === undefined) return { waitForPageLoad: null };
+      if (cmd.path !== undefined && cmd.timeout === undefined) return { waitForPageLoad: cmd.path };
+      const obj: Record<string, unknown> = {};
+      if (cmd.path !== undefined) obj['path'] = cmd.path;
+      if (cmd.timeout !== undefined) obj['timeout'] = cmd.timeout;
+      return { waitForPageLoad: obj };
+    }
 
     case 'crossOriginIframeWarning':
       throw new Error('unreachable: crossOriginIframeWarning handled before commandToRecord');

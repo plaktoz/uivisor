@@ -144,14 +144,20 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'waitFor', ms };
     }
 
-    case 'waitForLoad': {
-      if (value === null || value === undefined) {
-        return { type: 'waitForLoad' };
-      }
+    case 'waitForPageLoad': {
+      if (value === null || value === undefined) return { type: 'waitForPageLoad' };
+      if (typeof value === 'string') return { type: 'waitForPageLoad', path: value };
       const obj = value as Record<string, unknown>;
-      const rawSel = obj['selector'];
-      const sel = typeof rawSel === 'string' && rawSel !== '' ? rawSel : undefined;
-      return { type: 'waitForLoad', ...(sel !== undefined && { selector: sel }) };
+      const path = typeof obj['path'] === 'string' && obj['path'] !== '' ? obj['path'] : undefined;
+      const rawTimeout = obj['timeout'];
+      let timeout: number | undefined;
+      if (rawTimeout !== null && rawTimeout !== undefined) {
+        if (typeof rawTimeout !== 'number' || !Number.isInteger(rawTimeout) || rawTimeout < 0) {
+          throw new Error(`waitForPageLoad: timeout must be 0 (no timeout) or a positive integer, got ${rawTimeout}`);
+        }
+        timeout = rawTimeout;
+      }
+      return { type: 'waitForPageLoad', ...(path !== undefined && { path }), ...(timeout !== undefined && { timeout }) };
     }
 
     case 'within': {

@@ -1526,3 +1526,38 @@ describe('variable interpolation', () => {
     });
   });
 });
+
+describe('waitForPageLoad', () => {
+  // C-03
+  it('null value → bare', () => expect(parseCommand({ waitForPageLoad: null })).toEqual({ type: 'waitForPageLoad' }));
+  it('empty object → bare', () => expect(parseCommand({ waitForPageLoad: {} })).toEqual({ type: 'waitForPageLoad' }));
+
+  // C-04
+  it('scalar string → path', () => expect(parseCommand({ waitForPageLoad: '/dashboard' })).toEqual({ type: 'waitForPageLoad', path: '/dashboard' }));
+
+  // C-05
+  it('object path+timeout → both', () => expect(parseCommand({ waitForPageLoad: { path: '/x', timeout: 5000 } })).toEqual({ type: 'waitForPageLoad', path: '/x', timeout: 5000 }));
+
+  // C-06
+  it('timeout:0 accepted', () => expect(parseCommand({ waitForPageLoad: { timeout: 0 } })).toEqual({ type: 'waitForPageLoad', timeout: 0 }));
+
+  // C-07
+  it('path only, no timeout key in output', () => expect(parseCommand({ waitForPageLoad: { path: '/x' } })).toEqual({ type: 'waitForPageLoad', path: '/x' }));
+
+  // C-08
+  it('query string path preserved', () => expect(parseCommand({ waitForPageLoad: '/search?q=foo' })).toEqual({ type: 'waitForPageLoad', path: '/search?q=foo' }));
+  it('timeout:null treated as absent', () => expect(parseCommand({ waitForPageLoad: { timeout: null } })).toEqual({ type: 'waitForPageLoad' }));
+
+  // C-09
+  it('float timeout throws exact message', () => expect(() => parseCommand({ waitForPageLoad: { timeout: 0.5 } })).toThrow('waitForPageLoad: timeout must be 0 (no timeout) or a positive integer, got 0.5'));
+
+  // C-10
+  it('negative timeout throws with value', () => expect(() => parseCommand({ waitForPageLoad: { timeout: -1 } })).toThrow('waitForPageLoad: timeout must be 0 (no timeout) or a positive integer, got -1'));
+
+  // C-11
+  it('non-numeric string timeout throws exact message', () => expect(() => parseCommand({ waitForPageLoad: { timeout: 'abc' } })).toThrow('waitForPageLoad: timeout must be 0 (no timeout) or a positive integer, got abc'));
+
+  // C-12
+  it('string-numeral "5000" throws (no coercion)', () => expect(() => parseCommand({ waitForPageLoad: { timeout: '5000' } })).toThrow());
+  it('timeout:1 accepted', () => expect(parseCommand({ waitForPageLoad: { timeout: 1 } })).toEqual({ type: 'waitForPageLoad', timeout: 1 }));
+});

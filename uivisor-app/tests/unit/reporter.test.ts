@@ -393,83 +393,96 @@ describe('generateMarkdownReport', () => {
   });
 });
 
-// ─── waitForLoad reporter coverage ───────────────────────────────────────────
+// ─── waitForPageLoad reporter coverage ────────────────────────────────────────
 
-function waitForLoadCmd(selector?: string): Command {
-  return selector !== undefined ? { type: 'waitForLoad', selector } : { type: 'waitForLoad' };
+function waitForPageLoadCmd(opts?: { path?: string; timeout?: number }): Command {
+  return { type: 'waitForPageLoad', ...opts } as Command;
 }
 
-describe('waitForLoad reporter coverage', () => {
-  // T64: console — bare waitForLoad → label is "waitForLoad"
-  it('T64 — ConsoleReporter: bare waitForLoad command prints "waitForLoad"', () => {
+describe('waitForPageLoad reporter coverage', () => {
+  // T64: console — bare waitForPageLoad → label is "waitForPageLoad"
+  it('T64 — ConsoleReporter: bare waitForPageLoad command prints "waitForPageLoad"', () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const reporter = new ConsoleReporter();
-    const result = passedResult(waitForLoadCmd());
+    const result = passedResult(waitForPageLoadCmd());
     reporter.reportCommand(result, 0);
     const output = (stdoutSpy.mock.calls as [string | Buffer][])
       .map(([arg]) => (typeof arg === 'string' ? arg : arg.toString()))
       .join('');
     stdoutSpy.mockRestore();
-    expect(output).toContain('waitForLoad');
-    expect(output).not.toMatch(/waitForLoad:/);
+    expect(output).toContain('waitForPageLoad');
+    expect(output).not.toMatch(/waitForPageLoad:/);
   });
 
-  // T65: console — waitForLoad with selector → label is "waitForLoad: #main-content"
-  it('T65 — ConsoleReporter: waitForLoad with selector prints "waitForLoad: #main-content"', () => {
+  // T65: console — waitForPageLoad with path → label is "waitForPageLoad: /dashboard"
+  it('T65 — ConsoleReporter: waitForPageLoad with path prints "waitForPageLoad: /dashboard"', () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const reporter = new ConsoleReporter();
-    const result = passedResult(waitForLoadCmd('#main-content'));
+    const result = passedResult(waitForPageLoadCmd({ path: '/dashboard' }));
     reporter.reportCommand(result, 0);
     const output = (stdoutSpy.mock.calls as [string | Buffer][])
       .map(([arg]) => (typeof arg === 'string' ? arg : arg.toString()))
       .join('');
     stdoutSpy.mockRestore();
-    expect(output).toContain('waitForLoad: #main-content');
+    expect(output).toContain('waitForPageLoad: /dashboard');
   });
 
-  // T66: HTML — bare waitForLoad → label contains "waitForLoad" but not "waitForLoad:"
-  it('T66 — generateHtmlReport: bare waitForLoad label is "waitForLoad"', () => {
-    const run = makeRunResult([
-      makeFlowResult('/flows/test.yaml', [passedResult(waitForLoadCmd())]),
-    ]);
-    const html = generateHtmlReport(run);
-    expect(html).toContain('waitForLoad');
-    // Should NOT have "waitForLoad:" since no selector
-    expect(html).not.toMatch(/waitForLoad:[^<]/);
-  });
-
-  // T67: HTML — waitForLoad with selector → label contains "waitForLoad: #main"
-  it('T67 — generateHtmlReport: waitForLoad with selector label is "waitForLoad: #main"', () => {
-    const run = makeRunResult([
-      makeFlowResult('/flows/test.yaml', [passedResult(waitForLoadCmd('#main'))]),
-    ]);
-    const html = generateHtmlReport(run);
-    expect(html).toContain('waitForLoad: #main');
-  });
-
-  // T68: Markdown — bare waitForLoad → label contains "waitForLoad"
-  it('T68 — generateMarkdownReport: bare waitForLoad label is "waitForLoad"', () => {
-    const run = makeRunResult([
-      makeFlowResult('/flows/test.yaml', [passedResult(waitForLoadCmd())]),
-    ]);
-    const md = generateMarkdownReport(run);
-    expect(md).toContain('waitForLoad');
-  });
-
-  // T69: Markdown — waitForLoad with selector → label contains "waitForLoad: #btn"
-  it('T69 — generateMarkdownReport: waitForLoad with selector label is "waitForLoad: #btn"', () => {
-    const run = makeRunResult([
-      makeFlowResult('/flows/test.yaml', [passedResult(waitForLoadCmd('#btn'))]),
-    ]);
-    const md = generateMarkdownReport(run);
-    expect(md).toContain('waitForLoad: #btn');
-  });
-
-  // T70: Console — failed waitForLoad shows ✗ and FAILED
-  it('T70 — ConsoleReporter: failed bare waitForLoad shows ✗ and FAILED', () => {
+  // T65b: console — waitForPageLoad with timeout-only → label is "waitForPageLoad"
+  it('T65b — ConsoleReporter: waitForPageLoad timeout-only prints "waitForPageLoad"', () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const reporter = new ConsoleReporter();
-    const result = failedResult(waitForLoadCmd(), { message: 'Timeout 30000ms exceeded' });
+    const result = passedResult(waitForPageLoadCmd({ timeout: 5000 }));
+    reporter.reportCommand(result, 0);
+    const output = (stdoutSpy.mock.calls as [string | Buffer][])
+      .map(([arg]) => (typeof arg === 'string' ? arg : arg.toString()))
+      .join('');
+    stdoutSpy.mockRestore();
+    expect(output).toContain('waitForPageLoad');
+  });
+
+  // T66: HTML — bare waitForPageLoad → label contains "waitForPageLoad" but not "waitForPageLoad:"
+  it('T66 — generateHtmlReport: bare waitForPageLoad label is "waitForPageLoad"', () => {
+    const run = makeRunResult([
+      makeFlowResult('/flows/test.yaml', [passedResult(waitForPageLoadCmd())]),
+    ]);
+    const html = generateHtmlReport(run);
+    expect(html).toContain('waitForPageLoad');
+    // Should NOT have "waitForPageLoad:" since no path
+    expect(html).not.toMatch(/waitForPageLoad:[^<]/);
+  });
+
+  // T67: HTML — waitForPageLoad with path → label contains "waitForPageLoad: /dash"
+  it('T67 — generateHtmlReport: waitForPageLoad with path label is "waitForPageLoad: /dash"', () => {
+    const run = makeRunResult([
+      makeFlowResult('/flows/test.yaml', [passedResult(waitForPageLoadCmd({ path: '/dash' }))]),
+    ]);
+    const html = generateHtmlReport(run);
+    expect(html).toContain('waitForPageLoad: /dash');
+  });
+
+  // T68: Markdown — bare waitForPageLoad → label contains "waitForPageLoad"
+  it('T68 — generateMarkdownReport: bare waitForPageLoad label is "waitForPageLoad"', () => {
+    const run = makeRunResult([
+      makeFlowResult('/flows/test.yaml', [passedResult(waitForPageLoadCmd())]),
+    ]);
+    const md = generateMarkdownReport(run);
+    expect(md).toContain('waitForPageLoad');
+  });
+
+  // T69: Markdown — waitForPageLoad with path → label contains "waitForPageLoad: /btn"
+  it('T69 — generateMarkdownReport: waitForPageLoad with path label is "waitForPageLoad: /btn"', () => {
+    const run = makeRunResult([
+      makeFlowResult('/flows/test.yaml', [passedResult(waitForPageLoadCmd({ path: '/btn' }))]),
+    ]);
+    const md = generateMarkdownReport(run);
+    expect(md).toContain('waitForPageLoad: /btn');
+  });
+
+  // T70: Console — failed waitForPageLoad shows ✗ and FAILED
+  it('T70 — ConsoleReporter: failed bare waitForPageLoad shows ✗ and FAILED', () => {
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const reporter = new ConsoleReporter();
+    const result = failedResult(waitForPageLoadCmd(), { message: 'Timeout 30000ms exceeded' });
     reporter.reportCommand(result, 0);
     const output = (stdoutSpy.mock.calls as [string | Buffer][])
       .map(([arg]) => (typeof arg === 'string' ? arg : arg.toString()))
@@ -477,30 +490,30 @@ describe('waitForLoad reporter coverage', () => {
     stdoutSpy.mockRestore();
     expect(output).toContain('✗');
     expect(output).toMatch(/FAILED/);
-    expect(output).toContain('waitForLoad');
+    expect(output).toContain('waitForPageLoad');
   });
 
-  // T71: HTML — failed waitForLoad with selector → label and fail class present
-  it('T71 — generateHtmlReport: failed waitForLoad with selector shows fail class and label', () => {
+  // T71: HTML — failed waitForPageLoad with path → label and fail class present
+  it('T71 — generateHtmlReport: failed waitForPageLoad with path shows fail class and label', () => {
     const run = makeRunResult([
       makeFlowResult('/flows/test.yaml', [
-        failedResult(waitForLoadCmd('#never'), { message: 'Timeout 30000ms exceeded' }),
+        failedResult(waitForPageLoadCmd({ path: '/never' }), { message: 'Timeout 30000ms exceeded' }),
       ]),
     ]);
     const html = generateHtmlReport(run);
-    expect(html).toContain('waitForLoad: #never');
+    expect(html).toContain('waitForPageLoad: /never');
     expect(html).toContain('class="fail"');
   });
 
-  // T72: Markdown — failed waitForLoad → ✗ symbol present in table
-  it('T72 — generateMarkdownReport: failed waitForLoad shows ✗ in table', () => {
+  // T72: Markdown — failed waitForPageLoad → ✗ symbol present in table
+  it('T72 — generateMarkdownReport: failed waitForPageLoad shows ✗ in table', () => {
     const run = makeRunResult([
       makeFlowResult('/flows/test.yaml', [
-        failedResult(waitForLoadCmd(), { message: 'Timeout 30000ms exceeded' }),
+        failedResult(waitForPageLoadCmd(), { message: 'Timeout 30000ms exceeded' }),
       ]),
     ]);
     const md = generateMarkdownReport(run);
     expect(md).toContain('✗');
-    expect(md).toContain('waitForLoad');
+    expect(md).toContain('waitForPageLoad');
   });
 });

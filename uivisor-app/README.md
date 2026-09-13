@@ -562,24 +562,29 @@ Pauses for the given number of milliseconds. Value must be a positive integer (>
 - waitFor: ${pollInterval}
 ```
 
-#### `waitForLoad`
+#### `waitForPageLoad`
 
-Waits for the page to finish loading. Two modes:
-
-- **No argument** — waits for the network to go idle (`networkidle` state), timeout 30 s. Use after actions that trigger a navigation or a data fetch.
-- **With `selector:`** — waits for a CSS selector to be visible, timeout 30 s. Use when a specific element signals that the page is ready.
+Waits for the page to finish loading. Optionally waits for the URL to match a path pattern first.
 
 ```yaml
-# Wait for network idle (no argument)
-- waitForLoad:
+# Bare — wait for network idle (30 s default timeout)
+- waitForPageLoad:
 
-# Wait for a specific element to appear
-- waitForLoad:
-    selector: "#dashboard-table"
+# Short — wait for URL to reach /dashboard, then network idle
+- waitForPageLoad: /dashboard
 
-- waitForLoad:
-    selector: .loading-complete
+# Long — custom timeout in ms (0 = no timeout, wait indefinitely)
+- waitForPageLoad:
+    path: /dashboard
+    timeout: 5000
+
+# No timeout — wait forever
+- waitForPageLoad:
+    timeout: 0
 ```
+
+The path is matched as a glob: `/dashboard` matches `https://any.host/dashboard`.
+A negative timeout is a parse error.
 
 ---
 

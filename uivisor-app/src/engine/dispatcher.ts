@@ -32,7 +32,7 @@ import {
   executeSetViewport,
   executeScreenshot,
   executeWaitFor,
-  executeWaitForLoad,
+  executeWaitForPageLoad,
   executeWithin,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
@@ -219,8 +219,8 @@ export async function dispatch(
         await executeWaitFor(cmd.ms);
         break;
 
-      case 'waitForLoad':
-        await executeWaitForLoad(page, cmd.selector);
+      case 'waitForPageLoad':
+        await executeWaitForPageLoad(page, cmd.path, cmd.timeout);
         break;
 
       case 'within': {
