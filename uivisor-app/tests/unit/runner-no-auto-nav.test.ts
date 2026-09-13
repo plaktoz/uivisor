@@ -76,14 +76,16 @@ function makeFlowFile(overrides: Partial<FlowFile> = {}): FlowFile {
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // ConsoleReporter mock — stub all methods
+  // ConsoleReporter mock — stub all methods (vitest 5 requires a regular function for constructor mocks)
   const MockReporter = vi.mocked(ConsoleReporter);
-  MockReporter.mockImplementation(() => ({
-    startFlow: vi.fn(),
-    reportCommand: vi.fn(),
-    endFlow: vi.fn(),
-    runEnd: vi.fn(),
-  }) as unknown as ConsoleReporter);
+  MockReporter.mockImplementation(function () {
+    return {
+      startFlow: vi.fn(),
+      reportCommand: vi.fn(),
+      endFlow: vi.fn(),
+      runEnd: vi.fn(),
+    } as unknown as ConsoleReporter;
+  });
 });
 
 // ─── TC-1: baseUrl set but no goto command ────────────────────────────────────
