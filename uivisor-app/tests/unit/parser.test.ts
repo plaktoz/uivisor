@@ -524,55 +524,6 @@ describe('loadAndParse', () => {
     );
   });
 
-  // ── shared field ────────────────────────────────────────────────────────────
-
-  // AC8: shared: true → FlowFile.shared is true
-  it('AC-shared-8: returns shared: true when specified', () => {
-    mockReadYamlFile.mockReturnValue({
-      appId: 'http://localhost:3000',
-      shared: true,
-      commands: [{ goto: 'http://localhost:3000' }],
-    });
-
-    const result = loadAndParse('/flows/shared-login.yaml');
-    expect(result.shared).toBe(true);
-  });
-
-  // AC9: shared: false → FlowFile.shared is false
-  it('AC-shared-9a: returns shared: false when explicitly set to false', () => {
-    mockReadYamlFile.mockReturnValue({
-      appId: 'http://localhost:3000',
-      shared: false,
-      commands: [{ goto: 'http://localhost:3000' }],
-    });
-
-    const result = loadAndParse('/flows/flow.yaml');
-    expect(result.shared).toBe(false);
-  });
-
-  it('AC-shared-9b: defaults shared to false when not specified', () => {
-    mockReadYamlFile.mockReturnValue({
-      appId: 'http://localhost:3000',
-      commands: [{ goto: 'http://localhost:3000' }],
-    });
-
-    const result = loadAndParse('/flows/flow.yaml');
-    expect(result.shared).toBe(false);
-  });
-
-  // AC13: shared is not a boolean → parse error
-  it('AC-shared-13: throws when shared is a string instead of boolean', () => {
-    mockReadYamlFile.mockReturnValue({
-      appId: 'http://localhost:3000',
-      shared: 'yes',
-      commands: [{ goto: 'http://localhost:3000' }],
-    });
-
-    expect(() => loadAndParse('/flows/flow.yaml')).toThrow(
-      /shared.*boolean|invalid.*shared/i,
-    );
-  });
-
   // All 9 command types round-trip correctly
   it('correctly parses all 9 command types', () => {
     mockReadYamlFile.mockReturnValue({

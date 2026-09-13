@@ -1,6 +1,6 @@
 import type { SessionDef } from '@uivisor/core';
 
-const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'shared', 'sessions', 'vars', 'config']);
+const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'sessions', 'vars', 'config']);
 
 export function validateHeader(raw: unknown, filePath?: string): string {
   if (typeof raw !== 'object' || raw === null) {
@@ -29,11 +29,6 @@ export function validateHeader(raw: unknown, filePath?: string): string {
         throw new Error(`Invalid tag: tags must not be empty or whitespace-only${filePath ? ' in ' + filePath : ''}`);
       }
     }
-  }
-
-  // Validate shared if present
-  if ('shared' in obj && typeof obj['shared'] !== 'boolean') {
-    throw new Error(`Invalid shared: must be a boolean${filePath ? ' in ' + filePath : ''}`);
   }
 
   if ('appId' in obj) {

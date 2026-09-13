@@ -61,6 +61,5 @@ export function loadAndParse(filePath: string): FlowFile {
   });
 
   const tags = Array.isArray(doc['tags']) ? (doc['tags'] as string[]) : [];
-  const shared = typeof doc['shared'] === 'boolean' ? doc['shared'] : false;
-  return { baseUrl, filePath: resolvedPath, commands, sessions, tags, shared, vars };
+  return { baseUrl, filePath: resolvedPath, commands, sessions, tags, vars };
 }

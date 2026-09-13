@@ -6,7 +6,7 @@ import { parseArgs, parseCompactArgs } from './args.js';
 import { resolveTarget } from './resolver.js';
 import { runAll } from './runner.js';
 import { loadAndParse } from '../parser/index.js';
-import { filterFlows, isSingleSharedFlowTarget } from './filter.js';
+import { filterFlows } from './filter.js';
 import { generateHtmlReport } from '../reporter/html.js';
 import { generateMarkdownReport } from '../reporter/markdown.js';
 import { compactWithinBlocks } from '../compact/compactWithin.js';
@@ -71,7 +71,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Load flow metadata for filtering (tags + shared); parse errors exit here
+  // Load flow metadata for filtering; parse errors exit here
   const flows = rawTargets.map((p) => {
     try {
       return loadAndParse(p);
@@ -81,12 +81,6 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   });
-
-  // Guard: single shared flow passed directly as target
-  if (rawTargets.length === 1 && isSingleSharedFlowTarget(flows[0]!)) {
-    process.stdout.write(`Cannot run shared flow directly: ${target}\n`);
-    process.exit(1);
-  }
 
   const { included } = filterFlows(flows, tags);
 

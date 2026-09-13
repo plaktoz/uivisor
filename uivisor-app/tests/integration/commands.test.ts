@@ -440,7 +440,6 @@ describe('runFlow nesting via engine', () => {
       filePath: '/parent.yaml',
       sessions: [],
       tags: [],
-      shared: false,
       commands: [
         { command: { type: 'goto', url: baseUrl } },
         { command: { type: 'runFlow', path: subFlowPath } },
@@ -476,7 +475,6 @@ describe('runFlow nesting via engine', () => {
       filePath: '/root.yaml',
       sessions: [],
       tags: [],
-      shared: false,
       commands: [
         { command: { type: 'goto', url: baseUrl } },
         { command: { type: 'runFlow', path: level1Path } },

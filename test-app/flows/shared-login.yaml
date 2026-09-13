@@ -1,5 +1,4 @@
 appId: http://localhost:5173/login
-shared: true
 commands:
   - goto: http://localhost:5173/login
   - inputText:
