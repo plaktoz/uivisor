@@ -485,6 +485,49 @@ describe('resolveSelector — wildcard matching', () => {
     // Verify exact: true was passed
     // (The test confirms the text locator doesn't match "Submit Form" because exact is used)
   });
+
+  // TC-030: single middle wildcard — must emit ^= AND $= compound selector, not *=""
+  it('TC-030: "name=foo*bar" — CSS locator uses ^= and $= compound form', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name^="foo"][name$="bar"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=foo*bar');
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name^="foo"][name$="bar"]');
+    expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+  });
+
+  // TC-031: single middle wildcard on data-testid — compound selector
+  it('TC-031: "data-testid=btn-*-icon" — CSS locator uses ^= and $= compound form', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[data-testid^="btn-"][data-testid$="-icon"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'data-testid=btn-*-icon');
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[data-testid^="btn-"][data-testid$="-icon"]');
+    expect(mocks.locator).not.toHaveBeenCalledWith('[data-testid*=""]');
+  });
+
+  // TC-032: multiple middle wildcards — must NOT emit empty *="" regardless of mid-segment handling
+  it('TC-032: "id=foo*bar*baz" — CSS locator must not emit [id*=""]', async () => {
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockReturnValue(mockLocator(0)),
+    });
+
+    // Resolving may throw (no match) — that is fine; we only care that [id*=""] is never called
+    try { await resolveLocator(page, 'id=foo*bar*baz'); } catch { /* expected */ }
+    expect(mocks.locator).not.toHaveBeenCalledWith('[id*=""]');
+  });
 });
 
 // ─── Backward compatibility: object selectors unchanged ───────────────────────
@@ -1083,6 +1126,237 @@ describe('resolveSelector — xpath pipe-string form', () => {
     );
   });
 
+});
+
+// ─── Middle-wildcard CSS selector (tester-b) ─────────────────────────────────
+
+describe('resolveSelector — middle-wildcard CSS (tester-b)', () => {
+  // TC-B030: single middle wildcard produces prefix+suffix compound selector
+  it('TC-B030: "name=foo*bar" — locator called with [name^="foo"][name$="bar"]', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name^="foo"][name$="bar"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=foo*bar');
+
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name^="foo"][name$="bar"]');
+  });
+
+  // TC-B031: different attribute, longer prefix/suffix segments
+  it('TC-B031: "placeholder=start-*-end" — locator called with [placeholder^="start-"][placeholder$="-end"]', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[placeholder^="start-"][placeholder$="-end"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'placeholder=start-*-end');
+
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[placeholder^="start-"][placeholder$="-end"]');
+  });
+
+  // TC-B032: regression guard — [name*=""] must never be passed to locator for middle-wildcard input.
+  // The mock deliberately returns count=1 for the BUGGY css string so the function can complete
+  // without throwing when run against unfixed code — the assertion then catches the wrong call.
+  // After the fix the locator is called with the correct compound selector and never with [name*=""].
+  it('TC-B032: "name=foo*bar" — locator is NOT called with [name*=""] (regression guard)', async () => {
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        // Return 1 for both the correct (fixed) and the buggy forms so the function
+        // always completes; the assertion below then distinguishes which one was used.
+        if (css === '[name^="foo"][name$="bar"]') return mockLocator(1);
+        if (css === '[name*=""]') return mockLocator(1); // buggy output — must NOT be called
+        return mockLocator(0);
+      }),
+    });
+
+    await resolveLocator(page, 'name=foo*bar');
+
+    expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+  });
+
+  // Regression: existing prefix wildcard still produces ^= form
+  it('TC-B030-reg-a: "name=foo*" (prefix wildcard) still produces [name^="foo"]', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name^="foo"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=foo*');
+
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name^="foo"]');
+  });
+
+  // Regression: existing suffix wildcard still produces $= form
+  it('TC-B030-reg-b: "name=*bar" (suffix wildcard) still produces [name$="bar"]', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name$="bar"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=*bar');
+
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name$="bar"]');
+  });
+
+  // Regression: existing contains wildcard still produces *= form
+  it('TC-B030-reg-c: "name=*foo*" (contains wildcard) still produces [name*="foo"]', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name*="foo"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=*foo*');
+
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name*="foo"]');
+  });
+
+  // Regression: exact match (no wildcard) still produces = form
+  it('TC-B030-reg-d: "name=foobar" (exact, no wildcard) still produces [name="foobar"]', async () => {
+    const loc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name="foobar"]') return loc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=foobar');
+
+    expect(result).toBe(loc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name="foobar"]');
+  });
+});
+
+// ─── Wildcard matching — middle-wildcard regression (TC-030–TC-033) ──────────
+
+describe('resolveSelector — wildcard matching (middle-wildcard regression)', () => {
+  // TC-030: single middle wildcard name=foo*bar → [name^="foo"][name$="bar"], NOT [name*=""]
+  it('TC-030: "name=foo*bar" — CSS locator uses ^= prefix and $= suffix chained (not *="")', async () => {
+    const middleLoc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[name^="foo"][name$="bar"]') return middleLoc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'name=foo*bar');
+    expect(result).toBe(middleLoc);
+    expect(mocks.locator).toHaveBeenCalledWith('[name^="foo"][name$="bar"]');
+    expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+  });
+
+  // TC-031: middle wildcard with dashes data-testid=btn-*-icon → [data-testid^="btn-"][data-testid$="-icon"]
+  it('TC-031: "data-testid=btn-*-icon" — CSS locator uses ^= and $= chained form (not *="")', async () => {
+    const middleLoc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[data-testid^="btn-"][data-testid$="-icon"]') return middleLoc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'data-testid=btn-*-icon');
+    expect(result).toBe(middleLoc);
+    expect(mocks.locator).toHaveBeenCalledWith('[data-testid^="btn-"][data-testid$="-icon"]');
+    expect(mocks.locator).not.toHaveBeenCalledWith('[data-testid*=""]');
+  });
+
+  // TC-032: existing wildcard forms are unaffected (regression guard)
+  it('TC-032: prefix*, *suffix, *contains*, and exact selectors still emit correct CSS operators after fix', async () => {
+    // prefix* → ^=
+    {
+      const loc = mockLocator(1);
+      const { page, mocks } = makeMockPage({
+        locator: vi.fn().mockImplementation((css: string) =>
+          css === '[name^="foo"]' ? loc : mockLocator(0)
+        ),
+      });
+      const result = await resolveLocator(page, 'name=foo*');
+      expect(result).toBe(loc);
+      expect(mocks.locator).toHaveBeenCalledWith('[name^="foo"]');
+      expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+    }
+
+    // *suffix → $=
+    {
+      const loc = mockLocator(1);
+      const { page, mocks } = makeMockPage({
+        locator: vi.fn().mockImplementation((css: string) =>
+          css === '[name$="bar"]' ? loc : mockLocator(0)
+        ),
+      });
+      const result = await resolveLocator(page, 'name=*bar');
+      expect(result).toBe(loc);
+      expect(mocks.locator).toHaveBeenCalledWith('[name$="bar"]');
+      expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+    }
+
+    // *contains* → *=
+    {
+      const loc = mockLocator(1);
+      const { page, mocks } = makeMockPage({
+        locator: vi.fn().mockImplementation((css: string) =>
+          css === '[name*="btn"]' ? loc : mockLocator(0)
+        ),
+      });
+      const result = await resolveLocator(page, 'name=*btn*');
+      expect(result).toBe(loc);
+      expect(mocks.locator).toHaveBeenCalledWith('[name*="btn"]');
+      expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+    }
+
+    // exact → =
+    {
+      const loc = mockLocator(1);
+      const { page, mocks } = makeMockPage({
+        locator: vi.fn().mockImplementation((css: string) =>
+          css === '[name="submit"]' ? loc : mockLocator(0)
+        ),
+      });
+      const result = await resolveLocator(page, 'name=submit');
+      expect(result).toBe(loc);
+      expect(mocks.locator).toHaveBeenCalledWith('[name="submit"]');
+      expect(mocks.locator).not.toHaveBeenCalledWith('[name*=""]');
+    }
+  });
+
+  // TC-033: multiple middle wildcards id=foo*bar*baz → [id^="foo"][id$="baz"], NOT [id*=""]
+  it('TC-033: "id=foo*bar*baz" (multiple middle wildcards) — emits ^= / $= anchored form, does NOT emit [id*=""]', async () => {
+    const expectedLoc = mockLocator(1);
+    const { page, mocks } = makeMockPage({
+      locator: vi.fn().mockImplementation((css: string) => {
+        if (css === '[id^="foo"][id$="baz"]') return expectedLoc;
+        return mockLocator(0);
+      }),
+    });
+
+    const result = await resolveLocator(page, 'id=foo*bar*baz');
+    expect(result).toBe(expectedLoc);
+    expect(mocks.locator).toHaveBeenCalledWith('[id^="foo"][id$="baz"]');
+    expect(mocks.locator).not.toHaveBeenCalledWith('[id*=""]');
+  });
 });
 
 // ─── XPath regression guards (AC13 / AC14) ───────────────────────────────────

@@ -43,11 +43,14 @@ function buildAttrCss(attr: string, value: string): string {
     const suffix = value.slice(1);
     return `[${attr}$="${suffix}"]`;
   } else {
-    // Wildcard in the middle — use *=  with the segment between first/last *
+    // Wildcard(s) in the middle: anchor on the outermost prefix and suffix.
+    // e.g. foo*bar → [attr^="foo"][attr$="bar"]
+    //      foo*baz*qux → [attr^="foo"][attr$="qux"]
     const first = value.indexOf('*');
     const last = value.lastIndexOf('*');
-    const mid = value.slice(first + 1, last);
-    return `[${attr}*="${mid}"]`;
+    const prefix = value.slice(0, first);
+    const suffix = value.slice(last + 1);
+    return `[${attr}^="${prefix}"][${attr}$="${suffix}"]`;
   }
 }
 
