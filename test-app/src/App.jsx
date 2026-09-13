@@ -6,6 +6,7 @@ import ProfilePage from "./pages/ProfilePage";
 import TasksPage from "./pages/TasksPage";
 import IntegrationTestPage from "./pages/IntegrationTestPage";
 import IntegrationWithinPage from "./pages/IntegrationWithinPage";
+import IntegrationSessionsPage from "./pages/IntegrationSessionsPage";
 
 function ProtectedRoute({ children }) {
   const { currentUser } = useAuth();
@@ -35,6 +36,7 @@ function AppRoutes() {
           }
         />
         <Route path="/integration" element={<IntegrationTestPage />} />
+        <Route path="/integration-sessions" element={<IntegrationSessionsPage />} />
         <Route path="/integration-within" element={<IntegrationWithinPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
