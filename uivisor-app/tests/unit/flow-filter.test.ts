@@ -16,7 +16,6 @@ function makeFlow(partial: Partial<FlowFile> & { filePath: string }): FlowFile {
     baseUrl: 'http://localhost',
     commands: [],
     tags: [],
-    shared: false,
     ...partial,
   };
 }
@@ -98,68 +97,3 @@ describe('filterFlows — tag filtering', () => {
   });
 });
 
-// ─── Shared-flow filtering ────────────────────────────────────────────────────
-
-describe('filterFlows — shared flow filtering', () => {
-  // AC10: shared flows are excluded from included list silently
-  it('AC10: excludes shared flows from directory scan results', () => {
-    const flows = [
-      makeFlow({ filePath: 'login.yaml', shared: false }),
-      makeFlow({ filePath: 'helpers/setup.yaml', shared: true }),
-      makeFlow({ filePath: 'checkout.yaml', shared: false }),
-    ];
-
-    const { included, excluded } = filterFlows(flows, []);
-    expect(included).not.toContain('helpers/setup.yaml');
-    expect(excluded).toContain('helpers/setup.yaml');
-  });
-
-  it('shared flows are reported in the excluded list', () => {
-    const flows = [
-      makeFlow({ filePath: 'shared/login-steps.yaml', shared: true }),
-      makeFlow({ filePath: 'shared/nav.yaml', shared: true }),
-      makeFlow({ filePath: 'main.yaml', shared: false }),
-    ];
-
-    const { excluded } = filterFlows(flows, []);
-    expect(excluded).toHaveLength(2);
-    expect(excluded).toContain('shared/login-steps.yaml');
-    expect(excluded).toContain('shared/nav.yaml');
-  });
-
-  it('shared flows are excluded even when they match the tag filter', () => {
-    const flows = [
-      makeFlow({ filePath: 'shared/login.yaml', shared: true, tags: ['smoke'] }),
-      makeFlow({ filePath: 'login-test.yaml', shared: false, tags: ['smoke'] }),
-    ];
-
-    const { included } = filterFlows(flows, ['smoke']);
-    expect(included).not.toContain('shared/login.yaml');
-    expect(included).toContain('login-test.yaml');
-  });
-
-  // All flows shared → included is empty
-  it('returns empty included array when all flows are shared', () => {
-    const flows = [
-      makeFlow({ filePath: 'a.yaml', shared: true }),
-      makeFlow({ filePath: 'b.yaml', shared: true }),
-    ];
-
-    const { included } = filterFlows(flows, []);
-    expect(included).toHaveLength(0);
-  });
-});
-
-// ─── Single shared-flow direct target guard ────────────────────────────────────
-
-describe('isSingleSharedFlowTarget', () => {
-  it('AC11: detects a single shared flow passed as a direct target', async () => {
-    const { isSingleSharedFlowTarget } = await import('../../src/cli/filter');
-    expect(isSingleSharedFlowTarget(makeFlow({ filePath: 'shared.yaml', shared: true }))).toBe(true);
-  });
-
-  it('returns false for a non-shared flow', async () => {
-    const { isSingleSharedFlowTarget } = await import('../../src/cli/filter');
-    expect(isSingleSharedFlowTarget(makeFlow({ filePath: 'test.yaml', shared: false }))).toBe(false);
-  });
-});

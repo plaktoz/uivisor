@@ -17,7 +17,6 @@ const REPO_ROOT = path.resolve(__dirname, '../../..');
 
 type YamlDoc = {
   appId?: string;
-  shared?: boolean;
   commands: Record<string, unknown>[];
 };
 
@@ -117,10 +116,6 @@ describe('TC-11: shared-login.yaml', () => {
 
   it('commands[0].goto is truthy', () => {
     expect((parsed.commands[0] as { goto: string }).goto).toBeTruthy();
-  });
-
-  it('parsed.shared equals true', () => {
-    expect(parsed.shared).toBe(true);
   });
 
   it('commands.length equals 5', () => {
