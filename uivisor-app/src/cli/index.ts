@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseArgs } from './args.js';
+import * as yaml from 'js-yaml';
+import { parseArgs, parseCompactArgs } from './args.js';
 import { resolveTarget } from './resolver.js';
 import { runAll } from './runner.js';
 import { loadAndParse } from '../parser/index.js';
 import { filterFlows, isSingleSharedFlowTarget } from './filter.js';
 import { generateHtmlReport } from '../reporter/html.js';
 import { generateMarkdownReport } from '../reporter/markdown.js';
+import { compactWithinBlocks } from '../compact/compactWithin.js';
 
 function makeRunDir(outputDir?: string): string {
   const now = new Date();
@@ -23,6 +25,35 @@ function makeRunDir(outputDir?: string): string {
   const dir = path.join(base, stamp);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+if (process.argv[2] === 'compact') {
+  const { file, output } = parseCompactArgs(process.argv);
+  let rawContent: string;
+  try {
+    rawContent = fs.readFileSync(file, 'utf8');
+  } catch {
+    process.stdout.write(`Error: File not found: ${file}\n`);
+    process.exit(1);
+  }
+  let doc: unknown;
+  try {
+    doc = yaml.load(rawContent);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stdout.write(`Error: Parse error in ${file}: ${msg}\n`);
+    process.exit(1);
+  }
+  if (typeof doc !== 'object' || doc === null || !Array.isArray((doc as Record<string, unknown>)['commands'])) {
+    process.stdout.write(`Error: No commands array in ${file}\n`);
+    process.exit(1);
+  }
+  const compacted = compactWithinBlocks(doc);
+  const outContent = yaml.dump(compacted);
+  const outPath = output ?? file;
+  fs.writeFileSync(outPath, outContent, 'utf8');
+  process.stdout.write(`Compacted: ${outPath}\n`);
+  process.exit(0);
 }
 
 async function main(): Promise<void> {

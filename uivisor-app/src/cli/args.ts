@@ -1,3 +1,42 @@
+export interface CompactArgs {
+  file: string;
+  output?: string;
+}
+
+export function parseCompactArgs(argv: string[]): CompactArgs {
+  const args = argv.slice(2); // strip node + script path
+
+  let i = 0;
+  // skip 'compact' subcommand
+  if (args[i] === 'compact') i++;
+
+  let file: string | undefined;
+  let output: string | undefined;
+
+  // next positional is the file
+  if (args[i] && !args[i]!.startsWith('--')) {
+    file = args[i];
+    i++;
+  }
+
+  while (i < args.length) {
+    const arg = args[i];
+    if (arg === '--output' && i + 1 < args.length) {
+      output = args[i + 1] as string;
+      i += 2;
+    } else {
+      i++;
+    }
+  }
+
+  if (!file) {
+    process.stdout.write('Usage: uivisor compact <file.yml> [--output <out.yml>]\n');
+    process.exit(1);
+  }
+
+  return { file, output };
+}
+
 export interface ParsedArgs {
   target: string;
   headed: boolean;
