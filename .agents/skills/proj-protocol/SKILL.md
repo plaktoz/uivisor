@@ -49,8 +49,6 @@ Slugify by lowercasing the task description, replacing spaces with hyphens, keep
 
 ## Worktree Rules
 
-Read `pipeline.worktree_isolation` from `agent-config.yml` before activating any Coder.
-
 ### Why worktrees
 
 Each parallel feature needs its own working directory. Without worktrees, two Coder agents running simultaneously share the same file tree — one agent's uncommitted writes are visible to the other, tests bleed across, and `git status` is ambiguous. Worktrees give each feature a fully isolated checkout of the repository on its own branch.
@@ -61,7 +59,7 @@ Each parallel feature needs its own working directory. Without worktrees, two Co
 
 ### Creating a worktree
 
-When `worktree_isolation: true`, the Orchestrator creates the worktree **before** activating the Coder:
+The Orchestrator creates the worktree **before** activating the Coder:
 
 ```bash
 git worktree add .worktrees/[run-name] -b [run-name]
@@ -158,13 +156,6 @@ On conflict:
 3. Invoke `lessons` skill — file-level conflicts between parallel features are a design signal
 4. Wait for user choice
 
-### Fallback: worktree_isolation: false
-
-When `worktree_isolation: false`, the pipeline falls back to plain branch behavior:
-- `git checkout -b [run-name]` in the main checkout
-- Coder's `Working directory` field is omitted from the brief
-- All other rules (PR, merge, rollback) are unchanged
-
 ---
 
 ## Git/PR Workflow Rules
@@ -172,8 +163,7 @@ When `worktree_isolation: false`, the pipeline falls back to plain branch behavi
 Agents never commit directly to the main branch. Every code change goes through a feature branch and PR.
 
 **Coder (on first activation for a run):**
-1. Create a feature branch from the current default branch:
-   `git checkout -b [run-name]` (e.g. `git checkout -b feat-dark-mode`)
+1. The feature branch and worktree were created by the Orchestrator's Step 0 — do not run `git checkout -b`. The Coder is already on the correct branch inside `.worktrees/[run-name]`.
 2. All commits go to this branch — never to `main` or `master`
 3. Commit message format: `[run-name]: [what changed]`
 4. After writing code: `git push -u origin [run-name]`
