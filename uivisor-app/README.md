@@ -91,6 +91,22 @@ npm run uivisor -- test flows/ --tag smoke --reporter html --output-dir test-res
 
 The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI pipelines.
 
+### Compacting recorded flows
+
+The recorder can emit multiple consecutive `within` blocks targeting the same container. `uivisor compact` merges them into a single block, making recorded flows easier to read and edit.
+
+```bash
+# Compact in place (overwrites the input file)
+npm run uivisor -- compact flows/recorded.yaml
+
+# Write to a new file
+npm run uivisor -- compact flows/recorded.yaml --output flows/cleaned.yaml
+```
+
+Consecutive `within` blocks that share the same selector key, value, and `nth` are merged into one block with their `do` arrays concatenated. Non-`within` commands between blocks act as separators and are left unchanged.
+
+Exits `0` on success, `1` if the file is not found, cannot be parsed, or has no `commands` array.
+
 ---
 
 ## Flow YAML Format
@@ -113,6 +129,7 @@ The runner navigates to `appId` before executing the first command.
 | `vars` | No | Inline variable definitions; values are interpolated with `${varName}` |
 | `config` | No | Path to an external YAML config file; keys override inline `vars` |
 | `tags` | No | Array of strings for `--tag` filtering |
+| `sessions` | No | Array of named browser sessions for multi-tab tests; each entry has an `id:` field |
 
 ---
 
@@ -209,6 +226,7 @@ Wildcard matching is supported for all attributes except `label` and `role`:
 | `prefix*` | Starts with prefix |
 | `*suffix` | Ends with suffix |
 | `*contains*` | Substring match |
+| `prefix*suffix` | Starts with prefix AND ends with suffix |
 | `value` | Exact match |
 
 ```yaml
@@ -544,6 +562,25 @@ Pauses for the given number of milliseconds. Value must be a positive integer (>
 - waitFor: ${pollInterval}
 ```
 
+#### `waitForLoad`
+
+Waits for the page to finish loading. Two modes:
+
+- **No argument** — waits for the network to go idle (`networkidle` state), timeout 30 s. Use after actions that trigger a navigation or a data fetch.
+- **With `selector:`** — waits for a CSS selector to be visible, timeout 30 s. Use when a specific element signals that the page is ready.
+
+```yaml
+# Wait for network idle (no argument)
+- waitForLoad:
+
+# Wait for a specific element to appear
+- waitForLoad:
+    selector: "#dashboard-table"
+
+- waitForLoad:
+    selector: .loading-complete
+```
+
 ---
 
 ### Viewport & Screenshots
@@ -628,6 +665,40 @@ Optional `nth` (0-based) selects which container to use when multiple match:
           role: button
           name: Confirm
 ```
+
+---
+
+### Sessions
+
+Run commands across multiple browser tabs in a single flow. Declare named sessions at the top level, then route individual commands to a session with a `session:` field.
+
+```yaml
+appId: http://localhost:3000
+sessions:
+  - id: alice
+  - id: bob
+commands:
+  - session: alice
+    goto: http://localhost:3000/chat
+  - session: bob
+    goto: http://localhost:3000/chat
+  - session: alice
+    inputText:
+      element:
+        testId: message-input
+      text: hello
+  - session: alice
+    tapOn:
+      testId: send-btn
+  - session: bob
+    assertVisible: hello
+```
+
+**Rules:**
+- Each `id:` in `sessions:` gets its own browser tab.
+- Commands without a `session:` field go to the **first declared session** by default.
+- A `session:` field can be added to any command, including `within` and nested commands inside `runFlow`.
+- Flows without a `sessions:` block use a single unnamed session (existing behaviour unchanged).
 
 ---
 
