@@ -564,8 +564,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(cmd.nth).toBe(0);
   });
 
-  // CS-NTH-04 (regression): nth-only container uses sibling-index fallback unchanged
-  it('CS-NTH-04: nth-only container (no attrs, no text) preserves sibling-index fallback', () => {
+  // CS-NTH-04 (regression): css= container uses sibling-index fallback unchanged
+  it('CS-NTH-04: css= container (no attrs, no text) preserves sibling-index fallback', () => {
     const parent = document.createElement('div');
     for (let i = 0; i < 3; i++) {
       const row = document.createElement('div');
@@ -580,7 +580,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('');
+    // PR #77 replaced nth-only sentinel with css=<tagName>
+    expect(cmd.selector).toBe('css=div');
     expect(cmd.nth).toBe(2);
   });
 
