@@ -193,20 +193,47 @@ export const CAPTURE_SCRIPT: string = `(function() {
     return 'nth-only';
   }
 
+  // Counts elements within scope matching the pipe segment (attrName=attrVal).
+  // For text= segments, uses innerText/textContent iteration because "text" is not a real HTML attribute.
+  // Skips container elements whose text matches only because a descendant also matches — avoids
+  // false positives where a parent inherits its single child's innerText.
+  function countMatchingElements(scope, attrName, attrVal) {
+    if (attrName === 'text') {
+      var count = 0;
+      var all = scope.querySelectorAll('*');
+      for (var i = 0; i < all.length; i++) {
+        var candidate = all[i];
+        var t = ((candidate.innerText !== undefined ? candidate.innerText : '') || candidate.textContent || '').trim().slice(0, 60);
+        if (t !== attrVal) continue;
+        // Skip ancestors that inherit text from a matching descendant
+        var descendants = candidate.querySelectorAll('*');
+        var hasMatchingChild = false;
+        for (var j = 0; j < descendants.length; j++) {
+          var dt = ((descendants[j].innerText !== undefined ? descendants[j].innerText : '') || descendants[j].textContent || '').trim().slice(0, 60);
+          if (dt === attrVal) { hasMatchingChild = true; break; }
+        }
+        if (!hasMatchingChild) count++;
+      }
+      return count;
+    }
+    try {
+      return scope.querySelectorAll('[' + attrName + '="' + attrVal + '"]').length;
+    } catch(e) {
+      return 0;
+    }
+  }
+
   function findAncestorThatUniquesEl(el, pipeSelector) {
     var firstSeg = pipeSelector.split('|')[0];
     var eqIdx = firstSeg.indexOf('=');
     if (eqIdx === -1) return null;
     var attrName = firstSeg.slice(0, eqIdx);
     var attrVal = firstSeg.slice(eqIdx + 1);
-    var cssAttr = '[' + attrName + '="' + attrVal + '"]';
     var cur = el.parentElement;
     while (cur) {
       var bodyTag = cur.tagName && cur.tagName.toLowerCase();
       if (bodyTag === 'body' || bodyTag === 'html') break;
-      try {
-        if (cur.querySelectorAll(cssAttr).length === 1) return cur;
-      } catch(e) {}
+      if (countMatchingElements(cur, attrName, attrVal) === 1) return cur;
       cur = cur.parentElement;
     }
     return null;
@@ -231,13 +258,10 @@ export const CAPTURE_SCRIPT: string = `(function() {
       if (eqIdx !== -1) {
         var attrName = firstSeg.slice(0, eqIdx);
         var attrVal = firstSeg.slice(eqIdx + 1);
-        var cssAttr = '[' + attrName + '="' + attrVal + '"]';
-        try {
-          if (document.querySelectorAll(cssAttr).length > 1) {
-            container = findAncestorThatUniquesEl(el, tapOnSelector);
-            if (container) reactiveContainer = true;
-          }
-        } catch(e) {}
+        if (countMatchingElements(document, attrName, attrVal) > 1) {
+          container = findAncestorThatUniquesEl(el, tapOnSelector);
+          if (container) reactiveContainer = true;
+        }
       }
     }
 
@@ -271,12 +295,9 @@ export const CAPTURE_SCRIPT: string = `(function() {
       if (eqIdx2 !== -1) {
         var attrName2 = firstSeg2.slice(0, eqIdx2);
         var attrVal2 = firstSeg2.slice(eqIdx2 + 1);
-        var cssAttr2 = '[' + attrName2 + '="' + attrVal2 + '"]';
-        try {
-          if (document.querySelectorAll(cssAttr2).length > 1) {
-            tapOnCmd = { type: 'tapOn', selector: buildCssFallback(el) };
-          }
-        } catch(e) {}
+        if (countMatchingElements(document, attrName2, attrVal2) > 1) {
+          tapOnCmd = { type: 'tapOn', selector: buildCssFallback(el) };
+        }
       }
       emit(tapOnCmd);
     }

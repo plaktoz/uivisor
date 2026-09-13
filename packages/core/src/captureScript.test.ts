@@ -623,4 +623,203 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
   });
+
+  // -------------------------------------------------------------------------
+  // Duplicate text-only button disambiguation — ACs 24–34
+  // -------------------------------------------------------------------------
+
+  // AC-24: two identical text-only buttons, no unique ancestor — first emits css= nth-child(1)
+  it('AC-24: two identical text-only buttons, no ancestor → first emits css=button:nth-child(1)', () => {
+    const container = document.createElement('div');
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'Submit';
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'Submit';
+    container.appendChild(btn1);
+    container.appendChild(btn2);
+    document.body.appendChild(container);
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=button:nth-child(1)');
+    expect(cmd.selector).not.toBe('text=Submit');
+  });
+
+  // AC-25: two identical text-only buttons, no unique ancestor — second emits css= nth-child(2)
+  it('AC-25: two identical text-only buttons, no ancestor → second emits css=button:nth-child(2)', () => {
+    const container = document.createElement('div');
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'Submit';
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'Submit';
+    container.appendChild(btn1);
+    container.appendChild(btn2);
+    document.body.appendChild(container);
+    btn2.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=button:nth-child(2)');
+    expect(cmd.selector).not.toBe('text=Submit');
+  });
+
+  // AC-26: three identical text-only buttons — 3rd button emits css=button:nth-child(3)
+  it('AC-26: three identical text-only buttons — 3rd button emits css=button:nth-child(3)', () => {
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'OK';
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'OK';
+    const btn3 = document.createElement('button');
+    btn3.textContent = 'OK';
+    document.body.appendChild(btn1);
+    document.body.appendChild(btn2);
+    document.body.appendChild(btn3);
+    btn3.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=button:nth-child(3)');
+  });
+
+  // AC-27: three identical text-only buttons — 2nd button emits css=button:nth-child(2)
+  it('AC-27: three identical text-only buttons — 2nd button emits css=button:nth-child(2)', () => {
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'OK';
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'OK';
+    const btn3 = document.createElement('button');
+    btn3.textContent = 'OK';
+    document.body.appendChild(btn1);
+    document.body.appendChild(btn2);
+    document.body.appendChild(btn3);
+    btn2.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=button:nth-child(2)');
+  });
+
+  // AC-28: duplicate text-only button inside uniquely-identifiable ancestor (id=) → within, no nth
+  it('AC-28: duplicate text-only button inside unique id= ancestor → within id= (reactive path, no nth)', () => {
+    const section = document.createElement('section');
+    section.setAttribute('id', 'form-a');
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'Cancel';
+    section.appendChild(btn1);
+    document.body.appendChild(section);
+    const footer = document.createElement('footer');
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'Cancel';
+    footer.appendChild(btn2);
+    document.body.appendChild(footer);
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('id=form-a');
+    expect(cmd.do).toEqual([{ command: { type: 'tapOn', selector: 'text=Cancel' } }]);
+    expect('nth' in cmd).toBe(false);
+  });
+
+  // AC-29: duplicate text-only buttons under distinct single-tag ancestors — ancestor walk emits within with text= selector, no nth
+  it('AC-29: text-only duplicate buttons with text-only scoping ancestor → within fires with text= selector and no nth', () => {
+    const section = document.createElement('section');
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'Go';
+    section.appendChild(btn1);
+    const footer = document.createElement('footer');
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'Go';
+    footer.appendChild(btn2);
+    document.body.appendChild(section);
+    document.body.appendChild(footer);
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.do).toHaveLength(1);
+    expect(cmd.do[0].command).toEqual({ type: 'tapOn', selector: 'text=Go' });
+    expect((cmd.selector as string)).toMatch(/^text=/);
+    expect('nth' in cmd).toBe(false);
+  });
+
+  // AC-30: single text-only button must still emit bare text= selector (regression guard)
+  it('AC-30: single text-only button still emits bare text= selector (regression)', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'Submit';
+    document.body.appendChild(btn);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0]).toEqual({ type: 'tapOn', selector: 'text=Submit' });
+  });
+
+  // AC-31: duplicate data-testid inside a div — css= nth-child fallback unchanged (regression)
+  it('AC-31: duplicate data-testid buttons in div → css= nth-child(1) tapOn unchanged (regression)', () => {
+    const wrapper = document.createElement('div');
+    const btn1 = document.createElement('button');
+    btn1.setAttribute('data-testid', 'shared-action');
+    btn1.textContent = 'Submit';
+    const btn2 = document.createElement('button');
+    btn2.setAttribute('data-testid', 'shared-action');
+    btn2.textContent = 'Submit';
+    wrapper.appendChild(btn1);
+    wrapper.appendChild(btn2);
+    document.body.appendChild(wrapper);
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.selector).toContain('nth-child(1)');
+  });
+
+  // AC-32: two identical aria-label+text buttons — first click emits css=button:nth-child(1)
+  it('AC-32: two identical aria-label+text buttons — first click emits css=button:nth-child(1)', () => {
+    const btn1 = document.createElement('button');
+    btn1.setAttribute('aria-label', 'Save');
+    btn1.textContent = 'Save';
+    const btn2 = document.createElement('button');
+    btn2.setAttribute('aria-label', 'Save');
+    btn2.textContent = 'Save';
+    document.body.appendChild(btn1);
+    document.body.appendChild(btn2);
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=button:nth-child(1)');
+  });
+
+  // AC-33: two buttons with identical 70-char innerText — second click emits css= fallback not bare text=
+  it('AC-33: identical 70-char text on two buttons — second click emits css=button:nth-child(2)', () => {
+    const longText = 'x'.repeat(70);
+    const btn1 = document.createElement('button');
+    btn1.textContent = longText;
+    const btn2 = document.createElement('button');
+    btn2.textContent = longText;
+    document.body.appendChild(btn1);
+    document.body.appendChild(btn2);
+    btn2.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=button:nth-child(2)');
+  });
+
+  // AC-34: same first-60-chars but different full text — 60-char slice triggers duplicate, css= fires
+  it('AC-34: same first-60-chars but different full text — 60-char slice triggers duplicate, css= fires', () => {
+    const btn1 = document.createElement('button');
+    btn1.textContent = 'z'.repeat(60) + 'AAA';
+    const btn2 = document.createElement('button');
+    btn2.textContent = 'z'.repeat(60) + 'BBB';
+    document.body.appendChild(btn1);
+    document.body.appendChild(btn2);
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.selector).toBe('css=button:nth-child(1)');
+  });
 });
