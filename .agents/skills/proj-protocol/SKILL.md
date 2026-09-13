@@ -166,9 +166,18 @@ Agents never commit directly to the main branch. Every code change goes through 
 1. The feature branch and worktree were created by the Orchestrator's Step 0 — do not run `git checkout -b`. The Coder is already on the correct branch inside `.worktrees/[run-name]`.
 2. All commits go to this branch — never to `main` or `master`
 3. Commit message format: `[run-name]: [what changed]`
-4. After writing code: `git push -u origin [run-name]`
-5. Open a PR: `gh pr create --title "[run-name]" --body "Pipeline run: pipeline/[run-name]/state.md"`
-6. Write the PR URL to `state.md` under `## PR`:
+4. **HARD STOP — commit pipeline state before pushing.** From the repo root (not inside the worktree), copy the current pipeline state files into the worktree and commit them:
+   ```bash
+   mkdir -p .worktrees/[run-name]/pipeline/[run-name]
+   cp pipeline/[run-name]/state.md .worktrees/[run-name]/pipeline/[run-name]/state.md
+   [ -f pipeline/[run-name]/log.md ] && cp pipeline/[run-name]/log.md .worktrees/[run-name]/pipeline/[run-name]/log.md
+   git -C .worktrees/[run-name] add pipeline/[run-name]/
+   git -C .worktrees/[run-name] commit -m "chore: add pipeline state for [run-name]"
+   ```
+   This ensures pipeline state survives context compaction between sessions. Skipping this step is never acceptable.
+5. Push: `git -C .worktrees/[run-name] push -u origin [run-name]`
+6. Open a PR: `gh pr create --title "[run-name]" --body "Pipeline run: pipeline/[run-name]/state.md"`
+7. Write the PR URL to `state.md` under `## PR`:
    ```markdown
    ## PR
    **URL:** [pr url]
