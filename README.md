@@ -58,11 +58,20 @@ npm run uivisor -- test flows/
 # Run headed with slow motion (useful for watching/debugging)
 npm run uivisor -- test flows/login-happy.yaml --headed --slow-mo 500
 
-# Generate an HTML report
+# Generate an HTML report (written to target/<timestamp>/uivisor-report.html)
 npm run uivisor -- test flows/ --reporter html
 
 # Generate a Markdown report
 npm run uivisor -- test flows/ --reporter md
+
+# Write the report to a custom directory
+npm run uivisor -- test flows/ --reporter html --output-dir reports/
+
+# Run only flows tagged "smoke"
+npm run uivisor -- test flows/ --tag smoke
+
+# Multiple tags use OR semantics
+npm run uivisor -- test flows/ --tag smoke --tag login
 ```
 
 The CLI exits with code `0` if all flows pass, `1` if any fail — compatible with CI.
@@ -103,107 +112,14 @@ commands:
 
 ---
 
-## Writing Flows by Hand
+## Flow Reference
 
-```yaml
-appId: http://localhost:3000
-commands:
-  - within:
-      id: nav
-      do:
-        - tapOn: text=Dashboard
-  - assertUrl: /dashboard
-  - screenshot: after-nav.png
-  - tapOn:
-      testId: submit-btn
-  - assertVisible: Success
-```
+See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full reference covering:
 
-### Top-level keys
-
-| Key | Required | Description |
-|-----|----------|-------------|
-| `appId` | Yes | Base URL — the runner navigates here before the first command |
-| `commands` | Yes | List of commands to execute |
-| `vars` | No | Inline variable definitions referenced with `${varName}` |
-| `config` | No | Path to an external YAML config file; its keys override inline `vars` |
-| `tags` | No | Array of strings for `--tag` filtering |
-| `shared` | No | If `true`, the flow can only be invoked via `runFlow`, not run directly |
-
-### Variables
-
-Define reusable values with `vars` and interpolate them anywhere using `${varName}`. Use `${env.VAR_NAME}` for environment variables (with optional default: `${env.VAR:fallback}`). Shared config values (e.g. a base URL) can live in an external YAML file referenced by `config:`.
-
-```yaml
-appId: ${base}/login
-config: config.yml       # base: http://localhost:5173
-vars:
-  username: alice
-  timeout: 500
-commands:
-  - inputText:
-      element: { testId: username }
-      text: ${username}
-  - wait: ${timeout}
-```
-
----
-
-## Selector Reference
-
-All interaction and assertion commands accept these selector forms:
-
-| Form | Matches by |
-|------|-----------|
-| `"some text"` | Visible text (shorthand string) |
-| `{ text: "label" }` | Visible text (explicit) |
-| `{ testId: "my-id" }` | `data-testid` attribute |
-| `{ label: "Email" }` | Associated `<label>` text |
-| `{ placeholder: "Search..." }` | `placeholder` attribute |
-| `{ role: "button", name: "Submit" }` | ARIA role + accessible name |
-| `{ css: ".class > a:has-text('Go')" }` | Raw CSS / Playwright extended CSS |
-| `{ xpath: "//button[@type='submit']" }` | XPath expression |
-
-### Pipe-syntax selectors
-
-Inside a bare string, use `attr=value` to target a specific attribute. Pipe multiple segments with `|` for fallback:
-
-```yaml
-- tapOn: text=Sign In
-- tapOn: id=submit-btn
-- tapOn: data-state=active
-- tapOn: id=main-nav|text=Menu     # tries id first, then text
-```
-
-Supported plain attributes: `id`, `name`, `placeholder`, `text`, `label`, `role`, `xpath`, and any `data-*` attribute. XPath expressions containing `|` (union) must use the object form `{ xpath: '...' }` since `|` is the pipe-syntax segment separator.
-
-Wildcard matching: `prefix*`, `*suffix`, `*contains*`.
-
-### `within` scoping
-
-Scope all nested commands to a matched container. Accepts any pipe-syntax attribute key (`id`, `text`, `name`, `placeholder`, `label`, `role`, `data-*`, `css`, `xpath`) plus an optional `nth` (0-based) to pick one of multiple matching containers.
-
-```yaml
-- within:
-    id: subtopnav
-    do:
-      - tapOn: text=HTML
-      - assertVisible: text=CSS
-
-# Scope by XPath
-- within:
-    xpath: "//div[@role='dialog']"
-    do:
-      - tapOn:
-          role: button
-          name: Confirm
-```
-
----
-
-## Command Reference
-
-See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full command reference covering navigation, interaction, assertions, waiting, viewport, screenshots, and flow composition.
+- Flow YAML format and top-level keys (`appId`, `commands`, `vars`, `config`, `tags`, `shared`)
+- Variables and environment variable interpolation
+- Selectors — object form, pipe-syntax, bare string cascade, wildcards, and `within` scoping
+- All commands: navigation, interaction, assertions, timing, viewport, screenshots, and flow composition
 
 ---
 
