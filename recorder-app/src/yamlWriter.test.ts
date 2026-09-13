@@ -431,3 +431,104 @@ describe('TC-17: startSession + appendCommand(goto) → commands[0].goto', () =>
     expect(parsed.commands.length).toBe(4);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Issue #40: within css= selector serialisation
+// ---------------------------------------------------------------------------
+describe('within css= selector (issue #40)', () => {
+  // BW-01: selector 'css=li' → YAML key 'css', value 'li', no empty key
+  it('BW-01: within selector "css=li" produces YAML key css: li with no empty key', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'css=li',
+      nth: 0,
+      do: [{ command: { type: 'tapOn', selector: 'data-testid=delete' } }],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinObj = (parsed.commands[0] as { within: Record<string, unknown> }).within;
+    expect(withinObj['css']).toBe('li');
+    expect(withinObj['nth']).toBe(0);
+    expect(Object.keys(withinObj)).not.toContain('');
+  });
+
+  // BW-02: selector 'css=tr' → YAML key 'css', value 'tr'
+  it('BW-02: within selector "css=tr" produces YAML key css: tr', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'css=tr',
+      nth: 1,
+      do: [{ command: { type: 'tapOn', selector: 'data-testid=cell-btn' } }],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinObj = (parsed.commands[0] as { within: Record<string, unknown> }).within;
+    expect(withinObj['css']).toBe('tr');
+    expect(withinObj['nth']).toBe(1);
+    expect(Object.keys(withinObj)).not.toContain('');
+  });
+
+  // BW-03: selector 'css=div' → YAML key 'css', value 'div'
+  it('BW-03: within selector "css=div" produces YAML key css: div', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'css=div',
+      nth: 2,
+      do: [{ command: { type: 'tapOn', selector: 'text=Click' } }],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinObj = (parsed.commands[0] as { within: Record<string, unknown> }).within;
+    expect(withinObj['css']).toBe('div');
+    expect(withinObj['nth']).toBe(2);
+    expect(Object.keys(withinObj)).not.toContain('');
+  });
+
+  // BW-05: 'css=li' round-trips — selector keys reconstruct to 'css=li'
+  it('BW-05: within "css=li" YAML round-trips — selector reconstructs as css=li', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, {
+      type: 'within',
+      selector: 'css=li',
+      nth: 1,
+      do: [{ command: { type: 'tapOn', selector: 'data-testid=delete-btn' } }],
+    });
+    const content = fs.readFileSync(outPath, 'utf8');
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    const withinBlock = (parsed.commands[0] as { within: Record<string, unknown> }).within;
+    const selectorKeys = Object.keys(withinBlock).filter((k) => k !== 'do' && k !== 'nth');
+    expect(selectorKeys).toHaveLength(1);
+    const selAttr = selectorKeys[0]!;
+    const reconstructed = `${selAttr}=${String(withinBlock[selAttr])}`;
+    expect(reconstructed).toBe('css=li');
+    expect(withinBlock['nth']).toBe(1);
+  });
+
+  // BW-BUG: within with empty string selector must NOT produce an empty YAML key
+  // FAILS on unfixed code: yamlWriter splits '' on '=' → key '', value '' → { '': '' }
+  // PASSES after adding a yamlWriter guard that throws on empty selector
+  it('BW-BUG: appendCommand with empty within selector throws rather than producing empty YAML key', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    expect(() =>
+      appendCommand(outPath, {
+        type: 'within',
+        selector: '',
+        nth: 0,
+        do: [{ command: { type: 'tapOn', selector: 'data-testid=delete' } }],
+      }),
+    ).toThrow();
+  });
+});

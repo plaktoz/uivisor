@@ -190,7 +190,7 @@ export const CAPTURE_SCRIPT: string = `(function() {
     if (idVal && idVal !== '') return 'id=' + idVal;
     var textVal = ((containerEl.innerText !== undefined ? containerEl.innerText : '') || containerEl.textContent || '').trim();
     if (textVal !== '') return 'text=' + textVal.slice(0, 60);
-    return 'nth-only';
+    return 'css=' + containerEl.tagName.toLowerCase();
   }
 
   // Counts elements within scope matching the pipe segment (attrName=attrVal).
@@ -271,7 +271,7 @@ export const CAPTURE_SCRIPT: string = `(function() {
       if (reactiveContainer) {
         withinCmd = {
           type: 'within',
-          selector: containerSel === 'nth-only' ? '' : containerSel,
+          selector: containerSel,
           do: [{ command: tapOnCmd }]
         };
       } else {
@@ -282,7 +282,7 @@ export const CAPTURE_SCRIPT: string = `(function() {
         var nth = siblings.indexOf(container);
         withinCmd = {
           type: 'within',
-          selector: containerSel === 'nth-only' ? '' : containerSel,
+          selector: containerSel,
           nth: nth,
           do: [{ command: tapOnCmd }]
         };
