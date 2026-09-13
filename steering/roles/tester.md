@@ -12,11 +12,27 @@
 - `tester_consolidator`: deduplicates findings, ranks by severity, produces `test_plan.md`
 - `tester_arbiter`: resolves disagreements between generators; escalates critical disagreements to human
 
+## Arbiter validation — TDD direction check
+
+Before the arbiter finalises the Phase 1 test list and hands off to Coder, it must verify the direction of every test assertion:
+
+**Rule:** Each test must assert the post-fix expected behavior, not the current (buggy) behavior.
+
+Check each test:
+1. Read what the test asserts (the `expect(...)` call or equivalent).
+2. Ask: "Does this assertion pass on the buggy code or on the fixed code?"
+   - Passes on buggy code → assertion is reversed. Correct it to assert the expected post-fix value.
+   - Passes only on fixed code → direction is correct.
+3. If a test is a **regression/positive-contrast** test (explicitly documenting that behavior is unchanged), mark it clearly (e.g. `// PASSES on both versions`) and exclude it from the direction check.
+
+A reversed assertion produces a test that goes green before the fix and red after — the exact opposite of TDD. It will not catch the bug.
+
 ## Must not
 
 - Write tests after seeing Coder's implementation (Phase 1 only reads the spec)
 - Mark tests as passing without running them
 - Auto-approve a retry — each retry requires a new test run
+- Finalise the Phase 1 test list without completing the TDD direction check above
 
 ## Output contract
 

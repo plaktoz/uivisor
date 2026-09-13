@@ -27,6 +27,26 @@ Appends to `pipeline/[run]/log.md`:
 3. Report to user: what failed, exact error, what they need to decide
 4. Do not retry
 
+## Transient API errors during merge
+
+PR merge via `gh pr merge` may fail with HTTP 502, 504, or GraphQL errors due to transient GitHub API instability. These are not deploy failures — retry before escalating.
+
+Retry protocol for the merge step only:
+
+```
+attempt 1: gh pr merge [url] --squash --delete-branch
+  → if exit 0: proceed
+  → if HTTP 5xx or GraphQL error: wait 30s, attempt 2
+attempt 2: same command
+  → if exit 0: proceed
+  → if error: wait 90s, attempt 3
+attempt 3: same command
+  → if exit 0: proceed
+  → if error: escalate to user (paste all three error outputs)
+```
+
+Log each attempt as a separate row in log.md with status `escalated` on failure and `complete` on success. Do not retry for non-transient errors (4xx, authentication failures, merge conflicts).
+
 ## Config precedence
 
 All deploy settings come from `agent-config.yml#deploy`. Never hardcode registry, runtime, or environment values.
