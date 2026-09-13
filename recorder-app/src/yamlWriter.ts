@@ -108,6 +108,9 @@ function commandToRecord(cmd: Command): Record<string, unknown> {
     case 'waitFor':
       return { waitFor: cmd.ms };
 
+    case 'waitForLoad':
+      return cmd.selector !== undefined ? { waitForLoad: { selector: cmd.selector } } : { waitForLoad: null };
+
     case 'within': {
       const parts = cmd.selector.split('=');
       const attrKey = parts[0];

@@ -36,6 +36,7 @@ import {
   executeGoForward,
   executeSetViewport,
   executeScreenshot,
+  executeWaitForLoad,
 } from '@uivisor/core';
 
 // ─── YAML command parser ──────────────────────────────────────────────────────
@@ -167,6 +168,12 @@ function parseCommand(record: Record<string, unknown>): Command {
 
     case 'waitFor':
       return { type: 'waitFor', ms: Number(val) };
+
+    case 'waitForLoad': {
+      const rawSel = (val as Record<string, unknown> | null)?.['selector'];
+      const sel = typeof rawSel === 'string' && rawSel !== '' ? rawSel : undefined;
+      return { type: 'waitForLoad', ...(sel !== undefined && { selector: sel }) };
+    }
 
     case 'within': {
       const obj = val as Record<string, unknown>;
@@ -326,6 +333,10 @@ async function dispatchCommand(
 
     case 'reload':
       await executeReload(page);
+      break;
+
+    case 'waitForLoad':
+      await executeWaitForLoad(page, cmd.selector);
       break;
 
     case 'goBack':

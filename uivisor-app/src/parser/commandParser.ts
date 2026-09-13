@@ -144,6 +144,16 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'waitFor', ms };
     }
 
+    case 'waitForLoad': {
+      if (value === null || value === undefined) {
+        return { type: 'waitForLoad' };
+      }
+      const obj = value as Record<string, unknown>;
+      const rawSel = obj['selector'];
+      const sel = typeof rawSel === 'string' && rawSel !== '' ? rawSel : undefined;
+      return { type: 'waitForLoad', ...(sel !== undefined && { selector: sel }) };
+    }
+
     case 'within': {
       if (typeof value !== 'object' || value === null) {
         throw new Error(`within value must be an object with a selector key and a do array`);
