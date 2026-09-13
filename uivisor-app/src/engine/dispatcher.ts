@@ -245,6 +245,10 @@ export async function dispatch(
         };
       }
 
+      case 'crossOriginIframeWarning':
+        // recorder-only event; should never reach the executor
+        throw new Error(`crossOriginIframeWarning is a recorder-only event and cannot be executed`);
+
       default: {
         // TypeScript exhaustiveness guard — this branch is unreachable at runtime.
         // If a new Command type is added without a case here, tsc will fail.

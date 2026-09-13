@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { CAPTURE_SCRIPT } from './captureScript.js';
 
 const capture = vi.fn();
@@ -1065,5 +1065,104 @@ describe('CAPTURE_SCRIPT', () => {
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
     expect(cmd.selector).toBe('text=Delete');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #36: cross-origin iframe detection
+// ---------------------------------------------------------------------------
+describe('cross-origin iframe detection (issue #36)', () => {
+  let localCapture: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localCapture = vi.fn();
+    (window as any).__uivisorCapture = localCapture;
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    (window as any).__uivisorCapture = capture;
+  });
+
+  it('TC-036-C-07: CAPTURE_SCRIPT contains cross-origin detection symbols', () => {
+    expect(CAPTURE_SCRIPT).toContain('checkIframe');
+    expect(CAPTURE_SCRIPT).toContain('MutationObserver');
+    expect(CAPTURE_SCRIPT).toContain('SecurityError');
+    expect(CAPTURE_SCRIPT).toContain('crossOriginIframeWarning');
+  });
+
+  it('TC-036-C-12: dynamic cross-origin iframe triggers warning via MutationObserver', async () => {
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://ads.example.com/banner';
+    Object.defineProperty(iframe, 'contentDocument', {
+      get() { throw new DOMException('cross-origin', 'SecurityError'); },
+      configurable: true,
+    });
+    document.body.appendChild(iframe);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(localCapture).toHaveBeenCalledOnce();
+    expect(localCapture.mock.calls[0][0]).toMatchObject({ type: 'crossOriginIframeWarning', src: 'https://ads.example.com/banner' });
+  });
+
+  it('TC-036-C-13: two dynamically added cross-origin iframes each emit a warning', async () => {
+    const iframe1 = document.createElement('iframe');
+    iframe1.src = 'https://widget-a.example.com/';
+    Object.defineProperty(iframe1, 'contentDocument', { get() { throw new DOMException('x', 'SecurityError'); }, configurable: true });
+    document.body.appendChild(iframe1);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const iframe2 = document.createElement('iframe');
+    iframe2.src = 'https://widget-b.example.com/';
+    Object.defineProperty(iframe2, 'contentDocument', { get() { throw new DOMException('x', 'SecurityError'); }, configurable: true });
+    document.body.appendChild(iframe2);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(localCapture).toHaveBeenCalledTimes(2);
+    expect(localCapture.mock.calls[0][0]).toMatchObject({ type: 'crossOriginIframeWarning', src: 'https://widget-a.example.com/' });
+    expect(localCapture.mock.calls[1][0]).toMatchObject({ type: 'crossOriginIframeWarning', src: 'https://widget-b.example.com/' });
+  });
+
+  it('TC-036-C-10: src with query string preserved verbatim', async () => {
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://widget.example.com/embed?token=abc&theme=dark';
+    Object.defineProperty(iframe, 'contentDocument', { get() { throw new DOMException('x', 'SecurityError'); }, configurable: true });
+    document.body.appendChild(iframe);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(localCapture).toHaveBeenCalledOnce();
+    expect(localCapture.mock.calls[0][0]).toMatchObject({ type: 'crossOriginIframeWarning', src: 'https://widget.example.com/embed?token=abc&theme=dark' });
+  });
+
+  it("TC-036-C-11: cross-origin iframe with no src emits src: ''", async () => {
+    const iframe = document.createElement('iframe');
+    Object.defineProperty(iframe, 'contentDocument', { get() { throw new DOMException('x', 'SecurityError'); }, configurable: true });
+    document.body.appendChild(iframe);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(localCapture).toHaveBeenCalledOnce();
+    expect(localCapture.mock.calls[0][0]).toMatchObject({ type: 'crossOriginIframeWarning', src: '' });
+  });
+
+  it('TC-036-C-14: same-origin dynamic iframe: no warning', async () => {
+    const iframe = document.createElement('iframe');
+    iframe.src = '/same-origin-widget';
+    document.body.appendChild(iframe);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(localCapture).not.toHaveBeenCalled();
+  });
+
+  it('TC-036-C-08: static cross-origin iframe detected on IIFE init scan', () => {
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://pay.stripe.com/';
+    Object.defineProperty(iframe, 'contentDocument', { get() { throw new DOMException('x', 'SecurityError'); }, configurable: true });
+    document.body.appendChild(iframe);
+    (new Function(CAPTURE_SCRIPT))();
+    expect(localCapture).toHaveBeenCalledWith(expect.objectContaining({ type: 'crossOriginIframeWarning', src: 'https://pay.stripe.com/' }));
+  });
+
+  it('TC-036-C-09: same-origin static iframe at IIFE init: no warning', () => {
+    const iframe = document.createElement('iframe');
+    iframe.src = '/same-origin-page';
+    document.body.appendChild(iframe);
+    (new Function(CAPTURE_SCRIPT))();
+    expect(localCapture).not.toHaveBeenCalled();
   });
 });

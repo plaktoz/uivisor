@@ -90,6 +90,7 @@ export class ConsoleReporter {
       case 'screenshot': return `screenshot: ${cmd.path}`;
       case 'waitFor': return `waitFor: ${cmd.ms}ms`;
       case 'within': return `within: ${cmd.selector}`;
+      case 'crossOriginIframeWarning': return `crossOriginIframeWarning: ${cmd.src}`;
     }
   }
 }
