@@ -44,5 +44,6 @@ export {
   executeSetViewport,
   executeScreenshot,
   executeWaitFor,
+  executeWaitForLoad,
 } from './commands.js';
 export type { WithinDispatch } from './commands.js';

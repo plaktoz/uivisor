@@ -45,6 +45,7 @@ export type Command =
   | { type: 'setViewport'; width: number; height: number }
   | { type: 'screenshot';  path: string }
   | { type: 'waitFor';     ms: number }
+  | { type: 'waitForLoad'; selector?: string }
   | { type: 'within';     selector: string; nth?: number; do: SessionedCommand[] };
 
 export type SessionDef = { id: string; label?: string };

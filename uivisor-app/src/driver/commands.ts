@@ -31,5 +31,6 @@ export {
   executeSetViewport,
   executeScreenshot,
   executeWaitFor,
+  executeWaitForLoad,
 } from '@uivisor/core';
 export type { WithinDispatch } from '@uivisor/core';

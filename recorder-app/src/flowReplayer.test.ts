@@ -80,6 +80,8 @@ function makeMockPage(overrides: Record<string, unknown> = {}) {
     exposeFunction: vi.fn().mockResolvedValue(undefined),
     addInitScript: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
+    waitForLoadState: vi.fn().mockResolvedValue(undefined),
+    waitForSelector: vi.fn().mockResolvedValue(null),
     _loc: mockLocator,
     ...overrides,
   };
@@ -413,5 +415,150 @@ describe('replayFlows — T27: replay failure preserves partial output file', ()
     // Output file must still contain both runFlow entries — replayFlows never modifies it
     const afterContent = fs.readFileSync(outPath, 'utf8');
     expect(afterContent).toBe(partialContent);
+  });
+});
+
+// ─── T56 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T56: parseCommand waitForLoad null → {type:"waitForLoad"} no selector', () => {
+  it('T56 — parseCommand({waitForLoad:null}) deep-equals {type:"waitForLoad"}, no selector key', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: null }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 30000 });
+    expect(page.waitForSelector).not.toHaveBeenCalled();
+  });
+});
+
+// ─── T57 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T57: parseCommand waitForLoad with selector', () => {
+  it('T57 — parseCommand({waitForLoad:{selector:"#main-content"}}) dispatches with that selector', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: { selector: '#main-content' } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.waitForSelector).toHaveBeenCalledWith('#main-content', { state: 'visible', timeout: 30000 });
+    expect(page.waitForLoadState).not.toHaveBeenCalled();
+  });
+});
+
+// ─── T58 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T58: parseCommand waitForLoad empty-string selector normalised', () => {
+  it('T58 — waitForLoad with selector:"" normalises to no-selector → networkidle', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: { selector: '' } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 30000 });
+    expect(page.waitForSelector).not.toHaveBeenCalled();
+  });
+});
+
+// ─── T59 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T59: waitForLoad networkidle path resolves', () => {
+  it('T59 — replayFlows with bare waitForLoad completes without error', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: null }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'))
+    ).resolves.not.toThrow();
+    expect(page.waitForLoadState).toHaveBeenCalledOnce();
+  });
+});
+
+// ─── T60 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T60: waitForLoad selector path resolves', () => {
+  it('T60 — replayFlows with waitForLoad selector dispatches waitForSelector', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: { selector: '#main' } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.waitForSelector).toHaveBeenCalledOnce();
+    expect(page.waitForSelector).toHaveBeenCalledWith('#main', { state: 'visible', timeout: 30000 });
+  });
+});
+
+// ─── T61 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T61: waitForLoadState rejection wraps with [replay] FAILED', () => {
+  it('T61 — waitForLoadState rejection → error message contains [replay] FAILED and waitForLoad', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: null }],
+    });
+    const page = makeMockPage({
+      waitForLoadState: vi.fn().mockRejectedValue(new Error('Timeout 30000ms exceeded')),
+    });
+    const err = await replayFlows(
+      [flowPath], page as unknown as Page, path.join(dir, 'out.yaml')
+    ).catch(e => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toContain('[replay] FAILED');
+    expect(err.message).toContain('waitForLoad');
+    expect(err.message).toMatch(/timeout/i);
+  });
+});
+
+// ─── T62 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T62: waitForSelector rejection wraps with [replay] FAILED', () => {
+  it('T62 — waitForSelector rejection → error message contains [replay] FAILED and waitForLoad', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ waitForLoad: { selector: '#never' } }],
+    });
+    const page = makeMockPage({
+      waitForSelector: vi.fn().mockRejectedValue(new Error('Timeout 30000ms exceeded')),
+    });
+    const err = await replayFlows(
+      [flowPath], page as unknown as Page, path.join(dir, 'out.yaml')
+    ).catch(e => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toContain('[replay] FAILED');
+    expect(err.message).toContain('waitForLoad');
+  });
+});
+
+// ─── T63 ─────────────────────────────────────────────────────────────────────
+
+describe('replayFlows — T63: failed waitForLoad aborts flow, next command not dispatched', () => {
+  it('T63 — command after failed waitForLoad is never executed', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [
+        { waitForLoad: null },
+        { tapOn: 'text=Submit' },
+      ],
+    });
+    const page = makeMockPage({
+      waitForLoadState: vi.fn().mockRejectedValue(new Error('Timeout 30000ms exceeded')),
+    });
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml')).catch(() => {});
+    // executeTapOn always calls locator.click() — page._loc is the mock locator
+    expect((page as unknown as ReturnType<typeof makeMockPage>)._loc.click).not.toHaveBeenCalled();
   });
 });
