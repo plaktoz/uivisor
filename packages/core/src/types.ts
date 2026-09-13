@@ -58,7 +58,6 @@ export interface FlowFile {
   commands: SessionedCommand[];
   sessions: SessionDef[];
   tags: string[];
-  shared: boolean;
   vars?: Record<string, string>;
 }
 

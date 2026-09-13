@@ -80,7 +80,6 @@ const flow = (cmds: SessionedCommand[]): FlowFile => ({
   commands: cmds,
   sessions: [],
   tags: [],
-  shared: false,
 });
 
 /** Write a temporary YAML flow file and return its path */

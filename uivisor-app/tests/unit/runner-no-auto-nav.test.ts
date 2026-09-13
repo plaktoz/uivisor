@@ -66,7 +66,6 @@ function makeFlowFile(overrides: Partial<FlowFile> = {}): FlowFile {
     commands: [],
     sessions: [],
     tags: [],
-    shared: false,
     ...overrides,
   };
 }
