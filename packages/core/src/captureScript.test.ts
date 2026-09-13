@@ -914,4 +914,155 @@ describe('CAPTURE_SCRIPT', () => {
     expect((cmd.selector as string).startsWith('css=')).toBe(true);
     expect(cmd.selector).toBe('css=button:nth-child(1)');
   });
+
+  // -------------------------------------------------------------------------
+  // Issue #40: nth-only container selector bug
+  // -------------------------------------------------------------------------
+
+  // BC-01: bare <li> (no data-*, no id, no text) → within.selector must be 'css=li'
+  // FAILS on unfixed code: buildContainerSelector returns 'nth-only' → click handler emits selector:''
+  it('BC-01: bare <li> with icon-only button emits within.selector "css=li"', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'icon-action');
+    li.appendChild(btn);
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=li');
+  });
+
+  // BC-03: bare <tr> (no data-*, no id, no text in subtree) → within.selector must be 'css=tr'
+  it('BC-03: bare <tr> with icon-only button emits within.selector "css=tr"', () => {
+    const table = document.createElement('table');
+    const tbody = document.createElement('tbody');
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'tr-action');
+    td.appendChild(btn);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    table.appendChild(tbody);
+    document.body.appendChild(table);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=tr');
+  });
+
+  // BC-04: count-based bare <div> (≥2 siblings, no attrs, no text) → within.selector 'css=div'
+  it('BC-04: count-based bare <div> with no attrs emits within.selector "css=div"', () => {
+    const parent = document.createElement('section');
+    const div1 = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'div-action');
+    div1.appendChild(btn);
+    const div2 = document.createElement('div');
+    parent.appendChild(div1);
+    parent.appendChild(div2);
+    document.body.appendChild(parent);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=div');
+  });
+
+  // BC-05: count-based bare <section> (≥2 siblings, no attrs, no text) → within.selector 'css=section'
+  it('BC-05: count-based bare <section> with no attrs emits within.selector "css=section"', () => {
+    const wrapper = document.createElement('div');
+    const sec1 = document.createElement('section');
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'sec-btn');
+    sec1.appendChild(btn);
+    const sec2 = document.createElement('section');
+    wrapper.appendChild(sec1);
+    wrapper.appendChild(sec2);
+    document.body.appendChild(wrapper);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=section');
+  });
+
+  // BC-06: <li> with whitespace-only textContent → treated as no-text → 'css=li'
+  it('BC-06: <li> with whitespace-only text and icon button emits within.selector "css=li"', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    li.appendChild(document.createTextNode('   \n\t  '));
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'ws-only-btn');
+    li.appendChild(btn);
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=li');
+  });
+
+  // BC-07: first bare <li> in 3-item list → selector 'css=li' and nth: 0 preserved
+  it('BC-07: first bare <li> in 3-item list emits selector "css=li" and nth: 0', () => {
+    const ul = document.createElement('ul');
+    for (let i = 0; i < 3; i++) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.setAttribute('data-testid', `icon-btn-${i}`);
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    document.body.appendChild(ul);
+    const firstBtn = (ul.children[0] as HTMLElement).querySelector('button') as HTMLElement;
+    firstBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=li');
+    expect(cmd.nth).toBe(0);
+  });
+
+  // BC-08: last bare <li> in 4-item list → selector 'css=li' and nth: 3 preserved
+  it('BC-08: last bare <li> in 4-item list emits selector "css=li" and nth: 3', () => {
+    const ul = document.createElement('ul');
+    for (let i = 0; i < 4; i++) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.setAttribute('data-testid', `last-icon-${i}`);
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    document.body.appendChild(ul);
+    const lastBtn = (ul.children[3] as HTMLElement).querySelector('button') as HTMLElement;
+    lastBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=li');
+    expect(cmd.nth).toBe(3);
+  });
+
+  // BC-PC-01: positive-contrast — button WITH text inside bare <li> still emits 'text=Delete'
+  // PASSES on both current and fixed code; confirms fix is tightly scoped
+  it('BC-PC-01: button with text inside bare <li> emits within.selector "text=Delete" (regression)', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.textContent = 'Delete';
+    li.appendChild(btn);
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    btn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('text=Delete');
+  });
 });

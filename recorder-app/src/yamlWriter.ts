@@ -112,6 +112,7 @@ function commandToRecord(cmd: Command): Record<string, unknown> {
       return cmd.selector !== undefined ? { waitForLoad: { selector: cmd.selector } } : { waitForLoad: null };
 
     case 'within': {
+      if (!cmd.selector) throw new Error(`within command has empty selector`);
       const parts = cmd.selector.split('=');
       const attrKey = parts[0];
       const attrVal = parts.slice(1).join('=');
