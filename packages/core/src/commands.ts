@@ -376,6 +376,9 @@ export async function executeWithin(
   if (count === 0) {
     throw new Error(`within: No container found for selector '${cmd.selector}'`);
   }
+  if (cmd.nth !== undefined && cmd.nth < 0) {
+    throw new Error(`within: nth must be a non-negative integer, got ${cmd.nth}`);
+  }
   if (cmd.nth !== undefined && cmd.nth >= count) {
     throw new Error(
       `within: nth=${cmd.nth} requested but only ${count} containers matched selector '${cmd.selector}'`,
