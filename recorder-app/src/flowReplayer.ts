@@ -36,7 +36,7 @@ import {
   executeGoForward,
   executeSetViewport,
   executeScreenshot,
-  executeWaitForLoad,
+  executeWaitForPageLoad,
 } from '@uivisor/core';
 
 // ─── YAML command parser ──────────────────────────────────────────────────────
@@ -169,10 +169,20 @@ function parseCommand(record: Record<string, unknown>): Command {
     case 'waitFor':
       return { type: 'waitFor', ms: Number(val) };
 
-    case 'waitForLoad': {
-      const rawSel = (val as Record<string, unknown> | null)?.['selector'];
-      const sel = typeof rawSel === 'string' && rawSel !== '' ? rawSel : undefined;
-      return { type: 'waitForLoad', ...(sel !== undefined && { selector: sel }) };
+    case 'waitForPageLoad': {
+      if (val === null || val === undefined) return { type: 'waitForPageLoad' };
+      if (typeof val === 'string') return { type: 'waitForPageLoad', path: val };
+      const obj = val as Record<string, unknown>;
+      const path = typeof obj['path'] === 'string' && obj['path'] !== '' ? obj['path'] : undefined;
+      const rawTimeout = obj['timeout'];
+      let timeout: number | undefined;
+      if (rawTimeout !== null && rawTimeout !== undefined) {
+        if (typeof rawTimeout !== 'number' || !Number.isInteger(rawTimeout) || rawTimeout < 0) {
+          throw new Error(`waitForPageLoad: timeout must be 0 (no timeout) or a positive integer, got ${rawTimeout}`);
+        }
+        timeout = rawTimeout;
+      }
+      return { type: 'waitForPageLoad', ...(path !== undefined && { path }), ...(timeout !== undefined && { timeout }) };
     }
 
     case 'within': {
@@ -339,8 +349,8 @@ async function dispatchCommand(
       await executeReload(page);
       break;
 
-    case 'waitForLoad':
-      await executeWaitForLoad(page, cmd.selector);
+    case 'waitForPageLoad':
+      await executeWaitForPageLoad(page, cmd.path, cmd.timeout);
       break;
 
     case 'goBack':

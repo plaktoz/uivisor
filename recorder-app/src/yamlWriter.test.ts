@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as yaml from 'js-yaml';
 import { describe, it, expect, afterEach } from 'vitest';
-import { startSession, appendCommand } from './yamlWriter.js';
+import { startSession, appendCommand, commandToRecord } from './yamlWriter.js';
 
 let testDir = '';
 
@@ -610,4 +610,18 @@ describe('crossOriginIframeWarning (issue #36)', () => {
       appendCommand(outPath, { type: 'completelyUnknownType' } as any),
     ).toThrow();
   });
+});
+
+describe('waitForPageLoad commandToRecord', () => {
+  // C-20
+  it('bare → { waitForPageLoad: null }', () => expect(commandToRecord({ type: 'waitForPageLoad' } as any)).toEqual({ waitForPageLoad: null }));
+
+  // C-21
+  it('path-only → scalar string value', () => expect(commandToRecord({ type: 'waitForPageLoad', path: '/dashboard' } as any)).toEqual({ waitForPageLoad: '/dashboard' }));
+
+  // C-22
+  it('path+timeout → object', () => expect(commandToRecord({ type: 'waitForPageLoad', path: '/x', timeout: 5000 } as any)).toEqual({ waitForPageLoad: { path: '/x', timeout: 5000 } }));
+
+  // C-23
+  it('timeout-only → object with timeout key', () => expect(commandToRecord({ type: 'waitForPageLoad', timeout: 0 } as any)).toEqual({ waitForPageLoad: { timeout: 0 } }));
 });

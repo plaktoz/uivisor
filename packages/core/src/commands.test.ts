@@ -1,80 +1,76 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Page } from 'playwright';
-import { executeWaitForLoad } from './commands.js';
+import type { Command } from './types.js';
+import { executeWaitForPageLoad } from './commands.js';
 
-describe('executeWaitForLoad', () => {
-  // T49
-  it('T49 — no selector calls waitForLoadState("networkidle",{timeout:30000}), not waitForSelector', async () => {
-    const page = {
+describe('waitForPageLoad', () => {
+  // C-01, C-02: TypeScript compile-time (these pass by compilation alone)
+  const _a: Command = { type: 'waitForPageLoad' };
+  const _b: Command = { type: 'waitForPageLoad', path: '/x', timeout: 500 };
+  void _a; void _b;
+
+  let page: {
+    waitForLoadState: ReturnType<typeof vi.fn>;
+    waitForURL: ReturnType<typeof vi.fn>;
+    waitForSelector: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    page = {
       waitForLoadState: vi.fn().mockResolvedValue(undefined),
+      waitForURL: vi.fn().mockResolvedValue(undefined),
       waitForSelector: vi.fn(),
-    } as unknown as Page;
-    await executeWaitForLoad(page);
-    expect(page.waitForLoadState).toHaveBeenCalledOnce();
+    };
+  });
+
+  // C-13: bare form
+  it('bare: calls waitForLoadState(networkidle, {timeout:30000}); waitForURL not called', async () => {
+    await executeWaitForPageLoad(page as unknown as Page);
     expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 30000 });
-    expect(page.waitForSelector).not.toHaveBeenCalled();
+    expect(page.waitForURL).not.toHaveBeenCalled();
   });
 
-  // T50
-  it('T50 — with selector calls waitForSelector(sel,{state:"visible",timeout:30000}), not waitForLoadState', async () => {
-    const page = {
-      waitForLoadState: vi.fn(),
-      waitForSelector: vi.fn().mockResolvedValue(null),
-    } as unknown as Page;
-    await executeWaitForLoad(page, '#btn');
-    expect(page.waitForSelector).toHaveBeenCalledOnce();
-    expect(page.waitForSelector).toHaveBeenCalledWith('#btn', { state: 'visible', timeout: 30000 });
-    expect(page.waitForLoadState).not.toHaveBeenCalled();
-  });
-
-  // T51
-  it('T51 — no-selector: waitForLoadState rejection propagates (message matches /timeout/i)', async () => {
-    const page = {
-      waitForLoadState: vi.fn().mockRejectedValue(new Error('Timeout 30000ms exceeded')),
-      waitForSelector: vi.fn(),
-    } as unknown as Page;
-    await expect(executeWaitForLoad(page)).rejects.toThrow(/timeout/i);
-  });
-
-  // T52
-  it('T52 — selector: waitForSelector rejection propagates (message matches /timeout/i)', async () => {
-    const page = {
-      waitForLoadState: vi.fn(),
-      waitForSelector: vi.fn().mockRejectedValue(new Error('Timeout 30000ms exceeded')),
-    } as unknown as Page;
-    await expect(executeWaitForLoad(page, '#main')).rejects.toThrow(/timeout/i);
-  });
-
-  // T53
-  it('T53 — undefined selector routes to networkidle', async () => {
-    const page = {
-      waitForLoadState: vi.fn().mockResolvedValue(undefined),
-      waitForSelector: vi.fn(),
-    } as unknown as Page;
-    await executeWaitForLoad(page, undefined);
+  // C-14: path only
+  it('path-only: calls waitForURL first then waitForLoadState, both timeout 30000', async () => {
+    const callOrder: string[] = [];
+    page.waitForURL.mockImplementation(() => { callOrder.push('url'); return Promise.resolve(); });
+    page.waitForLoadState.mockImplementation(() => { callOrder.push('load'); return Promise.resolve(); });
+    await executeWaitForPageLoad(page as unknown as Page, '/dashboard');
+    expect(callOrder).toEqual(['url', 'load']);
+    expect(page.waitForURL).toHaveBeenCalledWith('**/dashboard', { timeout: 30000 });
     expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 30000 });
-    expect(page.waitForSelector).not.toHaveBeenCalled();
   });
 
-  // T54
-  it('T54 — string selector "42" causes waitForSelector to be called with "42"', async () => {
-    const page = {
-      waitForLoadState: vi.fn(),
-      waitForSelector: vi.fn().mockResolvedValue(null),
-    } as unknown as Page;
-    await executeWaitForLoad(page, String(42));
-    expect(page.waitForSelector).toHaveBeenCalledWith('42', { state: 'visible', timeout: 30000 });
-    expect(page.waitForLoadState).not.toHaveBeenCalled();
+  // C-15: path + timeout
+  it('path+timeout: both calls use provided timeout', async () => {
+    await executeWaitForPageLoad(page as unknown as Page, '/x', 5000);
+    expect(page.waitForURL).toHaveBeenCalledWith('**/x', { timeout: 5000 });
+    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 5000 });
   });
 
-  // T55
-  it('T55 — empty-string selector routes to networkidle (falsy guard)', async () => {
-    const page = {
-      waitForLoadState: vi.fn().mockResolvedValue(undefined),
-      waitForSelector: vi.fn(),
-    } as unknown as Page;
-    await executeWaitForLoad(page, '');
-    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 30000 });
-    expect(page.waitForSelector).not.toHaveBeenCalled();
+  // C-16: path + timeout=0
+  it('path+timeout=0: both calls get {timeout:0}, not omitted', async () => {
+    await executeWaitForPageLoad(page as unknown as Page, '/path', 0);
+    expect(page.waitForURL).toHaveBeenCalledWith('**/path', { timeout: 0 });
+    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 0 });
+  });
+
+  // C-17: timeout-only (no path)
+  it('timeout-only: only waitForLoadState called', async () => {
+    await executeWaitForPageLoad(page as unknown as Page, undefined, 5000);
+    expect(page.waitForURL).not.toHaveBeenCalled();
+    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 5000 });
+  });
+
+  // C-18: no-leading-slash normalization
+  it('no-leading-slash path: glob becomes **/path', async () => {
+    await executeWaitForPageLoad(page as unknown as Page, 'dashboard');
+    expect(page.waitForURL).toHaveBeenCalledWith('**/dashboard', { timeout: 30000 });
+  });
+
+  // C-19: rejection propagates
+  it('waitForLoadState rejection propagates', async () => {
+    page.waitForLoadState.mockRejectedValue(new Error('Timeout exceeded'));
+    await expect(executeWaitForPageLoad(page as unknown as Page)).rejects.toThrow('Timeout exceeded');
   });
 });

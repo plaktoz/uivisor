@@ -28,7 +28,7 @@ function cmdLabel(cmd: CommandResult['command']): string {
     case 'doubleClick': return `doubleClick: ${JSON.stringify(cmd.selector)}`;
     case 'clearText': return `clearText: ${JSON.stringify(cmd.selector)}`;
     case 'reload': return 'reload';
-    case 'waitForLoad': return cmd.selector ? `waitForLoad: ${cmd.selector}` : 'waitForLoad';
+    case 'waitForPageLoad': return cmd.path ? `waitForPageLoad: ${cmd.path}` : 'waitForPageLoad';
     case 'goBack': return 'goBack';
     case 'goForward': return 'goForward';
     case 'setViewport': return `setViewport: ${cmd.width}x${cmd.height}`;
