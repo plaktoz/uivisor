@@ -369,4 +369,32 @@ export const CAPTURE_SCRIPT: string = `(function() {
   window.addEventListener('hashchange', function() {
     emit({ type: 'goto', url: window.location.href });
   });
+
+  // Cross-origin iframe detection (issue #36)
+  function checkIframe(iframe) {
+    try {
+      void iframe.contentDocument;
+    } catch (e) {
+      if (e && e.name === 'SecurityError') {
+        emit({ type: 'crossOriginIframeWarning', src: iframe.src || '' });
+      }
+    }
+  }
+
+  var xoriginIframes = document.querySelectorAll('iframe');
+  for (var fi = 0; fi < xoriginIframes.length; fi++) {
+    checkIframe(xoriginIframes[fi]);
+  }
+
+  var iframeObserver = new MutationObserver(function(mutations) {
+    for (var m = 0; m < mutations.length; m++) {
+      var nodes = mutations[m].addedNodes;
+      for (var n = 0; n < nodes.length; n++) {
+        if (nodes[n].nodeName === 'IFRAME') {
+          checkIframe(nodes[n]);
+        }
+      }
+    }
+  });
+  iframeObserver.observe(document.documentElement, { childList: true, subtree: true });
 })();`;

@@ -44,6 +44,7 @@ function cmdLabel(cmd: CommandResult['command']): string {
     case 'screenshot': return `screenshot: ${cmd.path}`;
     case 'waitFor': return `waitFor: ${cmd.ms}ms`;
     case 'within': return `within: ${escapeHtml(cmd.selector)}`;
+    case 'crossOriginIframeWarning': return `crossOriginIframeWarning: ${escapeHtml(cmd.src)}`;
   }
 }
 

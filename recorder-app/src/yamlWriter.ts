@@ -111,6 +111,9 @@ function commandToRecord(cmd: Command): Record<string, unknown> {
     case 'waitForLoad':
       return cmd.selector !== undefined ? { waitForLoad: { selector: cmd.selector } } : { waitForLoad: null };
 
+    case 'crossOriginIframeWarning':
+      throw new Error('unreachable: crossOriginIframeWarning handled before commandToRecord');
+
     case 'within': {
       if (!cmd.selector) throw new Error(`within command has empty selector`);
       const parts = cmd.selector.split('=');
@@ -136,6 +139,14 @@ export function startSession(outputPath: string, appId: string): void {
 }
 
 export function appendCommand(outputPath: string, cmd: Command): void {
+  if (cmd.type === 'crossOriginIframeWarning') {
+    fs.appendFileSync(
+      outputPath,
+      `# WARNING: cross-origin iframe detected (src: ${cmd.src}) — clicks inside will not be captured\n`,
+      'utf8',
+    );
+    return;
+  }
   const record = commandToRecord(cmd);
   const fragment = yaml.dump(record, { lineWidth: -1 });
   const item = '- ' + fragment.trimEnd().split('\n').join('\n  ') + '\n';

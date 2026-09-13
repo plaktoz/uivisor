@@ -532,3 +532,82 @@ describe('within css= selector (issue #40)', () => {
     ).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Issue #36: cross-origin iframe warning — yamlWriter serialisation
+// ---------------------------------------------------------------------------
+describe('crossOriginIframeWarning (issue #36)', () => {
+  it('TC-036-C-01: warning with URL writes exact # WARNING: comment format', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, { type: 'crossOriginIframeWarning', src: 'https://pay.stripe.com/' });
+    const content = fs.readFileSync(outPath, 'utf8');
+    expect(content).toContain(
+      '# WARNING: cross-origin iframe detected (src: https://pay.stripe.com/) — clicks inside will not be captured',
+    );
+    const warningLine = content.split('\n').find((l) => l.includes('# WARNING:'))!;
+    expect(warningLine).toBeDefined();
+    expect(warningLine.trimStart()).toMatch(/^# WARNING:/);
+    expect(warningLine).not.toMatch(/^- /);
+  });
+
+  it('TC-036-C-02: empty src writes # WARNING: comment; commands key is null', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, { type: 'crossOriginIframeWarning', src: '' });
+    const content = fs.readFileSync(outPath, 'utf8');
+    expect(content).toContain('# WARNING: cross-origin iframe detected (src: )');
+    expect(() => yaml.load(content)).not.toThrow();
+    const parsed = yaml.load(content) as { commands: unknown };
+    expect(parsed.commands).toBeNull();
+  });
+
+  it('TC-036-C-03: warning comment + 2 commands: exactly 2 entries round-trip; file is valid YAML', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, { type: 'crossOriginIframeWarning', src: 'https://widget.example.com/' });
+    appendCommand(outPath, { type: 'goto', url: 'https://app.example.com/' });
+    appendCommand(outPath, { type: 'tapOn', selector: { testId: 'submit' } });
+    const content = fs.readFileSync(outPath, 'utf8');
+    expect(() => yaml.load(content)).not.toThrow();
+    const parsed = yaml.load(content) as { commands: Record<string, unknown>[] };
+    expect(parsed.commands).toHaveLength(2);
+    expect('goto' in parsed.commands[0]!).toBe(true);
+    expect('tapOn' in parsed.commands[1]!).toBe(true);
+  });
+
+  it('TC-036-C-04: blob: URL preserved verbatim in # WARNING: comment', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, { type: 'crossOriginIframeWarning', src: 'blob:https://app.example.com/abc-123' });
+    const content = fs.readFileSync(outPath, 'utf8');
+    expect(content).toContain('# WARNING:');
+    expect(content).toContain('blob:https://app.example.com/abc-123');
+  });
+
+  it('TC-036-C-05: data: URL preserved verbatim in # WARNING: comment', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    appendCommand(outPath, { type: 'crossOriginIframeWarning', src: 'data:text/html,%3Ch1%3Ehello%3C%2Fh1%3E' });
+    const content = fs.readFileSync(outPath, 'utf8');
+    expect(content).toContain('# WARNING:');
+    expect(content).toContain('data:text/html');
+  });
+
+  it('TC-036-C-06: crossOriginIframeWarning does not throw; unknown type still throws', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'testApp');
+    expect(() =>
+      appendCommand(outPath, { type: 'crossOriginIframeWarning', src: 'https://x.example.com/' }),
+    ).not.toThrow();
+    expect(() =>
+      appendCommand(outPath, { type: 'completelyUnknownType' } as any),
+    ).toThrow();
+  });
+});

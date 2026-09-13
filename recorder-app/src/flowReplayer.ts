@@ -406,6 +406,10 @@ async function dispatchCommand(
       break;
     }
 
+    case 'crossOriginIframeWarning':
+      // recorder-only event; should never reach the executor
+      throw new Error(`crossOriginIframeWarning is a recorder-only event and cannot be executed`);
+
     default: {
       // TypeScript exhaustiveness guard — unreachable at runtime if all types are handled
       const _exhaustive: never = cmd;
