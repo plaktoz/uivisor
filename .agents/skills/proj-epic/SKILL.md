@@ -145,7 +145,7 @@ Before starting any feature run:
 1. Announces: "Starting feature [n/total]: **[feature name]** (`feat-[slug]`)"
 2. Updates the feature's status to `in_progress` in the epic tracking table
 
-3. **If `pipeline.worktree_isolation: true`** — create the worktree before activating the pipeline:
+3. Create the worktree before activating the pipeline:
    ```bash
    git pull origin main          # ensure base is current
    git worktree add .worktrees/feat-[slug] -b feat-[slug]

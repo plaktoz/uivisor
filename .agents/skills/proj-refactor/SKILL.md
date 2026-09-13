@@ -6,6 +6,27 @@ Read `proj-protocol` for all shared rules: blackboard protocol, logging format, 
 
 ---
 
+## Step 0: Worktree Setup
+
+If no worktree exists yet for this run:
+```bash
+git pull origin main
+git worktree add .worktrees/[run-name] -b [run-name]
+```
+
+Record in `state.md` under `## Worktree`:
+```markdown
+## Worktree
+**Path:** .worktrees/[run-name]
+**Branch:** [run-name]
+**Created:** [timestamp]
+**Status:** active
+```
+
+If a worktree already exists for this run (resume case), skip creation — the existing worktree is re-used.
+
+---
+
 ## Step 1: Accept Refactor Description and Create Run
 
 Ask the user for the refactor description if not provided as an argument.
@@ -55,6 +76,7 @@ Write the execution plan to `state.md` under `## Gate 0: Execution Plan`:
    Output: regression test suite covering current behavior → state.md#tests
 4. Coder → skill: implement
    Reads: spec + target architecture + regression tests from state.md
+   Working directory: .worktrees/[run-name]
    Output: refactored source files → state.md#code-artifacts
 5. Tester Ensemble Phase 2 → skill: code-review
    Reads: state.md#tests + all source files

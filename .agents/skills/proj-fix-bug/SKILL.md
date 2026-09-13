@@ -6,6 +6,27 @@ Read `proj-protocol` for all shared rules: blackboard protocol, logging format, 
 
 ---
 
+## Step 0: Worktree Setup
+
+If no worktree exists yet for this run:
+```bash
+git pull origin main
+git worktree add .worktrees/[run-name] -b [run-name]
+```
+
+Record in `state.md` under `## Worktree`:
+```markdown
+## Worktree
+**Path:** .worktrees/[run-name]
+**Branch:** [run-name]
+**Created:** [timestamp]
+**Status:** active
+```
+
+If a worktree already exists for this run (resume case), skip creation — the existing worktree is re-used.
+
+---
+
 ## Step 1: Accept Bug Description and Create Run
 
 Ask the user for the bug description if not provided as an argument.
@@ -52,6 +73,7 @@ Write the execution plan to `state.md` under `## Gate 0: Execution Plan`:
    Output: failing tests that reproduce the bug → state.md#tests
 3. Coder → skill: diagnosing-bugs
    Reads: bug spec + failing tests from state.md
+   Working directory: .worktrees/[run-name]
    Output: fix + source files → state.md#code-artifacts
 4. Tester Ensemble Phase 2 → skill: tdd
    Reads: state.md#tests + all source files

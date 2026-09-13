@@ -43,7 +43,7 @@ Show the list with cost summaries and ask: "Which completed run would you like t
 
 On confirmation:
 
-**Check the worktree first (if worktree_isolation: true):**
+**Check the worktree:**
 1. Read `state.md#worktree` for the worktree path and status
 2. If status is `active`: the worktree should have been removed after merge, but may linger
    - Check: `git worktree list | grep [run-name]`
@@ -93,7 +93,7 @@ Type yes to confirm.
 
 On confirmation:
 
-1. **Remove the worktree** (if `worktree_isolation: true` and worktree is active):
+1. **Remove the worktree** (if worktree is active):
    ```bash
    git worktree remove --force .worktrees/[run-name]
    ```
