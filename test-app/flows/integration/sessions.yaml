@@ -1,0 +1,79 @@
+appId: ${base}/integration-sessions
+config: config.yml
+sessions:
+  - id: producer
+  - id: consumer
+
+commands:
+  # ── AC3: Navigate both sessions ───────────────────────────────────────────
+  # Consumer navigates FIRST — storage-event listener must be active before
+  # producer writes; wrong order causes AC2 to miss the event.
+  - session: consumer
+    goto: ${base}/integration-sessions
+  - session: producer
+    goto: ${base}/integration-sessions
+  - session: consumer
+    assertUrl: /integration-sessions
+  - session: producer
+    assertUrl: /integration-sessions
+
+  # ── AC5 pre-conditions: baseline — nothing visible before any interaction ──
+  - session: producer
+    assertNotVisible:
+      testId: int-sessions-producer-sent
+  - session: consumer
+    assertNotVisible:
+      testId: int-sessions-consumer-display
+  - session: consumer
+    assertNotVisible:
+      testId: int-sessions-producer-sent
+
+  # ── AC1: Named session routing ────────────────────────────────────────────
+  - session: producer
+    inputText:
+      element:
+        testId: int-sessions-producer-input
+      text: hello
+  - session: producer
+    tapOn:
+      testId: int-sessions-producer-send
+  - session: producer
+    assertVisible:
+      testId: int-sessions-producer-sent
+  - session: producer
+    assertText:
+      testId: int-sessions-producer-sent
+      expected: hello
+  - session: consumer
+    assertNotVisible:
+      testId: int-sessions-producer-sent
+
+  # ── AC2: Cross-session storage event ──────────────────────────────────────
+  - session: consumer
+    waitFor: 500
+  - session: consumer
+    assertVisible:
+      testId: int-sessions-consumer-display
+  - session: consumer
+    assertText:
+      testId: int-sessions-consumer-display
+      expected: hello
+
+  # ── AC4: Default session routing (no session: field → producer) ───────────
+  - assertNotVisible:
+      testId: int-sessions-default-result
+  - tapOn:
+      testId: int-sessions-default-btn
+  - assertVisible:
+      testId: int-sessions-default-result
+  - session: consumer
+    assertNotVisible:
+      testId: int-sessions-default-result
+
+  # ── AC5 post-conditions: isolation confirmed after all interactions ────────
+  - session: consumer
+    assertNotVisible:
+      testId: int-sessions-producer-sent
+  - session: consumer
+    assertNotVisible:
+      testId: int-sessions-default-result
