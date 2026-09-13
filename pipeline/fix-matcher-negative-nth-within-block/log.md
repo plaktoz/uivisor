@@ -19,3 +19,4 @@
 - Coder complete → activating Tester Ensemble Phase 2
 - Tester Ensemble Phase 2: PASS — 14/14 parser tests green, core 180/180
 - Quality Gate: PASS (3 medium findings, 1 low — none blocking)
+- Gate 3 approved → Deployer: committed 23272bf, closed issue #44
