@@ -472,8 +472,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture.mock.calls[0][0].type).toBe('tapOn');
   });
 
-  // AC-10: 3rd container → nth: 2 (0-based)
-  it('AC-10: clicking button in 3rd <li> produces nth: 2', () => {
+  // AC-10: each container has a unique data-testid → document-wide index is 0 for every row
+  it('AC-10: container with unique data-testid per row emits nth: 0 (document-wide index)', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -489,6 +489,98 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
+    // data-testid=row-2 exists exactly once in the document → document-wide index is 0
+    expect(cmd.nth).toBe(0);
+  });
+
+  // CS-NTH-01: 3 li each with a unique data-testid — clicking any emits its document-wide index
+  it('CS-NTH-01: unique data-testid per container — 3rd emits nth: 0', () => {
+    const ul = document.createElement('ul');
+    for (let i = 0; i < 3; i++) {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', `unique-row-${i}`);
+      const btn = document.createElement('button');
+      btn.textContent = 'Action';
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    document.body.appendChild(ul);
+    const thirdBtn = ul.children[2].querySelector('button') as HTMLElement;
+    thirdBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=unique-row-2');
+    // querySelectorAll('[data-testid="unique-row-2"]') → 1 match → index 0
+    expect(cmd.nth).toBe(0);
+  });
+
+  // CS-NTH-02: shared data-testid with a non-matching header sibling that shifts the sibling index
+  it('CS-NTH-02: shared data-testid, header sibling — 3rd row emits nth: 2 (not 3)', () => {
+    const ul = document.createElement('ul');
+    const header = document.createElement('li');
+    header.textContent = 'Header';
+    ul.appendChild(header);
+    for (let i = 0; i < 3; i++) {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', 'shared-row');
+      const btn = document.createElement('button');
+      btn.textContent = 'Action';
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    document.body.appendChild(ul);
+    // 3rd <li data-testid="shared-row"> is sibling index 3 but document-wide index 2
+    const rows = document.querySelectorAll('li[data-testid="shared-row"]');
+    const thirdBtn = rows[2].querySelector('button') as HTMLElement;
+    thirdBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=shared-row');
+    // document-wide: querySelectorAll('[data-testid="shared-row"]') → 3 matches → index 2
+    expect(cmd.nth).toBe(2);
+  });
+
+  // CS-NTH-03: container selected by id= (no data-* attributes) → document-wide index is always 0
+  it('CS-NTH-03: container with id= selector emits nth: 0', () => {
+    const ul = document.createElement('ul');
+    for (let i = 0; i < 3; i++) {
+      const li = document.createElement('li');
+      li.setAttribute('id', `id-row-${i}`);
+      const btn = document.createElement('button');
+      btn.textContent = 'Action';
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    document.body.appendChild(ul);
+    const thirdBtn = ul.children[2].querySelector('button') as HTMLElement;
+    thirdBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('id=id-row-2');
+    // querySelectorAll('[id="id-row-2"]') → 1 match → index 0
+    expect(cmd.nth).toBe(0);
+  });
+
+  // CS-NTH-04 (regression): nth-only container uses sibling-index fallback unchanged
+  it('CS-NTH-04: nth-only container (no attrs, no text) preserves sibling-index fallback', () => {
+    const parent = document.createElement('div');
+    for (let i = 0; i < 3; i++) {
+      const row = document.createElement('div');
+      const btn = document.createElement('button');
+      btn.setAttribute('data-testid', 'nth-action');
+      row.appendChild(btn);
+      parent.appendChild(row);
+    }
+    document.body.appendChild(parent);
+    const thirdBtn = parent.children[2].querySelector('button') as HTMLElement;
+    thirdBtn.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('');
     expect(cmd.nth).toBe(2);
   });
 

@@ -190,10 +190,14 @@ function parseCommand(record: Record<string, unknown>): Command {
       const doCommands: SessionedCommand[] = (doArr as Record<string, unknown>[]).map((r) => ({
         command: parseCommand(r),
       }));
+      const parsedNth = nth !== undefined ? Number(nth) : undefined;
+      if (parsedNth !== undefined && parsedNth < 0) {
+        throw new Error(`within: nth must be a non-negative integer, got ${parsedNth}`);
+      }
       return {
         type: 'within',
         selector,
-        nth: nth !== undefined ? Number(nth) : undefined,
+        nth: parsedNth,
         do: doCommands,
       };
     }
@@ -382,6 +386,9 @@ async function dispatchCommand(
 
       if (count === 0) {
         throw new Error(`within: No container found for selector '${cmd.selector}'`);
+      }
+      if (cmd.nth !== undefined && cmd.nth < 0) {
+        throw new Error(`within: nth must be a non-negative integer, got ${cmd.nth}`);
       }
       if (cmd.nth !== undefined && cmd.nth >= count) {
         throw new Error(

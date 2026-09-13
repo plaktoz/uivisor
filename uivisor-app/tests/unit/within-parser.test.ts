@@ -150,3 +150,35 @@ describe('within parser — missing do key (TC-044)', () => {
     ).toThrow(/do.*within|within.*do/i);
   });
 });
+
+// ─── TC-048–TC-051: nth must be non-negative (issue #44) ─────────────────────
+
+describe('within parser — nth must be non-negative (issue #44)', () => {
+  it('TC-048: nth:-1 throws with message referencing both "nth" and "non-negative"', () => {
+    expect(() =>
+      parseCommand({ within: { text: 'Row', nth: -1, do: [{ tapOn: 'Edit' }] } })
+    ).toThrow(/nth.*non.?negative|non.?negative.*nth/i);
+  });
+
+  it('TC-049: nth:-2 is also rejected (guard not hard-coded to -1)', () => {
+    expect(() =>
+      parseCommand({ within: { text: 'Row', nth: -2, do: [{ tapOn: 'Edit' }] } })
+    ).toThrow(/nth/i);
+  });
+
+  it('TC-050: nth:0 is valid; result.nth equals 0 and is a number', () => {
+    const result = parseCommand({ within: { text: 'Row', nth: 0, do: [{ tapOn: 'Edit' }] } });
+    expect(result.type).toBe('within');
+    if (result.type !== 'within') return;
+    expect(result.nth).toBe(0);
+    expect(typeof result.nth).toBe('number');
+  });
+
+  it('TC-051: nth:-0 is treated as 0 (JS -0 === 0) and does not throw', () => {
+    const result = parseCommand({ within: { text: 'Row', nth: -0, do: [{ tapOn: 'Edit' }] } });
+    expect(result.type).toBe('within');
+    if (result.type !== 'within') return;
+    // Use === rather than toBe: -0 === 0 is true in JS; toBe uses Object.is where they differ
+    expect(result.nth === 0).toBe(true);
+  });
+});

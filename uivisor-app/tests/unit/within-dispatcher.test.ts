@@ -371,3 +371,40 @@ describe('executeWithin — xpath container selector (AC11)', () => {
   });
 
 });
+
+// ─── TC-052–TC-053: executeWithin — negative nth rejected (issue #44) ────────
+// Defence-in-depth: count=3 means `nth >= count` guard would NOT fire for -1/-2;
+// rejection must come from the negative-nth pre-check.
+
+describe('executeWithin — negative nth rejected (issue #44 defence-in-depth)', () => {
+  it('TC-052: nth:-1 throws even when 3 containers exist; .nth() and dispatchFn not called', async () => {
+    const containerLoc = {
+      count: vi.fn().mockResolvedValue(3),
+      nth: vi.fn(),
+    } as unknown as Locator;
+
+    const page: Page = {
+      locator: vi.fn().mockReturnValue(makeLocator(0)),
+      getByText: vi.fn().mockReturnValue(containerLoc),
+      getByLabel: vi.fn().mockReturnValue(makeLocator(0)),
+      getByRole: vi.fn().mockReturnValue(makeLocator(0)),
+      getByPlaceholder: vi.fn().mockReturnValue(makeLocator(0)),
+      getByTestId: vi.fn().mockReturnValue(makeLocator(0)),
+    } as unknown as Page;
+
+    const dispatchFn: WithinDispatch = vi.fn();
+    const cmd = { type: 'within' as const, selector: 'text=Row', nth: -1, do: [] };
+
+    await expect(executeWithin(page, cmd, makeCtx(), dispatchFn)).rejects.toThrow(/nth/i);
+    expect(dispatchFn).not.toHaveBeenCalled();
+    expect(containerLoc.nth).not.toHaveBeenCalled();
+  });
+
+  it('TC-053: nth:-2 throws even when 3 containers exist; dispatchFn not called', async () => {
+    const dispatchFn: WithinDispatch = vi.fn();
+    const cmd = { type: 'within' as const, selector: 'text=Row', nth: -2, do: [] };
+
+    await expect(executeWithin(makePage(3), cmd, makeCtx(), dispatchFn)).rejects.toThrow(/nth/i);
+    expect(dispatchFn).not.toHaveBeenCalled();
+  });
+});

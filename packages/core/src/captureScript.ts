@@ -275,11 +275,21 @@ export const CAPTURE_SCRIPT: string = `(function() {
           do: [{ command: tapOnCmd }]
         };
       } else {
-        var siblings = Array.prototype.filter.call(
-          container.parentElement ? container.parentElement.children : [],
-          function(c) { return c.tagName === container.tagName; }
-        );
-        var nth = siblings.indexOf(container);
+        var nth = -1;
+        if (containerSel !== 'nth-only' && containerSel.indexOf('text=') !== 0) {
+          var selEqI = containerSel.indexOf('=');
+          if (selEqI !== -1) {
+            var selCss = '[' + containerSel.slice(0, selEqI) + '="' + containerSel.slice(selEqI + 1) + '"]';
+            try { nth = Array.prototype.indexOf.call(document.querySelectorAll(selCss), container); } catch(e) {}
+          }
+        }
+        if (nth < 0) {
+          var siblings = Array.prototype.filter.call(
+            container.parentElement ? container.parentElement.children : [],
+            function(c) { return c.tagName === container.tagName; }
+          );
+          nth = siblings.indexOf(container);
+        }
         withinCmd = {
           type: 'within',
           selector: containerSel === 'nth-only' ? '' : containerSel,

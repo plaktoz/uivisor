@@ -177,6 +177,9 @@ export function parseCommand(raw: unknown): Command {
         if (typeof rawNth !== 'number' || !Number.isInteger(rawNth)) {
           throw new Error(`within: nth must be an integer, got ${String(rawNth)}`);
         }
+        if (rawNth < 0) {
+          throw new Error(`within: nth must be a non-negative integer, got ${rawNth}`);
+        }
         nth = rawNth;
       }
 
