@@ -116,7 +116,7 @@ commands:
 
 See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full reference covering:
 
-- Flow YAML format and top-level keys (`appId`, `commands`, `vars`, `config`, `tags`, `shared`)
+- Flow YAML format and top-level keys (`appId`, `commands`, `vars`, `config`, `tags`)
 - Variables and environment variable interpolation
 - Selectors — object form, pipe-syntax, bare string cascade, wildcards, and `within` scoping
 - All commands: navigation, interaction, assertions, timing, viewport, screenshots, and flow composition

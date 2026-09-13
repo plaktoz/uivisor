@@ -113,7 +113,6 @@ The runner navigates to `appId` before executing the first command.
 | `vars` | No | Inline variable definitions; values are interpolated with `${varName}` |
 | `config` | No | Path to an external YAML config file; keys override inline `vars` |
 | `tags` | No | Array of strings for `--tag` filtering |
-| `shared` | No | If `true`, the flow can only be invoked via `runFlow`, not run directly |
 
 ---
 
@@ -698,11 +697,10 @@ commands:
   - assertNotVisible: Welcome
 ```
 
-### Shared setup with `runFlow`
+### Reusable setup with `runFlow`
 
 ```yaml
 # flows/shared/login.yaml
-shared: true
 appId: http://localhost:3000
 commands:
   - inputText:
