@@ -128,49 +128,6 @@ export const CAPTURE_SCRIPT: string = `(function() {
   var pending = new WeakMap();
 
   // --- within-detection helpers ---
-  function isSemanticRepeater(el) {
-    var tag = el.tagName.toLowerCase();
-    if (tag === 'tr' || tag === 'li') return true;
-    var elRole = ' ' + (el.getAttribute('role') || '') + ' ';
-    return elRole.indexOf(' row ') !== -1 || elRole.indexOf(' listitem ') !== -1;
-  }
-
-  function countBasedSiblings(el) {
-    if (!el.parentElement) return 0;
-    return Array.prototype.filter.call(
-      el.parentElement.children,
-      function(c) { return c.tagName === el.tagName; }
-    ).length;
-  }
-
-  function findSemanticContainer(el) {
-    // Check el itself first
-    if (isSemanticRepeater(el)) return el;
-    // Walk ancestors
-    var cur = el.parentElement;
-    while (cur) {
-      var bodyTag = cur.tagName && cur.tagName.toLowerCase();
-      if (bodyTag === 'body' || bodyTag === 'html') break;
-      if (isSemanticRepeater(cur)) return cur;
-      cur = cur.parentElement;
-    }
-    return null;
-  }
-
-  function findCountBasedContainer(el) {
-    var cur = el.parentElement;
-    while (cur) {
-      var bodyTag = cur.tagName && cur.tagName.toLowerCase();
-      if (bodyTag === 'body' || bodyTag === 'html') break;
-      if (countBasedSiblings(cur) >= 2) return cur;
-      cur = cur.parentElement;
-    }
-    return null;
-  }
-
-  function findRepeatingContainer(el) {
-    return findSemanticContainer(el) || findCountBasedContainer(el);
-  }
 
   function buildContainerSelector(containerEl) {
     // Single best attribute (not pipe)
@@ -248,69 +205,24 @@ export const CAPTURE_SCRIPT: string = `(function() {
     var tapOnSelector = buildPipeSelector(el);
     var tapOnCmd = { type: 'tapOn', selector: tapOnSelector };
 
-    var container = findRepeatingContainer(el);
-    var reactiveContainer = false;
-
-    if (!container) {
-      // reactive path: check if tapOn selector is document-unique
-      var firstSeg = tapOnSelector.split('|')[0];
-      var eqIdx = firstSeg.indexOf('=');
-      if (eqIdx !== -1) {
-        var attrName = firstSeg.slice(0, eqIdx);
-        var attrVal = firstSeg.slice(eqIdx + 1);
-        if (countMatchingElements(document, attrName, attrVal) > 1) {
-          container = findAncestorThatUniquesEl(el, tapOnSelector);
-          if (container) reactiveContainer = true;
+    // reactive path: check if tapOn selector is document-unique
+    var firstSeg = tapOnSelector.split('|')[0];
+    var eqIdx = firstSeg.indexOf('=');
+    if (eqIdx !== -1) {
+      var attrName = firstSeg.slice(0, eqIdx);
+      var attrVal = firstSeg.slice(eqIdx + 1);
+      if (countMatchingElements(document, attrName, attrVal) > 1) {
+        var container = findAncestorThatUniquesEl(el, tapOnSelector);
+        if (container) {
+          var containerSel = buildContainerSelector(container);
+          emit({ type: 'within', selector: containerSel, do: [{ command: tapOnCmd }] });
+          return;
         }
+        // no unique ancestor: css= fallback
+        tapOnCmd = { type: 'tapOn', selector: buildCssFallback(el) };
       }
     }
-
-    if (container) {
-      var containerSel = buildContainerSelector(container);
-      var withinCmd;
-      if (reactiveContainer) {
-        withinCmd = {
-          type: 'within',
-          selector: containerSel,
-          do: [{ command: tapOnCmd }]
-        };
-      } else {
-        var nth = -1;
-        if (containerSel !== 'nth-only' && containerSel.indexOf('text=') !== 0) {
-          var selEqI = containerSel.indexOf('=');
-          if (selEqI !== -1) {
-            var selCss = '[' + containerSel.slice(0, selEqI) + '="' + containerSel.slice(selEqI + 1) + '"]';
-            try { nth = Array.prototype.indexOf.call(document.querySelectorAll(selCss), container); } catch(e) {}
-          }
-        }
-        if (nth < 0) {
-          var siblings = Array.prototype.filter.call(
-            container.parentElement ? container.parentElement.children : [],
-            function(c) { return c.tagName === container.tagName; }
-          );
-          nth = siblings.indexOf(container);
-        }
-        withinCmd = {
-          type: 'within',
-          selector: containerSel,
-          nth: nth,
-          do: [{ command: tapOnCmd }]
-        };
-      }
-      emit(withinCmd);
-    } else {
-      // If tapOnSelector is non-unique but no ancestor resolves, use css= fallback
-      var firstSeg2 = tapOnSelector.split('|')[0];
-      var eqIdx2 = firstSeg2.indexOf('=');
-      if (eqIdx2 !== -1) {
-        var attrName2 = firstSeg2.slice(0, eqIdx2);
-        var attrVal2 = firstSeg2.slice(eqIdx2 + 1);
-        if (countMatchingElements(document, attrName2, attrVal2) > 1) {
-          tapOnCmd = { type: 'tapOn', selector: buildCssFallback(el) };
-        }
-      }
-      emit(tapOnCmd);
-    }
+    emit(tapOnCmd);
   }, true);
 
   // --- input handler (debounce: emit on blur or 500ms idle) ---

@@ -378,8 +378,8 @@ describe('CAPTURE_SCRIPT', () => {
   // Within detection — ACs 8–18
   // -------------------------------------------------------------------------
 
-  // AC-8a: semantic container tr triggers within
-  it('AC-8a: click inside <tr> wraps in within', () => {
+  // AC-8a: path-1 removed; unique button selector → bare tapOn
+  it('AC-8a: click inside <tr> emits tapOn (path-1 removed)', () => {
     const table = document.createElement('table');
     const tbody = document.createElement('tbody');
     const tr = document.createElement('tr');
@@ -393,11 +393,12 @@ describe('CAPTURE_SCRIPT', () => {
     document.body.appendChild(table);
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
-    expect(capture.mock.calls[0][0].type).toBe('within');
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+    expect(capture.mock.calls[0][0].selector).toBe('data-testid=tr-btn');
   });
 
-  // AC-8b: semantic container li triggers within
-  it('AC-8b: click inside <li> wraps in within', () => {
+  // AC-8b: path-1 removed; unique button selector → bare tapOn
+  it('AC-8b: click inside <li> emits tapOn (path-1 removed)', () => {
     const ul = document.createElement('ul');
     const li = document.createElement('li');
     li.setAttribute('data-testid', 'list-row');
@@ -409,12 +410,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('data-testid=list-row');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=li-btn');
   });
 
-  // AC-8c: semantic container role=row triggers within
-  it('AC-8c: click inside role="row" element wraps in within', () => {
+  // AC-8c: path-1 removed; unique button selector → bare tapOn
+  it('AC-8c: click inside role="row" element emits tapOn (path-1 removed)', () => {
     const container = document.createElement('div');
     container.setAttribute('role', 'row');
     container.setAttribute('data-testid', 'role-row');
@@ -425,12 +426,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('data-testid=role-row');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=row-btn');
   });
 
-  // AC-8d: semantic container role=listitem triggers within
-  it('AC-8d: click inside role="listitem" element wraps in within', () => {
+  // AC-8d: path-1 removed; unique button selector → bare tapOn
+  it('AC-8d: click inside role="listitem" element emits tapOn (path-1 removed)', () => {
     const container = document.createElement('div');
     container.setAttribute('role', 'listitem');
     container.setAttribute('data-testid', 'role-listitem');
@@ -440,11 +441,12 @@ describe('CAPTURE_SCRIPT', () => {
     document.body.appendChild(container);
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
-    expect(capture.mock.calls[0][0].type).toBe('within');
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+    expect(capture.mock.calls[0][0].selector).toBe('data-testid=li-inner-btn');
   });
 
-  // AC-9: count-based ≥2 siblings triggers within, 1 sibling does not
-  it('AC-9a: ≥2 siblings with same tag triggers within', () => {
+  // AC-9: path-1 removed; unique button selector → bare tapOn regardless of sibling count
+  it('AC-9a: ≥2 siblings with same tag — unique button selector emits tapOn (path-1 removed)', () => {
     const parent = document.createElement('div');
     const row1 = document.createElement('div');
     const row2 = document.createElement('div');
@@ -456,7 +458,8 @@ describe('CAPTURE_SCRIPT', () => {
     document.body.appendChild(parent);
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
-    expect(capture.mock.calls[0][0].type).toBe('within');
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+    expect(capture.mock.calls[0][0].selector).toBe('data-testid=count-btn');
   });
 
   it('AC-9b: 1 sibling does NOT trigger within', () => {
@@ -472,8 +475,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture.mock.calls[0][0].type).toBe('tapOn');
   });
 
-  // AC-10: each container has a unique data-testid → document-wide index is 0 for every row
-  it('AC-10: container with unique data-testid per row emits nth: 0 (document-wide index)', () => {
+  // AC-10: shared data-testid=action → path-2 fires, finds unique row ancestor; nth absent
+  it('AC-10: shared data-testid=action emits within scoped to unique row ancestor — nth absent', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -489,12 +492,12 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
-    // data-testid=row-2 exists exactly once in the document → document-wide index is 0
-    expect(cmd.nth).toBe(0);
+    expect(cmd.selector).toBe('data-testid=row-2');
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-01: 3 li each with a unique data-testid — clicking any emits its document-wide index
-  it('CS-NTH-01: unique data-testid per container — 3rd emits nth: 0', () => {
+  // CS-NTH-01: shared text=Action → path-2 fires, finds unique-row-2 ancestor; nth absent
+  it('CS-NTH-01: shared text=Action emits within scoped to unique-row-2 — nth absent', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -511,12 +514,11 @@ describe('CAPTURE_SCRIPT', () => {
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
     expect(cmd.selector).toBe('data-testid=unique-row-2');
-    // querySelectorAll('[data-testid="unique-row-2"]') → 1 match → index 0
-    expect(cmd.nth).toBe(0);
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-02: shared data-testid with a non-matching header sibling that shifts the sibling index
-  it('CS-NTH-02: shared data-testid, header sibling — 3rd row emits nth: 2 (not 3)', () => {
+  // CS-NTH-02: shared text=Action → path-2 fires, finds shared-row as first scoping ancestor; nth absent
+  it('CS-NTH-02: shared text=Action emits within scoped to data-testid=shared-row — nth absent', () => {
     const ul = document.createElement('ul');
     const header = document.createElement('li');
     header.textContent = 'Header';
@@ -530,7 +532,6 @@ describe('CAPTURE_SCRIPT', () => {
       ul.appendChild(li);
     }
     document.body.appendChild(ul);
-    // 3rd <li data-testid="shared-row"> is sibling index 3 but document-wide index 2
     const rows = document.querySelectorAll('li[data-testid="shared-row"]');
     const thirdBtn = rows[2].querySelector('button') as HTMLElement;
     thirdBtn.click();
@@ -538,12 +539,11 @@ describe('CAPTURE_SCRIPT', () => {
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
     expect(cmd.selector).toBe('data-testid=shared-row');
-    // document-wide: querySelectorAll('[data-testid="shared-row"]') → 3 matches → index 2
-    expect(cmd.nth).toBe(2);
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-03: container selected by id= (no data-* attributes) → document-wide index is always 0
-  it('CS-NTH-03: container with id= selector emits nth: 0', () => {
+  // CS-NTH-03: shared text=Action → path-2 fires, finds id=id-row-2 ancestor; nth absent
+  it('CS-NTH-03: shared text=Action emits within scoped to id=id-row-2 — nth absent', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -560,12 +560,11 @@ describe('CAPTURE_SCRIPT', () => {
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
     expect(cmd.selector).toBe('id=id-row-2');
-    // querySelectorAll('[id="id-row-2"]') → 1 match → index 0
-    expect(cmd.nth).toBe(0);
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-04 (regression): css= container uses sibling-index fallback unchanged
-  it('CS-NTH-04: css= container (no attrs, no text) preserves sibling-index fallback', () => {
+  // CS-NTH-04: 3 buttons share data-testid=nth-action → path-2 fires, bare div ancestor; nth absent
+  it('CS-NTH-04: non-unique data-testid=nth-action emits within selector css=div — nth absent', () => {
     const parent = document.createElement('div');
     for (let i = 0; i < 3; i++) {
       const row = document.createElement('div');
@@ -580,13 +579,12 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
     expect(cmd.type).toBe('within');
-    // PR #77 replaced nth-only sentinel with css=<tagName>
     expect(cmd.selector).toBe('css=div');
-    expect(cmd.nth).toBe(2);
+    expect('nth' in cmd).toBe(false);
   });
 
-  // AC-11: container with data-testid uses single attr in within.selector (not pipe)
-  it('AC-11: container selector uses single data-testid attr (not pipe)', () => {
+  // AC-11: path-1 removed; unique button selector → bare tapOn
+  it('AC-11: click button with unique data-testid inside li emits tapOn (path-1 removed)', () => {
     const ul = document.createElement('ul');
     const li = document.createElement('li');
     li.setAttribute('data-testid', 'the-row');
@@ -599,10 +597,8 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    // data-testid wins over id (first alphabetically among data-*)
-    expect(cmd.selector).toBe('data-testid=the-row');
-    expect(cmd.selector).not.toContain('|');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=inner-action');
   });
 
   // AC-12: unique element → no within, bare tapOn
@@ -681,8 +677,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect('nth' in cmd).toBe(false);
   });
 
-  // AC-16: role= token matching (role="row grid" triggers)
-  it('AC-16: role="row grid" token matches row → within fires', () => {
+  // AC-16: path-1 removed; unique button selector → bare tapOn
+  it('AC-16: click button with unique data-testid inside role="row grid" emits tapOn (path-1 removed)', () => {
     const container = document.createElement('div');
     container.setAttribute('role', 'row grid');
     container.setAttribute('data-testid', 'multi-role');
@@ -692,11 +688,12 @@ describe('CAPTURE_SCRIPT', () => {
     document.body.appendChild(container);
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
-    expect(capture.mock.calls[0][0].type).toBe('within');
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+    expect(capture.mock.calls[0][0].selector).toBe('data-testid=multi-role-btn');
   });
 
-  // AC-17: clicking directly on a <li> — within still fires
-  it('AC-17: click directly on <li> element — within still fires', () => {
+  // AC-17: path-1 removed; clicking directly on <li> with unique data-testid → bare tapOn
+  it('AC-17: click directly on <li> with unique data-testid emits tapOn (path-1 removed)', () => {
     const ul = document.createElement('ul');
     const li = document.createElement('li');
     li.setAttribute('data-testid', 'direct-li');
@@ -705,7 +702,8 @@ describe('CAPTURE_SCRIPT', () => {
     li.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=direct-li');
   });
 
   // AC-18: one click → one __uivisorCapture call
@@ -920,9 +918,8 @@ describe('CAPTURE_SCRIPT', () => {
   // Issue #40: nth-only container selector bug
   // -------------------------------------------------------------------------
 
-  // BC-01: bare <li> (no data-*, no id, no text) → within.selector must be 'css=li'
-  // FAILS on unfixed code: buildContainerSelector returns 'nth-only' → click handler emits selector:''
-  it('BC-01: bare <li> with icon-only button emits within.selector "css=li"', () => {
+  // BC-01: path-1 removed; unique button selector → bare tapOn (bare li no longer triggers path-1)
+  it('BC-01: bare <li> with unique icon-only button emits tapOn (path-1 removed)', () => {
     const ul = document.createElement('ul');
     const li = document.createElement('li');
     const btn = document.createElement('button');
@@ -933,12 +930,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=li');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=icon-action');
   });
 
-  // BC-03: bare <tr> (no data-*, no id, no text in subtree) → within.selector must be 'css=tr'
-  it('BC-03: bare <tr> with icon-only button emits within.selector "css=tr"', () => {
+  // BC-03: path-1 removed; unique button selector → bare tapOn (bare tr no longer triggers path-1)
+  it('BC-03: bare <tr> with unique icon-only button emits tapOn (path-1 removed)', () => {
     const table = document.createElement('table');
     const tbody = document.createElement('tbody');
     const tr = document.createElement('tr');
@@ -953,12 +950,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=tr');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=tr-action');
   });
 
-  // BC-04: count-based bare <div> (≥2 siblings, no attrs, no text) → within.selector 'css=div'
-  it('BC-04: count-based bare <div> with no attrs emits within.selector "css=div"', () => {
+  // BC-04: path-1 removed; unique button selector → bare tapOn (sibling-count div no longer triggers path-1)
+  it('BC-04: bare sibling <div> with unique button emits tapOn (path-1 removed)', () => {
     const parent = document.createElement('section');
     const div1 = document.createElement('div');
     const btn = document.createElement('button');
@@ -971,12 +968,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=div');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=div-action');
   });
 
-  // BC-05: count-based bare <section> (≥2 siblings, no attrs, no text) → within.selector 'css=section'
-  it('BC-05: count-based bare <section> with no attrs emits within.selector "css=section"', () => {
+  // BC-05: path-1 removed; unique button selector → bare tapOn (sibling-count section no longer triggers path-1)
+  it('BC-05: bare sibling <section> with unique button emits tapOn (path-1 removed)', () => {
     const wrapper = document.createElement('div');
     const sec1 = document.createElement('section');
     const btn = document.createElement('button');
@@ -989,12 +986,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=section');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=sec-btn');
   });
 
-  // BC-06: <li> with whitespace-only textContent → treated as no-text → 'css=li'
-  it('BC-06: <li> with whitespace-only text and icon button emits within.selector "css=li"', () => {
+  // BC-06: path-1 removed; unique button selector → bare tapOn (whitespace-only li no longer triggers path-1)
+  it('BC-06: <li> with whitespace-only text and unique button emits tapOn (path-1 removed)', () => {
     const ul = document.createElement('ul');
     const li = document.createElement('li');
     li.appendChild(document.createTextNode('   \n\t  '));
@@ -1006,12 +1003,12 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=li');
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=ws-only-btn');
   });
 
-  // BC-07: first bare <li> in 3-item list → selector 'css=li' and nth: 0 preserved
-  it('BC-07: first bare <li> in 3-item list emits selector "css=li" and nth: 0', () => {
+  // BC-07: path-1 removed; unique per-button data-testid → bare tapOn
+  it('BC-07: first bare <li> in 3-item list emits tapOn with unique button selector (path-1 removed)', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -1025,13 +1022,12 @@ describe('CAPTURE_SCRIPT', () => {
     firstBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=li');
-    expect(cmd.nth).toBe(0);
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=icon-btn-0');
   });
 
-  // BC-08: last bare <li> in 4-item list → selector 'css=li' and nth: 3 preserved
-  it('BC-08: last bare <li> in 4-item list emits selector "css=li" and nth: 3', () => {
+  // BC-08: path-1 removed; unique per-button data-testid → bare tapOn
+  it('BC-08: last bare <li> in 4-item list emits tapOn with unique button selector (path-1 removed)', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 4; i++) {
       const li = document.createElement('li');
@@ -1045,14 +1041,12 @@ describe('CAPTURE_SCRIPT', () => {
     lastBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
-    expect(cmd.selector).toBe('css=li');
-    expect(cmd.nth).toBe(3);
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('data-testid=last-icon-3');
   });
 
-  // BC-PC-01: positive-contrast — button WITH text inside bare <li> still emits 'text=Delete'
-  // PASSES on both current and fixed code; confirms fix is tightly scoped
-  it('BC-PC-01: button with text inside bare <li> emits within.selector "text=Delete" (regression)', () => {
+  // BC-PC-01: path-1 removed; button with unique text → bare tapOn with text= selector
+  it('BC-PC-01: button with text inside bare <li> emits tapOn text=Delete (path-1 removed)', () => {
     const ul = document.createElement('ul');
     const li = document.createElement('li');
     const btn = document.createElement('button');
@@ -1063,8 +1057,58 @@ describe('CAPTURE_SCRIPT', () => {
     btn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('within');
+    expect(cmd.type).toBe('tapOn');
     expect(cmd.selector).toBe('text=Delete');
+  });
+
+  // TC-01: AC-R1/R2 — CAPTURE_SCRIPT string must NOT contain path-1 function names
+  it('TC-01: CAPTURE_SCRIPT does not contain path-1 function names', () => {
+    expect(CAPTURE_SCRIPT).not.toContain('isSemanticRepeater');
+    expect(CAPTURE_SCRIPT).not.toContain('countBasedSiblings');
+    expect(CAPTURE_SCRIPT).not.toContain('findSemanticContainer');
+    expect(CAPTURE_SCRIPT).not.toContain('findCountBasedContainer');
+    expect(CAPTURE_SCRIPT).not.toContain('findRepeatingContainer');
+  });
+
+  // TC-28: TG-B-20 edge case — bare <li> (no attrs, no text) clicked directly → css= fallback tapOn
+  it('TC-28: bare <li> with no attrs and no text clicked directly emits tapOn css=li:nth-child(1)', () => {
+    const ul = document.createElement('ul');
+    const li = document.createElement('li');
+    ul.appendChild(li);
+    document.body.appendChild(ul);
+    li.click();
+    expect(capture).toHaveBeenCalledOnce();
+    const cmd = capture.mock.calls[0][0];
+    expect(cmd.type).toBe('tapOn');
+    expect(cmd.selector).toBe('css=li:nth-child(1)');
+  });
+
+  // TC-29: TG-B-21 — two sibling divs each with a distinct unique button → both emit tapOn
+  it('TC-29: two sibling divs each with a distinct unique button both emit tapOn', () => {
+    const parent = document.createElement('div');
+    const div1 = document.createElement('div');
+    const btn1 = document.createElement('button');
+    btn1.setAttribute('data-testid', 'unique-btn-a');
+    div1.appendChild(btn1);
+    const div2 = document.createElement('div');
+    const btn2 = document.createElement('button');
+    btn2.setAttribute('data-testid', 'unique-btn-b');
+    div2.appendChild(btn2);
+    parent.appendChild(div1);
+    parent.appendChild(div2);
+    document.body.appendChild(parent);
+
+    btn1.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+    expect(capture.mock.calls[0][0].selector).toBe('data-testid=unique-btn-a');
+
+    capture.mockClear();
+
+    btn2.click();
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0][0].type).toBe('tapOn');
+    expect(capture.mock.calls[0][0].selector).toBe('data-testid=unique-btn-b');
   });
 });
 
