@@ -1,0 +1,263 @@
+# Feature Spec: Runtime Variable System (setVar / testVarSet / unsetVar)
+#
+# Adds runtime variable management to uivisor flow files.
+# Variables are stored in a global key-value map, seeded from the existing
+# vars:/config: system, and resolved lazily per command step.
+
+spec:
+  version: "1.0"
+  status: proposed
+
+# ---------------------------------------------------------------------------
+# Overview
+# ---------------------------------------------------------------------------
+overview: |
+  Three new commands are introduced:
+    - setVar    — set a variable to a static value or the result of a method call
+    - testVarSet — assert a variable exists (and optionally equals a specific value)
+    - unsetVar  — remove a variable from the global map
+
+  Variables are referenced in any string field with ${varName} — the same
+  syntax already used for vars:/config: substitution. Interpolation is now
+  lazy: resolved per-step at dispatch time rather than once at parse time.
+
+# ---------------------------------------------------------------------------
+# Command Syntax
+# ---------------------------------------------------------------------------
+commands:
+
+  setVar:
+    description: >
+      Set a variable in the global map. Value is always stored as a string.
+    syntax:
+      static: "setVar: <name>=<value>"
+      method: "setVar: <name>=<methodName>(<args>)"
+    examples:
+      - setVar: num=5
+      - setVar: label=hello world
+      - setVar: today=today('YYYYMMDD')
+      - setVar: deadline=nearestWorkingDay('YYYYMMDD')
+      - setVar: userId=uuid()
+      - setVar: code=random(6)
+      - setVar: nextDay=nearestWorkingDay('YYYYMMDD')
+      - setVar: result=myCustomFn(${userId}, 'active')
+
+  testVarSet:
+    description: >
+      Assert that a variable exists and is non-empty (existence form),
+      or that it equals a specific expected value (equality form).
+      Comparison is always string equality.
+    syntax:
+      existence: "testVarSet: <name>"
+      equality:
+        testVarSet:
+          name: <name>
+          expected: <value>
+    examples:
+      - testVarSet: userId
+      - testVarSet:
+          name: userId
+          expected: "abc-123"
+      - testVarSet:
+          name: num
+          expected: "5"
+
+  unsetVar:
+    description: >
+      Remove a variable from the global map.
+      No-op if the variable does not exist (never errors).
+    syntax: "unsetVar: <name>"
+    examples:
+      - unsetVar: userId
+      - unsetVar: deadline
+
+# ---------------------------------------------------------------------------
+# Variable Interpolation
+# ---------------------------------------------------------------------------
+interpolation:
+  syntax: "${varName}"
+  timing: lazy — resolved at dispatch time, once per command step
+  sources_in_priority_order:
+    1: runtime global map (setVar, unsetVar)
+    2: config file (config: key in flow file)
+    3: inline vars block (vars: key in flow file)
+    4: environment variables via ${env.KEY}
+  notes:
+    - setVar overrides any value set by vars: or config: at runtime
+    - Using ${varName} when varName is not in the map is a hard error
+    - Default fallback syntax still supported: ${varName:defaultValue}
+
+# ---------------------------------------------------------------------------
+# Variable Scope
+# ---------------------------------------------------------------------------
+scope:
+  global: true
+  description: >
+    A single key-value map is maintained for the entire flow execution.
+    It is shared across:
+      - runFlow (sub-flows read and write the same map)
+      - sessions (all named browser sessions share the same map)
+  initialisation: >
+    The map is seeded from vars: and config: before the first command runs.
+    Runtime setVar calls may override these initial values.
+
+# ---------------------------------------------------------------------------
+# Method Calls
+# ---------------------------------------------------------------------------
+methods:
+  argument_types:
+    - string literals (single-quoted): "'hello'"
+    - number literals: "42"
+    - variable interpolation: "${varName}"
+
+  error_handling: >
+    If a method throws, the flow fails immediately. The error message
+    surfaces the method name and the thrown error.
+    Example: "setVar failed: nearestWorkingDay() threw: workingSchedule not defined in config"
+
+  name_conflict_rule: >
+    If a user-defined function shares a name with a built-in, an error is
+    raised at function-load time. User-defined names must not shadow built-ins.
+
+  duplicate_file_conflict_rule: >
+    If two user-defined function files export the same function name, an
+    error is raised at function-load time. The last file does NOT silently win.
+
+  built_ins:
+    nearestWorkingDay:
+      signature: "nearestWorkingDay(format: string): string"
+      description: >
+        Returns the current date formatted as <format> if now falls within
+        a working window, otherwise the next upcoming working window's date.
+        Requires workingSchedule (and optionally holidays) in config.yml.
+      example: "setVar: d=nearestWorkingDay('YYYYMMDD')"
+
+    today:
+      signature: "today(format: string): string"
+      description: Returns the current date formatted as <format>.
+      example: "setVar: d=today('YYYYMMDD')"
+
+    now:
+      signature: "now(format: string): string"
+      description: Returns the current time formatted as <format>.
+      example: "setVar: t=now('HHmmss')"
+
+    uuid:
+      signature: "uuid(): string"
+      description: Generates a random UUID v4.
+      example: "setVar: id=uuid()"
+
+    random:
+      signature: "random(length: number): string"
+      description: >
+        Returns a random positive integer string with exactly <length> digits.
+        The first digit is never 0.
+      example: "setVar: code=random(6)"
+
+  user_defined:
+    description: >
+      Users may provide custom functions in one or more JS/TS files.
+      Async functions are supported.
+    registration: >
+      Declare in config.yml under the functions key (string or array of paths).
+    example_config: |
+      functions:
+        - ./helpers/date-helpers.js
+        - ./helpers/api-helpers.js
+    example_implementation: |
+      // helpers/api-helpers.js
+      export async function nextDeadline() {
+        const res = await fetch('https://internal-api/deadlines')
+        return (await res.json()).next
+      }
+
+      export function formatRef(prefix, id) {
+        return `${prefix}-${id}`
+      }
+    usage: "setVar: deadline=nextDeadline()"
+
+# ---------------------------------------------------------------------------
+# Working Schedule Config (for nearestWorkingDay)
+# ---------------------------------------------------------------------------
+working_schedule_config:
+  location: config.yml
+  structure: |
+    workingSchedule:
+      - days: [mon, tue, wed, thu, fri]
+        hours: "08:00-18:00"
+      - days: [sat]
+        hours: "08:00-12:00"
+    holidays:
+      - "20261225"
+      - "20270101"
+  notes:
+    - days values: mon, tue, wed, thu, fri, sat, sun
+    - hours format: "HH:MM-HH:MM" (24-hour)
+    - holidays format: "YYYYMMDD" strings
+    - holidays is optional; omit if no holidays need to be excluded
+    - nearestWorkingDay errors if workingSchedule is not defined in config
+
+# ---------------------------------------------------------------------------
+# Full Flow Example
+# ---------------------------------------------------------------------------
+example_flow: |
+  appId: http://localhost:5173
+  config: config.yml
+
+  commands:
+    - setVar: today=today('YYYYMMDD')
+    - setVar: deadline=nearestWorkingDay('YYYYMMDD')
+    - setVar: ref=uuid()
+
+    - goto: http://localhost:5173/create
+    - tapOn: { testId: date-input }
+    - inputText: ${deadline}
+    - tapOn: { testId: ref-input }
+    - inputText: ${ref}
+    - tapOn: { text: Submit }
+
+    - testVarSet: deadline
+    - testVarSet:
+        name: today
+        expected: "20261001"
+
+    - unsetVar: ref
+
+example_config: |
+  # config.yml
+  base: ${env.BASE_URL:http://localhost:5173}
+
+  functions:
+    - ./helpers/date-helpers.js
+
+  workingSchedule:
+    - days: [mon, tue, wed, thu, fri]
+      hours: "08:00-18:00"
+    - days: [sat]
+      hours: "08:00-12:00"
+
+  holidays:
+    - "20261225"
+    - "20270101"
+
+# ---------------------------------------------------------------------------
+# Implementation Notes
+# ---------------------------------------------------------------------------
+implementation:
+  interpolation_change: >
+    dispatcher.ts must run interpolateValue() on each command's raw YAML
+    node at dispatch time, passing the current runtime var map.
+    The parse-time interpolation pass in interpolate.ts is retained for
+    non-command fields (appId, config path resolution, etc.) but command
+    strings must not be interpolated at parse time.
+
+  new_files:
+    - uivisor-app/src/engine/varMap.ts       # global map: get/set/unset/resolve
+    - uivisor-app/src/engine/methodRunner.ts  # load user functions + call built-ins
+    - uivisor-app/src/builtins/index.ts       # nearestWorkingDay, today, now, uuid, random
+
+  modified_files:
+    - uivisor-app/src/engine/dispatcher.ts   # lazy interpolation + setVar/testVarSet/unsetVar dispatch
+    - uivisor-app/src/parser/commandParser.ts # parse new command types
+    - uivisor-app/src/parser/validator.ts     # allow functions: key in config
+    - packages/core/src/types.ts             # add SetVarCommand, TestVarSetCommand, UnsetVarCommand
