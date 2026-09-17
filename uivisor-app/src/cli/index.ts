@@ -97,12 +97,14 @@ async function main(): Promise<void> {
 
   if (reporter === 'html') {
     const html = generateHtmlReport(result);
-    fs.writeFileSync(path.join(runDir, 'uivisor-report.html'), html, 'utf8');
-    process.stdout.write(`Report: ${path.join(runDir, 'uivisor-report.html')}\n`);
+    const htmlReportPath = path.join(process.cwd(), 'uivisor-report.html');
+    fs.writeFileSync(htmlReportPath, html, 'utf8');
+    process.stdout.write(`Report: ${htmlReportPath}\n`);
   } else if (reporter === 'md') {
     const md = generateMarkdownReport(result);
-    fs.writeFileSync(path.join(runDir, 'uivisor-report.md'), md, 'utf8');
-    process.stdout.write(`Report: ${path.join(runDir, 'uivisor-report.md')}\n`);
+    const mdReportPath = path.join(process.cwd(), 'uivisor-report.md');
+    fs.writeFileSync(mdReportPath, md, 'utf8');
+    process.stdout.write(`Report: ${mdReportPath}\n`);
   }
 
   process.exit(result.failedFlows > 0 ? 1 : 0);

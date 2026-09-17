@@ -24,6 +24,7 @@ import * as path from 'path';
 import { dispatch } from '../../src/engine/dispatcher';
 import { runFlow } from '../../src/engine/index';
 import type { RunContext, FlowFile } from '@uivisor/core';
+import { createVarMap } from '../../src/engine/varMap';
 
 // ─── Global setup ─────────────────────────────────────────────────────────────
 
@@ -71,6 +72,8 @@ function freshCtx(): RunContext {
     runDir: process.cwd(),
     sessions: new Map([['__default__', page]]),
     defaultSessionId: '__default__',
+    varMap: createVarMap({}),
+    methodRunner: { call: async (_name: string, _args: unknown[]) => { throw new Error('not implemented in test'); } },
   };
 }
 

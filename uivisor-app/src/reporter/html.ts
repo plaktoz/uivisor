@@ -47,15 +47,15 @@ function cmdLabel(cmd: CommandResult['command']): string {
     case 'crossOriginIframeWarning': return `crossOriginIframeWarning: ${escapeHtml(cmd.src)}`;
     case 'setVar':
       if ('method' in cmd) {
-        return escapeHtml(`setVar: ${cmd.name}=${cmd.method}(${cmd.args.join(', ')})`);
+        return `setVar: ${cmd.name}=${cmd.method}(${cmd.args.join(', ')})`;
       }
-      return escapeHtml(`setVar: ${cmd.name}=${cmd.value}`);
+      return `setVar: ${cmd.name}=${cmd.value}`;
     case 'testVarSet':
       if ('expected' in cmd && cmd.expected !== undefined) {
-        return escapeHtml(`testVarSet: ${cmd.name} == ${cmd.expected}`);
+        return `testVarSet: ${cmd.name} == ${cmd.expected}`;
       }
-      return escapeHtml(`testVarSet: ${cmd.name}`);
-    case 'unsetVar': return escapeHtml(`unsetVar: ${cmd.name}`);
+      return `testVarSet: ${cmd.name}`;
+    case 'unsetVar': return `unsetVar: ${cmd.name}`;
   }
 }
 
