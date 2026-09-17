@@ -1187,14 +1187,14 @@ describe('variable interpolation', () => {
     it('TC-052: loads and returns flattened vars from a flat config YAML', () => {
       mockReadYamlFile.mockReturnValue({ host: 'localhost', port: '3000' });
       const result = loadConfigFile('app.config.yaml', '/flows/login.yaml');
-      expect(result).toEqual({ host: 'localhost', port: '3000' });
+      expect(result.vars).toEqual({ host: 'localhost', port: '3000' });
     });
 
     // TC-053: loads and flattens a nested YAML config
     it('TC-053: flattens a nested config YAML to dotted keys', () => {
       mockReadYamlFile.mockReturnValue({ server: { host: 'localhost', port: '3000' } });
       const result = loadConfigFile('app.config.yaml', '/flows/login.yaml');
-      expect(result).toEqual({ 'server.host': 'localhost', 'server.port': '3000' });
+      expect(result.vars).toEqual({ 'server.host': 'localhost', 'server.port': '3000' });
     });
 
     // TC-054: file not found → "Config file not found" error
@@ -1222,7 +1222,7 @@ describe('variable interpolation', () => {
       try {
         mockReadYamlFile.mockReturnValue({ port: '${env.__UIVISOR_CFG_PORT__}' });
         const result = loadConfigFile('app.config.yaml', '/flows/login.yaml');
-        expect(result).toEqual({ port: '9090' });
+        expect(result.vars).toEqual({ port: '9090' });
       } finally {
         delete process.env['__UIVISOR_CFG_PORT__'];
       }
@@ -1252,36 +1252,40 @@ describe('variable interpolation', () => {
       vi.clearAllMocks();
     });
 
-    // TC-061: vars block with simple interpolation in commands
-    it('TC-061: interpolates a simple var in a goto command', () => {
+    // TC-061: vars block — commands stored raw (lazy interpolation)
+    it('TC-061: commands retain raw ${...} literals (lazy interpolation — not resolved at parse time)', () => {
       mockReadYamlFile.mockReturnValue({
         appId: 'http://localhost',
         vars: { host: 'example.com' },
         commands: [{ goto: 'http://${host}/login' }],
       });
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({
+      // After T4: command url is stored raw
+      expect(result.commands[0]!.command).toEqual({
         type: 'goto',
-        url: 'http://example.com/login',
+        url: 'http://${host}/login',
       });
+      // But vars are available in file.vars
+      expect(result.vars).toMatchObject({ host: 'example.com' });
     });
 
-    // TC-062: nested vars (a.b notation) in commands
-    it('TC-062: interpolates a nested var (dotted key) in a command', () => {
+    // TC-062: nested vars stored in file.vars; commands stay raw
+    it('TC-062: nested vars are flattened in file.vars; commands stay raw', () => {
       mockReadYamlFile.mockReturnValue({
         appId: 'http://localhost',
         vars: { server: { host: 'localhost', port: '5173' } },
         commands: [{ goto: 'http://${server.host}:${server.port}' }],
       });
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({
+      expect(result.commands[0]!.command).toEqual({
         type: 'goto',
-        url: 'http://localhost:5173',
+        url: 'http://${server.host}:${server.port}',
       });
+      expect(result.vars).toMatchObject({ 'server.host': 'localhost', 'server.port': '5173' });
     });
 
-    // TC-063: config header → loads config file and uses its values
-    it('TC-063: loads a config file and uses its values in command interpolation', () => {
+    // TC-063: config header → loads config file; commands stay raw
+    it('TC-063: loads a config file; its vars are in file.vars but commands stay raw', () => {
       mockReadYamlFile
         .mockReturnValueOnce({
           appId: 'http://localhost',
@@ -1290,14 +1294,15 @@ describe('variable interpolation', () => {
         })
         .mockReturnValueOnce({ host: 'cfg-host' });
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({
+      expect(result.commands[0]!.command).toEqual({
         type: 'goto',
-        url: 'http://cfg-host/home',
+        url: 'http://${host}/home',
       });
+      expect(result.vars).toMatchObject({ host: 'cfg-host' });
     });
 
-    // TC-064: config overrides vars for the same key
-    it('TC-064: config file value overrides inline vars value for the same key', () => {
+    // TC-064: config overrides vars for the same key (reflected in file.vars)
+    it('TC-064: config file value overrides inline vars value (visible in file.vars)', () => {
       mockReadYamlFile
         .mockReturnValueOnce({
           appId: 'http://localhost',
@@ -1307,10 +1312,10 @@ describe('variable interpolation', () => {
         })
         .mockReturnValueOnce({ host: 'config-host' });
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({
-        type: 'goto',
-        url: 'http://config-host/home',
-      });
+      // config wins over inline in file.vars
+      expect(result.vars).toMatchObject({ host: 'config-host' });
+      // command still raw
+      expect(result.commands[0]!.command).toEqual({ type: 'goto', url: 'http://${host}/home' });
     });
 
     // TC-065: missing config file → propagates "Config file not found" error
@@ -1330,8 +1335,8 @@ describe('variable interpolation', () => {
       );
     });
 
-    // TC-066: ${env.*} expression in a command string
-    it('TC-066: interpolates an ${env.*} expression in a command', () => {
+    // TC-066: commands with ${env.*} are stored raw (resolved at dispatch time)
+    it('TC-066: commands with ${env.*} are stored raw (not resolved at parse time)', () => {
       process.env['__UIVISOR_INTEG_HOST__'] = 'env-server';
       try {
         mockReadYamlFile.mockReturnValue({
@@ -1339,17 +1344,18 @@ describe('variable interpolation', () => {
           commands: [{ goto: 'http://${env.__UIVISOR_INTEG_HOST__}/path' }],
         });
         const result = loadAndParse('/flows/login.yaml');
-        expect(result.commands[0].command).toEqual({
+        // Command is raw — env var not resolved at parse time
+        expect(result.commands[0]!.command).toEqual({
           type: 'goto',
-          url: 'http://env-server/path',
+          url: 'http://${env.__UIVISOR_INTEG_HOST__}/path',
         });
       } finally {
         delete process.env['__UIVISOR_INTEG_HOST__'];
       }
     });
 
-    // TC-067: ${env.VAR:default} when env var is not set
-    it('TC-067: falls back to the default when the env var is not set', () => {
+    // TC-067: commands with ${env.*:default} are stored raw
+    it('TC-067: commands with ${env.*:default} are stored raw (not resolved at parse time)', () => {
       const envKey = '__UIVISOR_INTEG_UNSET__';
       delete process.env[envKey];
       mockReadYamlFile.mockReturnValue({
@@ -1357,9 +1363,10 @@ describe('variable interpolation', () => {
         commands: [{ goto: `http://\${env.${envKey}:fallback-host}/path` }],
       });
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({
+      // Command is raw — not resolved at parse time
+      expect(result.commands[0]!.command).toEqual({
         type: 'goto',
-        url: 'http://fallback-host/path',
+        url: `http://\${env.${envKey}:fallback-host}/path`,
       });
     });
 
@@ -1374,8 +1381,8 @@ describe('variable interpolation', () => {
       expect(result.baseUrl).toBe('http://localhost:3000');
     });
 
-    // TC-069: multiple expressions in one string
-    it('TC-069: replaces multiple expressions in a single string value', () => {
+    // TC-069: commands with multiple expressions stored raw
+    it('TC-069: commands with multiple ${...} expressions stored raw (lazy interpolation)', () => {
       mockReadYamlFile.mockReturnValue({
         appId: 'http://localhost',
         vars: { user: 'alice', pass: 'secret' },
@@ -1389,15 +1396,17 @@ describe('variable interpolation', () => {
         ],
       });
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({
+      // Command stored raw; vars available in file.vars
+      expect(result.commands[0]!.command).toEqual({
         type: 'inputTextTargeted',
         element: { testId: 'login-form' },
-        text: 'alice:secret',
+        text: '${user}:${pass}',
       });
+      expect(result.vars).toMatchObject({ user: 'alice', pass: 'secret' });
     });
 
-    // TC-070: priority chain: process.env > config > inline vars
-    it('TC-070: priority chain — ${env.*} reads env; ${key} respects config > inline', () => {
+    // TC-070: priority chain — reflected in file.vars (commands stay raw)
+    it('TC-070: priority chain — config > inline in file.vars; commands stay raw', () => {
       process.env['__UIVISOR_PRIO_HOST__'] = 'env-value';
       try {
         mockReadYamlFile
@@ -1413,17 +1422,18 @@ describe('variable interpolation', () => {
           .mockReturnValueOnce({ x: 'config-value' });
 
         const result = loadAndParse('/flows/login.yaml');
-        // config beats inline for ${x}
-        expect(result.commands[0].command).toEqual({ type: 'goto', url: 'http://config-value/a' });
-        // env always wins for ${env.*}
-        expect(result.commands[1].command).toEqual({ type: 'goto', url: 'http://env-value/b' });
+        // config beats inline for ${x} in file.vars
+        expect(result.vars).toMatchObject({ x: 'config-value' });
+        // commands are raw
+        expect(result.commands[0]!.command).toEqual({ type: 'goto', url: 'http://${x}/a' });
+        expect(result.commands[1]!.command).toEqual({ type: 'goto', url: 'http://${env.__UIVISOR_PRIO_HOST__}/b' });
       } finally {
         delete process.env['__UIVISOR_PRIO_HOST__'];
       }
     });
 
-    // TC-071: overlapping + non-overlapping keys merged correctly
-    it('TC-071: merges overlapping (config wins) and non-overlapping keys from config and inline vars', () => {
+    // TC-071: overlapping + non-overlapping keys merged correctly in file.vars
+    it('TC-071: merges overlapping (config wins) and non-overlapping keys in file.vars; commands raw', () => {
       mockReadYamlFile
         .mockReturnValueOnce({
           appId: 'http://localhost',
@@ -1438,9 +1448,12 @@ describe('variable interpolation', () => {
         .mockReturnValueOnce({ shared: 'from-config', onlyConfig: 'cfg-only' });
 
       const result = loadAndParse('/flows/login.yaml');
-      expect(result.commands[0].command).toEqual({ type: 'goto', url: 'from-config' });
-      expect(result.commands[1].command).toEqual({ type: 'goto', url: 'from-inline' });
-      expect(result.commands[2].command).toEqual({ type: 'goto', url: 'cfg-only' });
+      // config wins for shared
+      expect(result.vars).toMatchObject({ shared: 'from-config', onlyInline: 'from-inline', onlyConfig: 'cfg-only' });
+      // commands stay raw
+      expect(result.commands[0]!.command).toEqual({ type: 'goto', url: '${shared}' });
+      expect(result.commands[1]!.command).toEqual({ type: 'goto', url: '${onlyInline}' });
+      expect(result.commands[2]!.command).toEqual({ type: 'goto', url: '${onlyConfig}' });
     });
 
     // TC-072: config path with ${env.*} → env-only interpolation before loading config
@@ -1463,7 +1476,10 @@ describe('variable interpolation', () => {
           2,
           '/flows/resolved.config.yaml',
         );
-        expect(result.commands[0].command).toEqual({ type: 'goto', url: 'http://cfg-host/path' });
+        // command stays raw
+        expect(result.commands[0]!.command).toEqual({ type: 'goto', url: 'http://${host}/path' });
+        // vars from the config file are available
+        expect(result.vars).toMatchObject({ host: 'cfg-host' });
       } finally {
         delete process.env['__UIVISOR_CFG_FILE__'];
       }
@@ -1560,4 +1576,125 @@ describe('waitForPageLoad', () => {
   // C-12
   it('string-numeral "5000" throws (no coercion)', () => expect(() => parseCommand({ waitForPageLoad: { timeout: '5000' } })).toThrow());
   it('timeout:1 accepted', () => expect(parseCommand({ waitForPageLoad: { timeout: 1 } })).toEqual({ type: 'waitForPageLoad', timeout: 1 }));
+});
+
+// ─── T14: setVar / testVarSet / unsetVar parser tests ────────────────────────
+
+describe('setVar — static form (T14)', () => {
+  it('parses "name=value" into static setVar command', () => {
+    expect(parseCommand({ setVar: 'myVar=hello' })).toEqual({
+      type: 'setVar',
+      name: 'myVar',
+      value: 'hello',
+    });
+  });
+
+  it('parses "name=value with spaces" — value contains spaces', () => {
+    expect(parseCommand({ setVar: 'label=hello world' })).toEqual({
+      type: 'setVar',
+      name: 'label',
+      value: 'hello world',
+    });
+  });
+
+  it('parses "name=${varRef}" — value with ${...} kept raw', () => {
+    expect(parseCommand({ setVar: 'msg=${greeting}' })).toEqual({
+      type: 'setVar',
+      name: 'msg',
+      value: '${greeting}',
+    });
+  });
+
+  it('static form: value with = sign inside (splits on first = only)', () => {
+    expect(parseCommand({ setVar: 'pair=a=b' })).toEqual({
+      type: 'setVar',
+      name: 'pair',
+      value: 'a=b',
+    });
+  });
+});
+
+describe('setVar — method form (T14)', () => {
+  it('parses "name=method()" — no args', () => {
+    expect(parseCommand({ setVar: 'id=uuid()' })).toEqual({
+      type: 'setVar',
+      name: 'id',
+      method: 'uuid',
+      args: [],
+    });
+  });
+
+  it('parses "name=method(\'arg\')" — single-quoted string arg', () => {
+    expect(parseCommand({ setVar: "today=today('YYYYMMDD')" })).toEqual({
+      type: 'setVar',
+      name: 'today',
+      method: 'today',
+      args: ["'YYYYMMDD'"],
+    });
+  });
+
+  it('parses "name=method(num)" — numeric arg stored as string token', () => {
+    expect(parseCommand({ setVar: 'code=random(6)' })).toEqual({
+      type: 'setVar',
+      name: 'code',
+      method: 'random',
+      args: ['6'],
+    });
+  });
+
+  it('parses method with variable interpolation arg', () => {
+    expect(parseCommand({ setVar: 'result=myFn(${userId})' })).toEqual({
+      type: 'setVar',
+      name: 'result',
+      method: 'myFn',
+      args: ['${userId}'],
+    });
+  });
+
+  it('parses method with multiple args', () => {
+    expect(parseCommand({ setVar: "result=myCustomFn(${userId}, 'active')" })).toEqual({
+      type: 'setVar',
+      name: 'result',
+      method: 'myCustomFn',
+      args: ['${userId}', "'active'"],
+    });
+  });
+});
+
+describe('testVarSet (T14)', () => {
+  it('string value → existence form', () => {
+    expect(parseCommand({ testVarSet: 'userId' })).toEqual({
+      type: 'testVarSet',
+      name: 'userId',
+    });
+  });
+
+  it('object {name, expected} → equality form', () => {
+    expect(parseCommand({ testVarSet: { name: 'userId', expected: 'abc-123' } })).toEqual({
+      type: 'testVarSet',
+      name: 'userId',
+      expected: 'abc-123',
+    });
+  });
+
+  it('object with numeric expected → string coercion', () => {
+    const result = parseCommand({ testVarSet: { name: 'num', expected: '5' } });
+    expect(result).toEqual({ type: 'testVarSet', name: 'num', expected: '5' });
+  });
+});
+
+describe('unsetVar (T14)', () => {
+  it('parses string value → unsetVar command with name', () => {
+    expect(parseCommand({ unsetVar: 'userId' })).toEqual({
+      type: 'unsetVar',
+      name: 'userId',
+    });
+  });
+
+  it('parses another name', () => {
+    expect(parseCommand({ unsetVar: 'deadline' })).toEqual({
+      type: 'unsetVar',
+      name: 'deadline',
+    });
+  });
 });

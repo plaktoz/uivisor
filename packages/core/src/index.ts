@@ -2,6 +2,7 @@ export type {
   Selector, Command, SessionDef, SessionedCommand,
   FlowFile, RunOptions, CommandResult, FlowResult,
   RunResult, RunContext,
+  VarMap, MethodRunner, WorkingScheduleEntry, FlowConfig,
 } from './types.js';
 export type { PlaywrightContext } from './types.js';
 

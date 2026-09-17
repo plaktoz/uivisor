@@ -1,0 +1,29 @@
+appId: ${base}/integration
+config: config.yml
+# Tests: setVar / testVarSet / unsetVar — runtime variable system
+commands:
+  - goto: ${base}/integration
+  # Static setVar and existence / equality checks
+  - setVar: myLabel=Hello World
+  - testVarSet: myLabel
+  - testVarSet:
+      name: myLabel
+      expected: Hello World
+  # Use the variable in a command
+  - tapOn:
+      testId: int-input-shorthand
+  - inputText: ${myLabel}
+  - assertValue:
+      testId: int-input-shorthand
+      expected: Hello World
+  # Method-based setVar (built-in today())
+  - setVar: ts=today('YYYYMMDD')
+  - testVarSet: ts
+  # Override an existing variable
+  - setVar: myLabel=overridden
+  - testVarSet:
+      name: myLabel
+      expected: overridden
+  # unsetVar removes the variable; unset of absent key is a no-op
+  - unsetVar: myLabel
+  - unsetVar: myLabel

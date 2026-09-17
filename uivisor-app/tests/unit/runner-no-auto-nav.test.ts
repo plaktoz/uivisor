@@ -10,7 +10,17 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Page, Browser } from 'playwright';
-import type { FlowFile, FlowResult, RunOptions } from '@uivisor/core';
+import type { FlowFile, FlowResult, RunOptions, VarMap, MethodRunner } from '@uivisor/core';
+
+const stubVarMap: VarMap = {
+  get: () => undefined,
+  set: () => {},
+  unset: () => {},
+  toRecord: () => ({}),
+};
+const stubMethodRunner: MethodRunner = {
+  call: async () => { throw new Error('not impl'); },
+};
 
 // Hoist mocks before any module imports
 vi.mock('../../src/parser/index.js');
@@ -113,6 +123,8 @@ describe('TC-1: FlowFile with baseUrl set but no goto command', () => {
       runDir: '/tmp',
       sessions: new Map([['__default__', mockPage]]),
       defaultSessionId: '__default__',
+      varMap: stubVarMap,
+      methodRunner: stubMethodRunner,
     });
     vi.mocked(engineModule.runFlow).mockResolvedValue(EMPTY_FLOW_RESULT);
 
@@ -149,6 +161,8 @@ describe('TC-2: FlowFile with goto command', () => {
       runDir: '/tmp',
       sessions: new Map([['__default__', mockPage]]),
       defaultSessionId: '__default__',
+      varMap: stubVarMap,
+      methodRunner: stubMethodRunner,
     });
 
     // Simulate the engine processing the goto command — calls page.goto once
@@ -190,6 +204,8 @@ describe("TC-3: FlowFile with baseUrl=''", () => {
       runDir: '/tmp',
       sessions: new Map([['__default__', mockPage]]),
       defaultSessionId: '__default__',
+      varMap: stubVarMap,
+      methodRunner: stubMethodRunner,
     });
     vi.mocked(engineModule.runFlow).mockResolvedValue(EMPTY_FLOW_RESULT);
 

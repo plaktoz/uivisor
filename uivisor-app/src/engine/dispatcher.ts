@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
 import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
+import { interpolateObject } from '../parser/interpolate.js';
 import {
   executeGoto,
   executeTapOn,
@@ -72,14 +73,24 @@ export async function dispatch(
 ): Promise<CommandResult> {
   const start = Date.now();
 
+  // ── Lazy interpolation: resolve ${...} in command at dispatch time ──────────
+  // This is strict mode: an absent variable with no default is an error.
+  let resolvedCmd: Command;
+  try {
+    resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { command: cmd, passed: false, message, durationMs: Date.now() - start };
+  }
+
   // Handle runFlow specially
-  if (cmd.type === 'runFlow') {
-    const absPath = path.resolve(flowDir, cmd.path);
+  if (resolvedCmd.type === 'runFlow') {
+    const absPath = path.resolve(flowDir, resolvedCmd.path);
 
     // Check file exists
     if (!fs.existsSync(absPath)) {
       return {
-        command: cmd,
+        command: resolvedCmd,
         passed: false,
         message: `Flow file not found: ${absPath}`,
         durationMs: Date.now() - start,
@@ -89,7 +100,7 @@ export async function dispatch(
     // Check circular reference
     if (ctx.callStack.has(absPath)) {
       return {
-        command: cmd,
+        command: resolvedCmd,
         passed: false,
         message: `Circular flow reference detected: ${absPath}`,
         durationMs: Date.now() - start,
@@ -108,7 +119,7 @@ export async function dispatch(
       ctx.callStack.delete(absPath);
 
       return {
-        command: cmd,
+        command: resolvedCmd,
         passed: nestedResult.passed,
         nestedResult,
         message: nestedResult.passed ? undefined : extractFailureMessage(nestedResult),
@@ -119,7 +130,7 @@ export async function dispatch(
       ctx.callStack.delete(absPath);
       const message = err instanceof Error ? err.message : String(err);
       return {
-        command: cmd,
+        command: resolvedCmd,
         passed: false,
         message,
         durationMs: Date.now() - start,
@@ -127,78 +138,81 @@ export async function dispatch(
     }
   }
 
+  // Use the interpolated command for all subsequent processing
+  const c = resolvedCmd;
+
   let capturedScreenshotPath: string | undefined;
 
   try {
-    switch (cmd.type) {
+    switch (c.type) {
       case 'goto':
-        await executeGoto(page, cmd.url);
+        await executeGoto(page, c.url);
         break;
       case 'tapOn':
-        await executeTapOn(page, cmd.selector, ctx);
+        await executeTapOn(page, c.selector, ctx);
         break;
       case 'inputText':
-        await executeInputText(ctx, cmd.text);
+        await executeInputText(ctx, c.text);
         break;
       case 'inputTextTargeted':
-        await executeInputTextTargeted(page, cmd.element, cmd.text);
+        await executeInputTextTargeted(page, c.element, c.text);
         break;
       case 'assertVisible':
-        await executeAssertVisible(page, cmd.selector);
+        await executeAssertVisible(page, c.selector);
         break;
       case 'assertNotVisible':
-        await executeAssertNotVisible(page, cmd.selector);
+        await executeAssertNotVisible(page, c.selector);
         break;
       case 'assertUrl':
-        await executeAssertUrl(page, cmd.path);
+        await executeAssertUrl(page, c.path);
         break;
       case 'wait':
-        await executeWait(cmd.ms);
+        await executeWait(c.ms);
         break;
       case 'scroll':
-        await executeScroll(page, cmd.direction);
+        await executeScroll(page, c.direction);
         break;
       case 'assertText':
-        await executeAssertText(page, cmd.selector, cmd.expected);
+        await executeAssertText(page, c.selector, c.expected);
         break;
       case 'assertValue':
-        await executeAssertValue(page, cmd.selector, cmd.expected);
+        await executeAssertValue(page, c.selector, c.expected);
         break;
       case 'assertCount':
-        await executeAssertCount(page, cmd.css, cmd.expected);
+        await executeAssertCount(page, c.css, c.expected);
         break;
       case 'assertEnabled':
-        await executeAssertEnabled(page, cmd.selector);
+        await executeAssertEnabled(page, c.selector);
         break;
       case 'assertDisabled':
-        await executeAssertDisabled(page, cmd.selector);
+        await executeAssertDisabled(page, c.selector);
         break;
       case 'assertChecked':
-        await executeAssertChecked(page, cmd.selector);
+        await executeAssertChecked(page, c.selector);
         break;
       case 'assertUnchecked':
-        await executeAssertUnchecked(page, cmd.selector);
+        await executeAssertUnchecked(page, c.selector);
         break;
       case 'pressKey':
-        await executePressKey(page, cmd.key);
+        await executePressKey(page, c.key);
         break;
       case 'selectOption':
-        await executeSelectOption(page, cmd.selector, cmd.value);
+        await executeSelectOption(page, c.selector, c.value);
         break;
       case 'check':
-        await executeCheck(page, cmd.selector);
+        await executeCheck(page, c.selector);
         break;
       case 'uncheck':
-        await executeUncheck(page, cmd.selector);
+        await executeUncheck(page, c.selector);
         break;
       case 'hover':
-        await executeHover(page, cmd.selector);
+        await executeHover(page, c.selector);
         break;
       case 'doubleClick':
-        await executeDoubleClick(page, cmd.selector);
+        await executeDoubleClick(page, c.selector);
         break;
       case 'clearText':
-        await executeClearText(page, cmd.selector);
+        await executeClearText(page, c.selector);
         break;
       case 'reload':
         await executeReload(page);
@@ -210,22 +224,22 @@ export async function dispatch(
         await executeGoForward(page);
         break;
       case 'setViewport':
-        await executeSetViewport(page, cmd.width, cmd.height);
+        await executeSetViewport(page, c.width, c.height);
         break;
       case 'screenshot':
-        capturedScreenshotPath = await executeScreenshot(page, cmd.path, ctx.runDir);
+        capturedScreenshotPath = await executeScreenshot(page, c.path, ctx.runDir);
         break;
       case 'waitFor':
-        await executeWaitFor(cmd.ms);
+        await executeWaitFor(c.ms);
         break;
 
       case 'waitForPageLoad':
-        await executeWaitForPageLoad(page, cmd.path, cmd.timeout);
+        await executeWaitForPageLoad(page, c.path, c.timeout);
         break;
 
       case 'within': {
-        const nestedResults = await executeWithin(page, cmd, ctx, (p, c, cx) =>
-          dispatch(p, c, cx, flowStem, flowDir),
+        const nestedResults = await executeWithin(page, c, ctx, (p, nc, cx) =>
+          dispatch(p, nc, cx, flowStem, flowDir),
         );
         const allPassed = nestedResults.every((r) => r.passed);
         const nestedResult = {
@@ -237,7 +251,7 @@ export async function dispatch(
           durationMs: nestedResults.reduce((sum, r) => sum + (r.durationMs ?? 0), 0),
         };
         return {
-          command: cmd,
+          command: c,
           passed: allPassed,
           nestedResult,
           message: allPassed ? undefined : nestedResults.find((r) => !r.passed)?.message,
@@ -249,16 +263,56 @@ export async function dispatch(
         // recorder-only event; should never reach the executor
         throw new Error(`crossOriginIframeWarning is a recorder-only event and cannot be executed`);
 
+      case 'setVar': {
+        // Process method call args: strip single quotes, parse integers
+        function processArg(raw: string): string | number {
+          if (/^\d+$/.test(raw)) return parseInt(raw, 10);
+          if (raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1);
+          return raw;
+        }
+
+        if ('method' in c) {
+          // Method form
+          const resolvedArgs = c.args.map(processArg);
+          const result = await ctx.methodRunner.call(c.method, resolvedArgs);
+          ctx.varMap.set(c.name, result);
+        } else {
+          // Static form — value already interpolated by the pre-dispatch step
+          ctx.varMap.set(c.name, c.value);
+        }
+        break;
+      }
+
+      case 'testVarSet': {
+        const actual = ctx.varMap.get(c.name);
+        if (actual === undefined || actual === '') {
+          throw new Error(`testVarSet: variable "${c.name}" is not set or is empty`);
+        }
+        if ('expected' in c && c.expected !== undefined) {
+          if (actual !== c.expected) {
+            throw new Error(
+              `testVarSet: variable "${c.name}"\nExpected: ${c.expected}\nGot: ${actual}`,
+            );
+          }
+        }
+        break;
+      }
+
+      case 'unsetVar': {
+        ctx.varMap.unset(c.name);
+        break;
+      }
+
       default: {
         // TypeScript exhaustiveness guard — this branch is unreachable at runtime.
         // If a new Command type is added without a case here, tsc will fail.
-        const _exhaustive: never = cmd;
+        const _exhaustive: never = c;
         throw new Error(
           `Unhandled command type: ${(_exhaustive as Command & { type: string }).type}`,
         );
       }
     }
-    return { command: cmd, passed: true, screenshotPath: capturedScreenshotPath, durationMs: Date.now() - start };
+    return { command: c, passed: true, screenshotPath: capturedScreenshotPath, durationMs: Date.now() - start };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     let expected: string | undefined;
@@ -283,7 +337,7 @@ export async function dispatch(
     }
 
     return {
-      command: cmd,
+      command: c,
       passed: false,
       message,
       expected,

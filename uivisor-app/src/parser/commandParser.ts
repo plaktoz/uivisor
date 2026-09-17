@@ -2,6 +2,40 @@ import { type Command, type SessionedCommand, parseSelector } from '@uivisor/cor
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
+// ─── setVar parsing helpers ───────────────────────────────────────────────────
+
+/** Pattern matching a method call: identifer(args...) */
+const METHOD_CALL_RE = /^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$/s;
+
+/**
+ * Split method argument tokens by commas, respecting single-quoted strings.
+ * Returns an array of trimmed argument tokens.
+ */
+function splitMethodArgs(argsStr: string): string[] {
+  if (argsStr.trim() === '') return [];
+  const args: string[] = [];
+  let current = '';
+  let inString = false;
+
+  for (const ch of argsStr) {
+    if (ch === "'" && !inString) {
+      inString = true;
+      current += ch;
+    } else if (ch === "'" && inString) {
+      inString = false;
+      current += ch;
+    } else if (ch === ',' && !inString) {
+      args.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  const last = current.trim();
+  if (last !== '') args.push(last);
+  return args;
+}
+
 export function parseCommand(raw: unknown): Command {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error(`Invalid command: ${String(raw)}`);
@@ -205,6 +239,60 @@ export function parseCommand(raw: unknown): Command {
       const selector = `${selAttr}=${String(selValue)}`;
 
       return { type: 'within', selector, nth, do: doCommands };
+    }
+
+    case 'setVar': {
+      if (typeof value !== 'string') {
+        throw new Error(`setVar value must be a string, got ${typeof value}`);
+      }
+      // Split on first '=' to separate name from rhs
+      const eqIdx = value.indexOf('=');
+      if (eqIdx === -1) {
+        throw new Error(`setVar: expected "name=value" or "name=method(args)", got: ${value}`);
+      }
+      const varName = value.slice(0, eqIdx);
+      const rhs = value.slice(eqIdx + 1);
+
+      if (varName.trim() === '') {
+        throw new Error(`setVar: variable name must not be empty`);
+      }
+
+      // Check if rhs is a method call: identifier(...)
+      const methodMatch = METHOD_CALL_RE.exec(rhs);
+      if (methodMatch) {
+        const methodName = methodMatch[1] as string;
+        const argsStr = methodMatch[2] as string;
+        const args = splitMethodArgs(argsStr);
+        return { type: 'setVar', name: varName, method: methodName, args };
+      }
+
+      // Static form
+      return { type: 'setVar', name: varName, value: rhs };
+    }
+
+    case 'testVarSet': {
+      if (typeof value === 'string') {
+        // Existence form: testVarSet: varName
+        return { type: 'testVarSet', name: value };
+      }
+      if (typeof value === 'object' && value !== null && 'name' in (value as object)) {
+        const v = value as { name: string; expected?: string };
+        if (typeof v.name !== 'string' || v.name.trim() === '') {
+          throw new Error(`testVarSet: name must be a non-empty string`);
+        }
+        if ('expected' in v) {
+          return { type: 'testVarSet', name: v.name, expected: String(v.expected) };
+        }
+        return { type: 'testVarSet', name: v.name };
+      }
+      throw new Error(`testVarSet: value must be a string (existence) or object with name/expected (equality)`);
+    }
+
+    case 'unsetVar': {
+      if (typeof value !== 'string' || value.trim() === '') {
+        throw new Error(`unsetVar: value must be a non-empty string variable name`);
+      }
+      return { type: 'unsetVar', name: value };
     }
 
     default:

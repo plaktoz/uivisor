@@ -23,6 +23,7 @@ import { createContext } from '../../src/engine/context';
 import { createSessionPages } from '../../src/driver/browser';
 import { dispatch } from '../../src/engine/dispatcher';
 import * as reader from '../../src/parser/reader';
+import { createVarMap } from '../../src/engine/varMap';
 
 const mockReadYamlFile = vi.mocked(reader.readYamlFile);
 
@@ -273,6 +274,8 @@ describe('AC-12: circular flow reference via dispatch', () => {
       runDir: os.tmpdir(),
       sessions: new Map([['__default__', mockPage]]),
       defaultSessionId: '__default__',
+      varMap: createVarMap({}),
+      methodRunner: { call: async () => { throw new Error('not impl'); } },
     };
 
     try {

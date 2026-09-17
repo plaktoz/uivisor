@@ -5,6 +5,8 @@ import { loadAndParse } from '../parser/index.js';
 import { launchBrowser, closeBrowser, createSessionPages } from '../driver/browser.js';
 import { runFlow } from '../engine/index.js';
 import { createContext } from '../engine/context.js';
+import { createVarMap } from '../engine/varMap.js';
+import { createMethodRunner } from '../engine/methodRunner.js';
 import { ConsoleReporter } from '../reporter/console.js';
 
 export async function runAll(
@@ -35,7 +37,13 @@ export async function runAll(
           defaultSessionId = '__default__';
         }
 
-        const ctx = createContext(options.runDir, sessions, defaultSessionId);
+        const varMap = createVarMap(file.vars ?? {});
+        const methodRunner = await createMethodRunner(
+          file.flowConfig?.functions ?? [],
+          file.flowConfig?.workingSchedule,
+          file.flowConfig?.holidays,
+        );
+        const ctx = createContext(options.runDir, sessions, defaultSessionId, varMap, methodRunner);
         reporter.startFlow(file.filePath, ctx.indentLevel);
         const firstPage = sessions.get(defaultSessionId)!;
         const result = await runFlow(file, firstPage, ctx);
