@@ -15,13 +15,16 @@ export function loadAndParse(filePath: string): FlowFile {
 
   // Pass 1: resolve config: path (env-only — no vars yet)
   let configVars: Record<string, string> = {};
+  let flowConfig = {};
   if ('config' in obj && obj['config'] !== undefined) {
     const rawConfigPath = obj['config'];
     if (typeof rawConfigPath !== 'string') {
       throw new Error(`Invalid config: must be a string in ${filePath}`);
     }
     const interpolatedConfigPath = interpolateValue(rawConfigPath, {});
-    configVars = loadConfigFile(interpolatedConfigPath, filePath);
+    const loadResult = loadConfigFile(interpolatedConfigPath, filePath);
+    configVars = loadResult.vars;
+    flowConfig = loadResult.flowConfig;
   }
 
   // Pass 2: flatten inline vars
@@ -34,8 +37,12 @@ export function loadAndParse(filePath: string): FlowFile {
   // Merge: { ...inlineVars, ...configVars }  (config wins)
   const vars: Record<string, string> = { ...inlineVars, ...configVars };
 
-  // Pass 3: interpolate full document
-  const doc = interpolateObject(obj, vars) as Record<string, unknown>;
+  // Pass 3: interpolate NON-COMMAND fields only (lazy interpolation for commands — T4)
+  // Interpolate everything except the 'commands' array
+  const { commands: rawCommandsField, ...nonCommandObj } = obj;
+  const interpolatedNonCommands = interpolateObject(nonCommandObj, vars) as Record<string, unknown>;
+  // Re-attach raw commands (not interpolated)
+  const doc: Record<string, unknown> = { ...interpolatedNonCommands, commands: rawCommandsField };
 
   // Existing validation pipeline on interpolated doc
   const baseUrl = validateHeader(doc, filePath);
@@ -61,5 +68,5 @@ export function loadAndParse(filePath: string): FlowFile {
   });
 
   const tags = Array.isArray(doc['tags']) ? (doc['tags'] as string[]) : [];
-  return { baseUrl, filePath: resolvedPath, commands, sessions, tags, vars };
+  return { baseUrl, filePath: resolvedPath, commands, sessions, tags, vars, flowConfig };
 }

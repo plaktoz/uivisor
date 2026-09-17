@@ -14,6 +14,32 @@ export type Selector =
   | { css: string }
   | { xpath: string };
 
+/** Global key-value variable map for runtime variable management. */
+export interface VarMap {
+  get(name: string): string | undefined;   // undefined if absent — does NOT throw
+  set(name: string, value: string): void;
+  unset(name: string): void;               // always no-op if absent
+  toRecord(): Record<string, string>;      // runtime entries override base
+}
+
+/** Runner for built-in and user-defined method calls in setVar. */
+export interface MethodRunner {
+  call(name: string, resolvedArgs: unknown[]): Promise<string>;
+}
+
+/** One entry in a workingSchedule config block. */
+export interface WorkingScheduleEntry {
+  days: string[];  // e.g. ['mon', 'tue', 'wed', 'thu', 'fri']
+  hours: string;   // e.g. '08:00-18:00'
+}
+
+/** Flow-level config extracted from config.yml (non-var keys). */
+export interface FlowConfig {
+  workingSchedule?: WorkingScheduleEntry[];
+  holidays?: string[];    // YYYYMMDD strings
+  functions?: string[];   // file paths for user-defined functions
+}
+
 export type Command =
   | { type: 'goto';               url: string }
   | { type: 'tapOn';              selector: Selector }
@@ -47,7 +73,11 @@ export type Command =
   | { type: 'waitFor';     ms: number }
   | { type: 'waitForPageLoad'; path?: string; timeout?: number }
   | { type: 'crossOriginIframeWarning'; src: string }
-  | { type: 'within';     selector: string; nth?: number; do: SessionedCommand[] };
+  | { type: 'within';     selector: string; nth?: number; do: SessionedCommand[] }
+  | { type: 'setVar'; name: string; value: string }
+  | { type: 'setVar'; name: string; method: string; args: string[] }
+  | { type: 'testVarSet'; name: string; expected?: string }
+  | { type: 'unsetVar'; name: string };
 
 export type SessionDef = { id: string; label?: string };
 
@@ -60,6 +90,7 @@ export interface FlowFile {
   sessions: SessionDef[];
   tags: string[];
   vars?: Record<string, string>;
+  flowConfig?: FlowConfig;
 }
 
 export interface RunOptions {
@@ -104,4 +135,6 @@ export interface RunContext extends PlaywrightContext {
   runDir: string;
   sessions: Map<string, import('playwright').Page>;
   defaultSessionId: string;
+  varMap: VarMap;
+  methodRunner: MethodRunner;
 }

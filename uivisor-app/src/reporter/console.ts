@@ -91,6 +91,17 @@ export class ConsoleReporter {
       case 'waitFor': return `waitFor: ${cmd.ms}ms`;
       case 'within': return `within: ${cmd.selector}`;
       case 'crossOriginIframeWarning': return `crossOriginIframeWarning: ${cmd.src}`;
+      case 'setVar':
+        if ('method' in cmd) {
+          return `setVar: ${cmd.name}=${cmd.method}(${cmd.args.join(', ')})`;
+        }
+        return `setVar: ${cmd.name}=${cmd.value}`;
+      case 'testVarSet':
+        if ('expected' in cmd && cmd.expected !== undefined) {
+          return `testVarSet: ${cmd.name} == ${cmd.expected}`;
+        }
+        return `testVarSet: ${cmd.name}`;
+      case 'unsetVar': return `unsetVar: ${cmd.name}`;
     }
   }
 }

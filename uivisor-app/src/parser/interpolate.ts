@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { readYamlFile } from './reader.js';
+import type { FlowConfig, WorkingScheduleEntry } from '@uivisor/core';
 
 const VAR_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 
@@ -62,8 +63,11 @@ export function flattenVars(
  * Resolve one interpolation expression (the content between ${ and }).
  * Reads from process.env for env.* names, otherwise from vars.
  * Falls back to the default after the first ':' if the resolved value is undefined or "".
+ *
+ * When `strict` is true, throws if the variable is absent from the map and has no default.
+ * Default (`strict = false`) maintains backward-compatible empty-string fallback.
  */
-export function resolveRef(inner: string, vars: Record<string, string>): string {
+export function resolveRef(inner: string, vars: Record<string, string>, strict = false): string {
   // Split on first ':' only
   const colonIdx = inner.indexOf(':');
   let name: string;
@@ -78,17 +82,28 @@ export function resolveRef(inner: string, vars: Record<string, string>): string 
   }
 
   let resolved: string | undefined;
+  let isAbsent = false;
 
   if (name.startsWith('env.')) {
     const envKey = name.slice(4); // strip 'env.'
     resolved = process.env[envKey];
+    isAbsent = resolved === undefined;
   } else {
+    isAbsent = !Object.prototype.hasOwnProperty.call(vars, name);
     resolved = vars[name];
   }
 
-  // Fall back to default if resolved is undefined or empty string
-  if (resolved === undefined || resolved === '') {
-    return defaultValue !== undefined ? defaultValue : '';
+  // Variable is absent (not set at all)
+  if (isAbsent || resolved === undefined) {
+    if (defaultValue !== undefined) return defaultValue;
+    if (strict) throw new Error(`Variable "${name}" is not defined`);
+    return '';
+  }
+
+  // Variable is present but empty string
+  if (resolved === '') {
+    if (defaultValue !== undefined) return defaultValue;
+    return '';
   }
 
   return resolved;
@@ -98,8 +113,10 @@ export function resolveRef(inner: string, vars: Record<string, string>): string 
  * Replace all ${...} expressions in a string.
  * Uses index-based forward scan to correctly handle multi-expression strings.
  * Throws on unclosed '${'.
+ *
+ * When `strict` is true, throws on any absent variable with no default.
  */
-export function interpolateValue(value: string, vars: Record<string, string>): string {
+export function interpolateValue(value: string, vars: Record<string, string>, strict = false): string {
   let result = '';
   let i = 0;
 
@@ -119,7 +136,7 @@ export function interpolateValue(value: string, vars: Record<string, string>): s
     }
 
     const inner = value.slice(start + 2, end);
-    result += resolveRef(inner, vars);
+    result += resolveRef(inner, vars, strict);
     i = end + 1;
   }
 
@@ -129,18 +146,20 @@ export function interpolateValue(value: string, vars: Record<string, string>): s
 /**
  * Deep-walk any value; call interpolateValue on string leaves.
  * Returns a new object — never mutates the input.
+ *
+ * When `strict` is true, absent variables without defaults throw an error.
  */
-export function interpolateObject(obj: unknown, vars: Record<string, string>): unknown {
+export function interpolateObject(obj: unknown, vars: Record<string, string>, strict = false): unknown {
   if (typeof obj === 'string') {
-    return interpolateValue(obj, vars);
+    return interpolateValue(obj, vars, strict);
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => interpolateObject(item, vars));
+    return obj.map((item) => interpolateObject(item, vars, strict));
   }
   if (typeof obj === 'object' && obj !== null) {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      result[key] = interpolateObject(value, vars);
+      result[key] = interpolateObject(value, vars, strict);
     }
     return result;
   }
@@ -148,14 +167,23 @@ export function interpolateObject(obj: unknown, vars: Record<string, string>): u
   return obj;
 }
 
+/** Keys in config.yml that are NOT simple variables but flow-config data. */
+const FLOW_CONFIG_KEYS = new Set(['workingSchedule', 'holidays', 'functions']);
+
+export interface LoadConfigFileResult {
+  vars: Record<string, string>;
+  flowConfig: FlowConfig;
+}
+
 /**
- * Load an external config YAML, flatten it, and resolve ${env.*} expressions in values.
+ * Load an external config YAML, strip flow-config keys (workingSchedule, holidays,
+ * functions), flatten the remainder to vars, and resolve ${env.*} expressions in values.
  * The configPath must already be interpolated; it is resolved relative to the flow file's dir.
  */
 export function loadConfigFile(
   configPath: string,
   flowFilePath: string,
-): Record<string, string> {
+): LoadConfigFileResult {
   const resolvedPath = path.resolve(
     path.dirname(path.resolve(flowFilePath)),
     configPath,
@@ -177,13 +205,41 @@ export function loadConfigFile(
     );
   }
 
-  const flat = flattenVars(raw as Record<string, unknown>, configPath);
+  const rawObj = raw as Record<string, unknown>;
 
-  // Resolve ${env.*} in config values (empty vars = env-only)
-  const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(flat)) {
-    result[key] = interpolateValue(value, {});
+  // Extract flow-config keys before flattening
+  const flowConfig: FlowConfig = {};
+
+  if ('workingSchedule' in rawObj && Array.isArray(rawObj['workingSchedule'])) {
+    flowConfig.workingSchedule = rawObj['workingSchedule'] as WorkingScheduleEntry[];
+  }
+  if ('holidays' in rawObj && Array.isArray(rawObj['holidays'])) {
+    flowConfig.holidays = rawObj['holidays'] as string[];
+  }
+  if ('functions' in rawObj) {
+    const fnVal = rawObj['functions'];
+    if (typeof fnVal === 'string') {
+      flowConfig.functions = [fnVal];
+    } else if (Array.isArray(fnVal)) {
+      flowConfig.functions = fnVal as string[];
+    }
   }
 
-  return result;
+  // Strip flow-config keys before passing to flattenVars
+  const varsOnly: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rawObj)) {
+    if (!FLOW_CONFIG_KEYS.has(key)) {
+      varsOnly[key] = value;
+    }
+  }
+
+  const flat = flattenVars(varsOnly, configPath);
+
+  // Resolve ${env.*} in config values (empty vars = env-only)
+  const vars: Record<string, string> = {};
+  for (const [key, value] of Object.entries(flat)) {
+    vars[key] = interpolateValue(value, {});
+  }
+
+  return { vars, flowConfig };
 }

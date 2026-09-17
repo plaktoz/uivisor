@@ -15,6 +15,7 @@ import * as path from 'path';
 import type { Page } from 'playwright';
 import type { FlowFile, RunContext, SessionedCommand } from '@uivisor/core';
 import { runFlow } from '../../src/engine/index';
+import { createVarMap } from '../../src/engine/varMap';
 
 // ─── Mock page helpers ─────────────────────────────────────────────────────────
 
@@ -70,6 +71,8 @@ function makeCtx(pageA: Page, pageB: Page, defaultId = 'alice'): RunContext {
     runDir: os.tmpdir(),
     sessions: new Map([['alice', pageA], ['bob', pageB]]),
     defaultSessionId: defaultId,
+    varMap: createVarMap({}),
+    methodRunner: { call: async () => { throw new Error('not impl'); } },
   };
 }
 

@@ -10,6 +10,7 @@ import type { Page, Locator } from 'playwright';
 import type { RunContext, Command } from '@uivisor/core';
 import { executeWithin, WithinDispatch } from '../../src/driver/commands';
 import { dispatch } from '../../src/engine/dispatcher';
+import { createVarMap } from '../../src/engine/varMap';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ function makeCtx(): RunContext {
     runDir: '/tmp',
     sessions: new Map(),
     defaultSessionId: 'main',
+    varMap: createVarMap({}),
+    methodRunner: { call: async () => { throw new Error('not impl'); } },
   };
 }
 
