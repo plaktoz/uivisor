@@ -475,8 +475,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(capture.mock.calls[0][0].type).toBe('tapOn');
   });
 
-  // AC-10: shared data-testid=action → non-unique, falls back to css= tapOn
-  it('AC-10: shared data-testid=action emits css= tapOn (no within)', () => {
+  // AC-10: shared data-testid=action → path-2 fires, finds unique row ancestor; nth absent
+  it('AC-10: shared data-testid=action emits within scoped to unique row ancestor — nth absent', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -491,12 +491,13 @@ describe('CAPTURE_SCRIPT', () => {
     thirdBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=row-2');
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-01: shared text=Action → non-unique, falls back to css= tapOn
-  it('CS-NTH-01: shared text=Action emits css= tapOn (no within)', () => {
+  // CS-NTH-01: shared text=Action → path-2 fires, finds unique-row-2 ancestor; nth absent
+  it('CS-NTH-01: shared text=Action emits within scoped to unique-row-2 — nth absent', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -511,12 +512,13 @@ describe('CAPTURE_SCRIPT', () => {
     thirdBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=unique-row-2');
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-02: shared text=Action → non-unique, falls back to css= tapOn
-  it('CS-NTH-02: shared text=Action emits css= tapOn (no within)', () => {
+  // CS-NTH-02: shared text=Action → path-2 fires, finds shared-row as first scoping ancestor; nth absent
+  it('CS-NTH-02: shared text=Action emits within scoped to data-testid=shared-row — nth absent', () => {
     const ul = document.createElement('ul');
     const header = document.createElement('li');
     header.textContent = 'Header';
@@ -535,12 +537,13 @@ describe('CAPTURE_SCRIPT', () => {
     thirdBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('data-testid=shared-row');
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-03: shared text=Action → non-unique, falls back to css= tapOn
-  it('CS-NTH-03: shared text=Action emits css= tapOn (no within)', () => {
+  // CS-NTH-03: shared text=Action → path-2 fires, finds id=id-row-2 ancestor; nth absent
+  it('CS-NTH-03: shared text=Action emits within scoped to id=id-row-2 — nth absent', () => {
     const ul = document.createElement('ul');
     for (let i = 0; i < 3; i++) {
       const li = document.createElement('li');
@@ -555,12 +558,13 @@ describe('CAPTURE_SCRIPT', () => {
     thirdBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('id=id-row-2');
+    expect('nth' in cmd).toBe(false);
   });
 
-  // CS-NTH-04: 3 buttons share data-testid=nth-action → non-unique, falls back to css= tapOn
-  it('CS-NTH-04: non-unique data-testid=nth-action emits css= tapOn (no within)', () => {
+  // CS-NTH-04: 3 buttons share data-testid=nth-action → path-2 fires, bare div ancestor; nth absent
+  it('CS-NTH-04: non-unique data-testid=nth-action emits within selector css=div — nth absent', () => {
     const parent = document.createElement('div');
     for (let i = 0; i < 3; i++) {
       const row = document.createElement('div');
@@ -574,8 +578,9 @@ describe('CAPTURE_SCRIPT', () => {
     thirdBtn.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('css=div');
+    expect('nth' in cmd).toBe(false);
   });
 
   // AC-11: path-1 removed; unique button selector → bare tapOn
@@ -608,8 +613,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(cmd.selector).toBe('data-testid=truly-unique-btn');
   });
 
-  // AC-13: non-unique, falls back to css= tapOn (no within)
-  it('AC-13: non-unique selector resolved by ancestor walk → css= tapOn (no within)', () => {
+  // AC-13: non-unique, ancestor walk finds unique wrapper → within
+  it('AC-13: non-unique selector resolved by ancestor walk → within (reactive path)', () => {
     const section = document.createElement('section');
     section.setAttribute('id', 'section-a');
     const btn1 = document.createElement('button');
@@ -627,8 +632,8 @@ describe('CAPTURE_SCRIPT', () => {
     btn1.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('id=section-a');
   });
 
   // AC-14: no ancestor resolves ambiguous selector → css= nth-child tapOn, no within
@@ -649,8 +654,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect((cmd.selector as string)).toContain('nth-child');
   });
 
-  // AC-15: non-unique, falls back to css= tapOn (no within)
-  it('AC-15: non-unique reactive-btn emits css= tapOn (no within)', () => {
+  // AC-15: reactive within omits nth (ancestor is document-unique)
+  it('AC-15: reactive path within omits nth', () => {
     const wrapper = document.createElement('div');
     wrapper.setAttribute('data-unique', 'yes');
     const btn1 = document.createElement('button');
@@ -668,8 +673,8 @@ describe('CAPTURE_SCRIPT', () => {
     btn1.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect('nth' in cmd).toBe(false);
   });
 
   // AC-16: path-1 removed; unique button selector → bare tapOn
@@ -786,8 +791,8 @@ describe('CAPTURE_SCRIPT', () => {
     expect(cmd.selector).toBe('css=button:nth-child(2)');
   });
 
-  // AC-28: duplicate text-only button → non-unique, falls back to css= tapOn (no within)
-  it('AC-28: duplicate text-only button emits css= tapOn (no within)', () => {
+  // AC-28: duplicate text-only button inside uniquely-identifiable ancestor (id=) → within, no nth
+  it('AC-28: duplicate text-only button inside unique id= ancestor → within id= (reactive path, no nth)', () => {
     const section = document.createElement('section');
     section.setAttribute('id', 'form-a');
     const btn1 = document.createElement('button');
@@ -802,12 +807,14 @@ describe('CAPTURE_SCRIPT', () => {
     btn1.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.selector).toBe('id=form-a');
+    expect(cmd.do).toEqual([{ command: { type: 'tapOn', selector: 'text=Cancel' } }]);
+    expect('nth' in cmd).toBe(false);
   });
 
-  // AC-29: duplicate text-only buttons → non-unique, falls back to css= tapOn (no within)
-  it('AC-29: text-only duplicate buttons emit css= tapOn (no within)', () => {
+  // AC-29: duplicate text-only buttons under distinct single-tag ancestors — ancestor walk emits within with text= selector, no nth
+  it('AC-29: text-only duplicate buttons with text-only scoping ancestor → within fires with text= selector and no nth', () => {
     const section = document.createElement('section');
     const btn1 = document.createElement('button');
     btn1.textContent = 'Go';
@@ -821,8 +828,11 @@ describe('CAPTURE_SCRIPT', () => {
     btn1.click();
     expect(capture).toHaveBeenCalledOnce();
     const cmd = capture.mock.calls[0][0];
-    expect(cmd.type).toBe('tapOn');
-    expect((cmd.selector as string).startsWith('css=')).toBe(true);
+    expect(cmd.type).toBe('within');
+    expect(cmd.do).toHaveLength(1);
+    expect(cmd.do[0].command).toEqual({ type: 'tapOn', selector: 'text=Go' });
+    expect((cmd.selector as string)).toMatch(/^text=/);
+    expect('nth' in cmd).toBe(false);
   });
 
   // AC-30: single text-only button must still emit bare text= selector (regression guard)
