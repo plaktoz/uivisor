@@ -185,6 +185,31 @@ function parseCommand(record: Record<string, unknown>): Command {
       return { type: 'waitForPageLoad', ...(path !== undefined && { path }), ...(timeout !== undefined && { timeout }) };
     }
 
+    case 'setVar': {
+      const obj = val as Record<string, unknown>;
+      if ('method' in obj) {
+        return {
+          type: 'setVar',
+          name: String(obj.name),
+          method: String(obj.method),
+          args: Array.isArray(obj.args) ? (obj.args as unknown[]).map(String) : [],
+        };
+      }
+      return { type: 'setVar', name: String(obj.name), value: String(obj.value) };
+    }
+
+    case 'testVarSet': {
+      const obj = val as Record<string, unknown>;
+      return {
+        type: 'testVarSet',
+        name: String(obj.name),
+        ...(obj.expected !== undefined && { expected: String(obj.expected) }),
+      };
+    }
+
+    case 'unsetVar':
+      return { type: 'unsetVar', name: String(val) };
+
     case 'within': {
       const obj = val as Record<string, unknown>;
       const { do: doArr, nth, ...rest } = obj;
@@ -221,10 +246,11 @@ function parseCommand(record: Record<string, unknown>): Command {
 
 interface RawFlowFile {
   appId: string;
+  vars?: Record<string, unknown>;
   commands: Record<string, unknown>[];
 }
 
-function loadFlowYaml(absPath: string): { appId: string; commands: Command[] } {
+function loadFlowYaml(absPath: string): { appId: string; vars: Record<string, string>; commands: Command[] } {
   const content = fs.readFileSync(absPath, 'utf8');
   const raw = yaml.load(content) as RawFlowFile;
 
@@ -236,7 +262,33 @@ function loadFlowYaml(absPath: string): { appId: string; commands: Command[] } {
   const rawCommands = Array.isArray(raw.commands) ? raw.commands : [];
   const commands = rawCommands.map((r) => parseCommand(r));
 
-  return { appId, commands };
+  const vars: Record<string, string> = {};
+  if (raw.vars && typeof raw.vars === 'object') {
+    for (const [k, v] of Object.entries(raw.vars)) {
+      vars[k] = String(v);
+    }
+  }
+
+  return { appId, vars, commands };
+}
+
+/** Substitute ${name} references using the current var map. */
+function interpolateStr(value: string, varMap: Map<string, string>): string {
+  return value.replace(/\$\{([^}]+)\}/g, (_, name: string) => varMap.get(name) ?? '');
+}
+
+/** Recursively interpolate all string leaves in a command object. */
+function interpolateCmd<T>(obj: T, varMap: Map<string, string>): T {
+  if (typeof obj === 'string') return interpolateStr(obj, varMap) as unknown as T;
+  if (Array.isArray(obj)) return obj.map((item) => interpolateCmd(item, varMap)) as unknown as T;
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      result[k] = interpolateCmd(v, varMap);
+    }
+    return result as T;
+  }
+  return obj;
 }
 
 // ─── Playwright command dispatcher ───────────────────────────────────────────
@@ -247,102 +299,105 @@ async function dispatchCommand(
   ctx: PlaywrightContext,
   fileAbsPath: string,
   callStack: Set<string>,
+  varMap: Map<string, string>,
 ): Promise<void> {
-  switch (cmd.type) {
+  // Interpolate ${var} references in all string values before dispatch
+  const c = interpolateCmd(cmd, varMap);
+  switch (c.type) {
     case 'goto':
-      await executeGoto(page, cmd.url);
+      await executeGoto(page, c.url);
       break;
 
     case 'tapOn':
-      await executeTapOn(page, cmd.selector, ctx);
+      await executeTapOn(page, c.selector, ctx);
       break;
 
     case 'inputText':
-      await executeInputText(ctx, cmd.text);
+      await executeInputText(ctx, c.text);
       break;
 
     case 'inputTextTargeted':
-      await executeInputTextTargeted(page, cmd.element, cmd.text);
+      await executeInputTextTargeted(page, c.element, c.text);
       break;
 
     case 'assertVisible':
-      await executeAssertVisible(page, cmd.selector);
+      await executeAssertVisible(page, c.selector);
       break;
 
     case 'assertNotVisible':
-      await executeAssertNotVisible(page, cmd.selector);
+      await executeAssertNotVisible(page, c.selector);
       break;
 
     case 'assertUrl':
-      await executeAssertUrl(page, cmd.path);
+      await executeAssertUrl(page, c.path);
       break;
 
     case 'wait':
-      await executeWait(cmd.ms);
+      await executeWait(c.ms);
       break;
 
     case 'waitFor':
-      await executeWaitFor(cmd.ms);
+      await executeWaitFor(c.ms);
       break;
 
     case 'scroll':
-      await executeScroll(page, cmd.direction);
+      await executeScroll(page, c.direction);
       break;
 
     case 'assertText':
-      await executeAssertText(page, cmd.selector, cmd.expected);
+      await executeAssertText(page, c.selector, c.expected);
       break;
 
     case 'assertValue':
-      await executeAssertValue(page, cmd.selector, cmd.expected);
+      await executeAssertValue(page, c.selector, c.expected);
       break;
 
     case 'assertCount':
-      await executeAssertCount(page, cmd.css, cmd.expected);
+      await executeAssertCount(page, c.css, c.expected);
       break;
 
     case 'assertEnabled':
-      await executeAssertEnabled(page, cmd.selector);
+      await executeAssertEnabled(page, c.selector);
       break;
 
     case 'assertDisabled':
-      await executeAssertDisabled(page, cmd.selector);
+      await executeAssertDisabled(page, c.selector);
       break;
 
     case 'assertChecked':
-      await executeAssertChecked(page, cmd.selector);
+      await executeAssertChecked(page, c.selector);
       break;
 
     case 'assertUnchecked':
-      await executeAssertUnchecked(page, cmd.selector);
+      await executeAssertUnchecked(page, c.selector);
       break;
 
     case 'pressKey':
-      await executePressKey(page, cmd.key);
+      await executePressKey(page, c.key);
       break;
 
     case 'selectOption':
-      await executeSelectOption(page, cmd.selector, cmd.value);
+      await executeSelectOption(page, c.selector, c.value);
       break;
 
     case 'check':
-      await executeCheck(page, cmd.selector);
+      await executeCheck(page, c.selector);
       break;
 
     case 'uncheck':
-      await executeUncheck(page, cmd.selector);
+      await executeUncheck(page, c.selector);
       break;
 
     case 'hover':
-      await executeHover(page, cmd.selector);
+      await executeHover(page, c.selector);
       break;
 
     case 'doubleClick':
-      await executeDoubleClick(page, cmd.selector);
+      await executeDoubleClick(page, c.selector);
       break;
 
     case 'clearText':
-      await executeClearText(page, cmd.selector);
+      await executeClearText(page, c.selector);
       break;
 
     case 'reload':
@@ -350,7 +405,7 @@ async function dispatchCommand(
       break;
 
     case 'waitForPageLoad':
-      await executeWaitForPageLoad(page, cmd.path, cmd.timeout);
+      await executeWaitForPageLoad(page, c.path, c.timeout);
       break;
 
     case 'goBack':
@@ -362,16 +417,16 @@ async function dispatchCommand(
       break;
 
     case 'setViewport':
-      await executeSetViewport(page, cmd.width, cmd.height);
+      await executeSetViewport(page, c.width, c.height);
       break;
 
     case 'screenshot':
-      await executeScreenshot(page, cmd.path, path.dirname(fileAbsPath));
+      await executeScreenshot(page, c.path, path.dirname(fileAbsPath));
       break;
 
     case 'runFlow': {
       const flowDir = path.dirname(fileAbsPath);
-      const nestedAbsPath = path.resolve(flowDir, cmd.path);
+      const nestedAbsPath = path.resolve(flowDir, c.path);
 
       if (!fs.existsSync(nestedAbsPath)) {
         throw new Error(`Flow file not found: ${nestedAbsPath}`);
@@ -383,7 +438,7 @@ async function dispatchCommand(
       callStack.add(nestedAbsPath);
       try {
         // Share replay context so lastTappedLocator persists across nested flows
-        await replayFlowFile(nestedAbsPath, page, ctx, callStack);
+        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap);
       } finally {
         callStack.delete(nestedAbsPath);
       }
@@ -391,35 +446,52 @@ async function dispatchCommand(
     }
 
     case 'within': {
-      const containerLoc = await resolveContainerLocator(page, cmd.selector);
+      const containerLoc = await resolveContainerLocator(page, c.selector);
       const count = await containerLoc.count();
 
       if (count === 0) {
-        throw new Error(`within: No container found for selector '${cmd.selector}'`);
+        throw new Error(`within: No container found for selector '${c.selector}'`);
       }
-      if (cmd.nth !== undefined && cmd.nth < 0) {
-        throw new Error(`within: nth must be a non-negative integer, got ${cmd.nth}`);
+      if (c.nth !== undefined && c.nth < 0) {
+        throw new Error(`within: nth must be a non-negative integer, got ${c.nth}`);
       }
-      if (cmd.nth !== undefined && cmd.nth >= count) {
+      if (c.nth !== undefined && c.nth >= count) {
         throw new Error(
-          `within: nth=${cmd.nth} requested but only ${count} containers matched selector '${cmd.selector}'`,
+          `within: nth=${c.nth} requested but only ${count} containers matched selector '${c.selector}'`,
         );
       }
 
-      const target = cmd.nth !== undefined ? containerLoc.nth(cmd.nth) : containerLoc;
+      const target = c.nth !== undefined ? containerLoc.nth(c.nth) : containerLoc;
       const scopedPage = createScopedPage(page, target);
 
-      // Share ctx so lastTappedLocator is visible inside the within block
-      for (const sc of cmd.do) {
-        await dispatchCommand(scopedPage, sc.command, ctx, fileAbsPath, callStack);
+      // Share ctx and varMap so vars are visible inside the within block
+      for (const sc of c.do) {
+        await dispatchCommand(scopedPage, sc.command, ctx, fileAbsPath, callStack, varMap);
       }
       break;
     }
 
     case 'setVar':
-    case 'testVarSet':
+      if ('method' in c) {
+        throw new Error(`setVar with method is not supported in the recorder replayer`);
+      }
+      varMap.set(c.name, c.value);
+      break;
+
+    case 'testVarSet': {
+      const actual = varMap.get(c.name);
+      if (actual === undefined || actual === '') {
+        throw new Error(`testVarSet: variable "${c.name}" is not set or is empty`);
+      }
+      if (c.expected !== undefined && actual !== c.expected) {
+        throw new Error(`testVarSet: variable "${c.name}"\nExpected: ${c.expected}\nGot: ${actual}`);
+      }
+      break;
+    }
+
     case 'unsetVar':
-      throw new Error(`'${cmd.type}' is not supported in the recorder replayer`);
+      varMap.delete(c.name);
+      break;
 
     case 'crossOriginIframeWarning':
       // recorder-only event; should never reach the executor
@@ -427,7 +499,7 @@ async function dispatchCommand(
 
     default: {
       // TypeScript exhaustiveness guard — unreachable at runtime if all types are handled
-      const _exhaustive: never = cmd;
+      const _exhaustive: never = c;
       throw new Error(
         `Unhandled command type: ${(_exhaustive as Command & { type: string }).type}`,
       );
@@ -442,16 +514,20 @@ async function replayFlowFile(
   page: Page,
   ctx: PlaywrightContext,
   callStack: Set<string>,
+  parentVarMap?: Map<string, string>,
 ): Promise<void> {
-  const { commands } = loadFlowYaml(absPath);
+  const { vars, commands } = loadFlowYaml(absPath);
   const total = commands.length;
   const fileName = path.basename(absPath);
+
+  // Seed a varMap from the file's vars block, inheriting any parent vars
+  const varMap: Map<string, string> = new Map([...(parentVarMap ?? []), ...Object.entries(vars)]);
 
   for (let i = 0; i < total; i++) {
     console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);
     const cmd = commands[i];
     try {
-      await dispatchCommand(page, cmd, ctx, absPath, callStack);
+      await dispatchCommand(page, cmd, ctx, absPath, callStack, varMap);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`[replay] FAILED: ${cmd.type} in ${fileName}: ${message}`);
@@ -464,7 +540,9 @@ async function replayFlowFile(
 /**
  * Replay one or more flow YAML files sequentially using the supplied Playwright page.
  *
- * - Reads YAML with js-yaml (no variable interpolation — out of scope).
+ * - Reads YAML with js-yaml. Variables declared in each flow's `vars:` block are
+ *   interpolated at dispatch time. `setVar`/`unsetVar`/`testVarSet` commands are
+ *   supported (method-based setVar is not supported and will throw).
  * - Dispatches all command types directly through the Playwright page.
  * - Nested runFlow: commands inside a flow are executed recursively; circular
  *   references are detected via callStack and rejected.
@@ -506,7 +584,7 @@ export async function replayFlows(
     }
 
     stack.add(absPath);
-    // Each top-level flow gets a fresh lastTappedLocator context
+    // Each top-level flow gets a fresh lastTappedLocator context and its own varMap
     const ctx: PlaywrightContext = { lastTappedLocator: null };
     try {
       await replayFlowFile(absPath, page, ctx, stack);

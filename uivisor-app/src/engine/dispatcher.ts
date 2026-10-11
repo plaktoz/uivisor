@@ -58,6 +58,18 @@ function extractFailureMessage(result: FlowResult): string | undefined {
   return undefined;
 }
 
+/**
+ * Coerce a value that may be a string (post-interpolation) to a number.
+ * Throws if the resulting value is not a finite integer.
+ */
+function toInt(value: number | string, label: string): number {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isInteger(n)) {
+    throw new Error(`${label} must be an integer, got "${value}"`);
+  }
+  return n;
+}
+
 let _screenshotCounter = 0;
 
 export function resetScreenshotCounter(): void {
@@ -167,7 +179,7 @@ export async function dispatch(
         await executeAssertUrl(page, c.path);
         break;
       case 'wait':
-        await executeWait(c.ms);
+        await executeWait(toInt(c.ms as unknown as number | string, 'wait ms'));
         break;
       case 'scroll':
         await executeScroll(page, c.direction);
@@ -179,7 +191,7 @@ export async function dispatch(
         await executeAssertValue(page, c.selector, c.expected);
         break;
       case 'assertCount':
-        await executeAssertCount(page, c.css, c.expected);
+        await executeAssertCount(page, c.css, toInt(c.expected as unknown as number | string, 'assertCount expected'));
         break;
       case 'assertEnabled':
         await executeAssertEnabled(page, c.selector);
@@ -224,17 +236,25 @@ export async function dispatch(
         await executeGoForward(page);
         break;
       case 'setViewport':
-        await executeSetViewport(page, c.width, c.height);
+        await executeSetViewport(
+          page,
+          toInt(c.width as unknown as number | string, 'setViewport width'),
+          toInt(c.height as unknown as number | string, 'setViewport height'),
+        );
         break;
       case 'screenshot':
         capturedScreenshotPath = await executeScreenshot(page, c.path, ctx.runDir);
         break;
       case 'waitFor':
-        await executeWaitFor(c.ms);
+        await executeWaitFor(toInt(c.ms as unknown as number | string, 'waitFor ms'));
         break;
 
       case 'waitForPageLoad':
-        await executeWaitForPageLoad(page, c.path, c.timeout);
+        await executeWaitForPageLoad(
+          page,
+          c.path,
+          c.timeout !== undefined ? toInt(c.timeout as unknown as number | string, 'waitForPageLoad timeout') : undefined,
+        );
         break;
 
       case 'within': {
