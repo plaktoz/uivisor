@@ -117,6 +117,26 @@ export function commandToRecord(cmd: Command): Record<string, unknown> {
       return { waitForPageLoad: obj };
     }
 
+    case 'setVar': {
+      const obj: Record<string, unknown> = { name: cmd.name };
+      if ('method' in cmd) {
+        obj['method'] = cmd.method;
+        obj['args'] = cmd.args;
+      } else {
+        obj['value'] = cmd.value;
+      }
+      return { setVar: obj };
+    }
+
+    case 'testVarSet': {
+      const obj: Record<string, unknown> = { name: cmd.name };
+      if (cmd.expected !== undefined) obj['expected'] = cmd.expected;
+      return { testVarSet: obj };
+    }
+
+    case 'unsetVar':
+      return { unsetVar: cmd.name };
+
     case 'crossOriginIframeWarning':
       throw new Error('unreachable: crossOriginIframeWarning handled before commandToRecord');
 
