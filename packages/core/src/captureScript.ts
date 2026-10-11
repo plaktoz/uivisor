@@ -205,19 +205,13 @@ export const CAPTURE_SCRIPT: string = `(function() {
     var tapOnSelector = buildPipeSelector(el);
     var tapOnCmd = { type: 'tapOn', selector: tapOnSelector };
 
-    // reactive path: check if tapOn selector is document-unique
+    // reactive path: check if tapOn selector is document-unique; always use css= fallback
     var firstSeg = tapOnSelector.split('|')[0];
     var eqIdx = firstSeg.indexOf('=');
     if (eqIdx !== -1) {
       var attrName = firstSeg.slice(0, eqIdx);
       var attrVal = firstSeg.slice(eqIdx + 1);
       if (countMatchingElements(document, attrName, attrVal) > 1) {
-        var container = findAncestorThatUniquesEl(el, tapOnSelector);
-        if (container) {
-          var containerSel = buildContainerSelector(container);
-          emit({ type: 'within', selector: containerSel, do: [{ command: tapOnCmd }] });
-          return;
-        }
         // no unique ancestor: css= fallback
         tapOnCmd = { type: 'tapOn', selector: buildCssFallback(el) };
       }
