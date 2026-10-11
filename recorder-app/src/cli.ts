@@ -75,17 +75,6 @@ export async function main(): Promise<void> {
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
 
-  // Replay flows before exposing capture/overlay functions
-  if (runFlowPaths.length > 0) {
-    try {
-      await replayFlows(runFlowPaths, page, outputPath);
-    } catch (err: unknown) {
-      console.error(err instanceof Error ? err.message : String(err));
-      await browser.close();
-      process.exit(1);
-    }
-  }
-
   await page.exposeFunction('__uivisorCapture', (cmd: unknown) => {
     appendCommand(outputPath, cmd as Command);
     console.log('[rec]', JSON.stringify(cmd));
@@ -99,20 +88,34 @@ export async function main(): Promise<void> {
   await page.addInitScript(CAPTURE_SCRIPT);
   await page.addInitScript(OVERLAY_SCRIPT);
 
-  // Only navigate to starting URL when not using --run-flow;
-  // replay already navigated the browser to the end state of the last flow.
-  if (runFlowPaths.length === 0) {
-    await page.goto(url);
+  // Replay flows before starting the recording session
+  let replayFailed = false;
+  if (runFlowPaths.length > 0) {
+    try {
+      await replayFlows(runFlowPaths, page, outputPath);
+    } catch (err: unknown) {
+      replayFailed = true;
+      console.error(err instanceof Error ? err.message : String(err));
+      console.error('[rec] Replay failed — browser left open for inspection. Close it to exit.');
+    }
+  }
+
+  if (!replayFailed) {
+    // Only navigate to starting URL when not using --run-flow;
+    // replay already navigated the browser to the end state of the last flow.
+    if (runFlowPaths.length === 0) {
+      await page.goto(url);
+    }
   }
 
   page.on('close', async () => {
     await browser.close();
-    process.exit(0);
+    process.exit(replayFailed ? 1 : 0);
   });
 
   process.on('SIGINT', async () => {
     await browser.close();
-    process.exit(0);
+    process.exit(replayFailed ? 1 : 0);
   });
 }
 

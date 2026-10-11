@@ -286,14 +286,13 @@ describe('cli.ts main() integration', () => {
     expect(mocks.mockChromium.launch).not.toHaveBeenCalled();
   });
 
-  // T35 — replayFlows rejects → exits code 1, page.exposeFunction never called
-  it('T35 — replayFlows rejection → exits 1, exposeFunction not called', async () => {
+  // T35 — replayFlows rejects → browser stays open (for inspection), exposeFunction called,
+  //        process.exit(1) deferred until user closes the browser
+  it('T35 — replayFlows rejection → browser stays open, exposeFunction called, error logged', async () => {
     const dir = makeTmpDir();
     const flowPath = writeFlow(dir, 'flow.yaml', { appId: 'http://a.com', commands: [] });
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
-      throw new Error(`process.exit(${code})`);
-    });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('process.exit'); });
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     mocks.mockParseArgs.mockReturnValue({
       url: 'http://localhost:5173',
@@ -302,9 +301,20 @@ describe('cli.ts main() integration', () => {
     });
     mocks.mockReplayFlows.mockRejectedValue(new Error('[replay] FAILED: goto in flow.yaml: net::ERR'));
 
-    await expect(main()).rejects.toThrow('process.exit(1)');
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(mocks.mockPage.exposeFunction).not.toHaveBeenCalled();
+    // main() resolves normally — no exit, browser stays open
+    await main();
+
+    // capture/overlay functions were registered despite the failure
+    expect(mocks.mockPage.exposeFunction).toHaveBeenCalled();
+    // error message was printed
+    const errOutput = consoleSpy.mock.calls.flatMap((c) => c.map(String)).join(' ');
+    expect(errOutput).toContain('[replay] FAILED');
+    expect(errOutput).toContain('browser left open for inspection');
+    // close handler exits with code 1 when replay had failed
+    const closeHandler = mocks.mockPage.on.mock.calls.find((c: unknown[]) => c[0] === 'close')?.[1] as (() => Promise<void>) | undefined;
+    expect(closeHandler).toBeDefined();
+    vi.spyOn(process, 'exit').mockImplementation((code) => { throw new Error(`process.exit(${code})`); });
+    await expect(closeHandler!()).rejects.toThrow('process.exit(1)');
   });
 
   // T36 — replay failure → runFlow entries in appendCommand calls are preserved
