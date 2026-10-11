@@ -416,6 +416,11 @@ async function dispatchCommand(
       break;
     }
 
+    case 'setVar':
+    case 'testVarSet':
+    case 'unsetVar':
+      throw new Error(`'${cmd.type}' is not supported in the recorder replayer`);
+
     case 'crossOriginIframeWarning':
       // recorder-only event; should never reach the executor
       throw new Error(`crossOriginIframeWarning is a recorder-only event and cannot be executed`);
