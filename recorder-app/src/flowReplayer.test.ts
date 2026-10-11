@@ -126,14 +126,15 @@ describe('replayFlows — T15: three-command flow in order', () => {
     // tapOn text=SubmitBtn uses pipe mode → page.getByText('SubmitBtn', { exact: true })
     expect(page.getByText).toHaveBeenCalledWith('SubmitBtn', { exact: true });
     expect(page._loc.click).toHaveBeenCalledOnce();
-    // All 3 progress log lines were emitted
+    // 1 starting line + 3 per-command lines
     const replayLogs = consoleSpy.mock.calls
       .map((c) => c[0] as string)
       .filter((s) => s.includes('[replay]'));
-    expect(replayLogs).toHaveLength(3);
-    expect(replayLogs[0]).toContain('1/3');
-    expect(replayLogs[1]).toContain('2/3');
-    expect(replayLogs[2]).toContain('3/3');
+    expect(replayLogs).toHaveLength(4);
+    expect(replayLogs[0]).toContain('starting (3 commands)');
+    expect(replayLogs[1]).toContain('(1/3)');
+    expect(replayLogs[2]).toContain('(2/3)');
+    expect(replayLogs[3]).toContain('(3/3)');
   });
 });
 
@@ -253,9 +254,11 @@ describe('replayFlows — T20: progress logging', () => {
     const replayLogs = consoleSpy.mock.calls
       .map((c) => c[0] as string)
       .filter((s) => typeof s === 'string' && s.startsWith('[replay]'));
-    expect(replayLogs).toHaveLength(2);
-    expect(replayLogs[0]).toBe('[replay] myflow.yaml: 1/2 commands');
-    expect(replayLogs[1]).toBe('[replay] myflow.yaml: 2/2 commands');
+    // 1 starting line + 2 per-command lines
+    expect(replayLogs).toHaveLength(3);
+    expect(replayLogs[0]).toBe('[replay] myflow.yaml: starting (2 commands)');
+    expect(replayLogs[1]).toBe('[replay] myflow.yaml (1/2): goto: http://example.com');
+    expect(replayLogs[2]).toBe('[replay] myflow.yaml (2/2): wait: 1ms');
   });
 });
 
