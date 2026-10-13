@@ -9,7 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Page, Locator } from 'playwright';
-import { resolveLocator } from '@uivisor/core';
+import { resolveLocator, createDeadline } from '@uivisor/core';
+import type { Clock, Deadline } from '@uivisor/core';
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
@@ -42,6 +43,13 @@ function makeMockPage(overrides: Partial<MockPage> = {}): { page: Page; mocks: M
     ...overrides,
   };
   return { page: mocks as unknown as Page, mocks };
+}
+
+/** A 1000 ms deadline on a fake clock whose `sleep` advances time instantly. */
+function shortDeadline(): Deadline {
+  let t = 0;
+  const clock: Clock = { now: () => t, sleep: async (ms: number) => { t += ms; } };
+  return createDeadline(1000, clock);
 }
 
 // ─── Cascade: bare string (no `=`) ───────────────────────────────────────────
@@ -103,10 +111,10 @@ describe('resolveSelector — cascade (bare string, no "=")', () => {
   });
 
   // TC-004: cascade exhausted — all steps return 0 matches → error
-  it('TC-004: all cascade steps return 0 — throws with "No unique element found"', async () => {
+  it('TC-004: all cascade steps return 0 — throws with "Element not found after <T>ms"', async () => {
     const { page } = makeMockPage(); // all default to count=0
 
-    await expect(resolveLocator(page, 'Foo')).rejects.toThrow('No unique element found');
+    await expect(resolveLocator(page, 'Foo', undefined, shortDeadline())).rejects.toThrow('Element not found after 1000ms: Foo');
   });
 
   // TC-005: mixed counts — exact diagnostic lines in error message
@@ -127,12 +135,12 @@ describe('resolveSelector — cascade (bare string, no "=")', () => {
 
     let errorMsg = '';
     try {
-      await resolveLocator(page, 'Foo');
+      await resolveLocator(page, 'Foo', undefined, shortDeadline());
     } catch (e) {
       errorMsg = (e as Error).message;
     }
 
-    expect(errorMsg).toContain("No unique element found for bare selector 'Foo'");
+    expect(errorMsg).toContain('Element not found after 1000ms: Foo');
     expect(errorMsg).toContain('data-testid=Foo: 0 matches');
     expect(errorMsg).toContain('text=Foo: 3 matches');
     expect(errorMsg).toContain('name=Foo: 0 matches');
@@ -141,18 +149,18 @@ describe('resolveSelector — cascade (bare string, no "=")', () => {
   });
 
   // TC-006: "Use pipe syntax" hint references actual selector value
-  it('TC-006: error message contains "Use pipe syntax" hint with the selector value', async () => {
+  it('TC-006: error message header names the selector and lists the text step (replaces the "Use pipe syntax" hint, AC14)', async () => {
     const { page } = makeMockPage(); // all count=0
 
     let errorMsg = '';
     try {
-      await resolveLocator(page, 'Foo');
+      await resolveLocator(page, 'Foo', undefined, shortDeadline());
     } catch (e) {
       errorMsg = (e as Error).message;
     }
 
-    expect(errorMsg).toContain('Use pipe syntax');
-    expect(errorMsg).toContain('text=Foo');
+    expect(errorMsg.split('\n')[0]).toBe('Element not found after 1000ms: Foo');
+    expect(errorMsg).toContain('  text=Foo: 0 matches');
   });
 
   // TC-007: label and role absent from error message
@@ -161,7 +169,7 @@ describe('resolveSelector — cascade (bare string, no "=")', () => {
 
     let errorMsg = '';
     try {
-      await resolveLocator(page, 'Foo');
+      await resolveLocator(page, 'Foo', undefined, shortDeadline());
     } catch (e) {
       errorMsg = (e as Error).message;
     }
@@ -174,7 +182,7 @@ describe('resolveSelector — cascade (bare string, no "=")', () => {
   it('TC-008: page.getByLabel and page.getByRole are never called for bare string cascade', async () => {
     const { page, mocks } = makeMockPage(); // all count=0, cascade will exhaust
 
-    try { await resolveLocator(page, 'Email'); } catch { /* expected */ }
+    try { await resolveLocator(page, 'Email', undefined, shortDeadline()); } catch { /* expected */ }
 
     expect(mocks.getByLabel).not.toHaveBeenCalled();
     expect(mocks.getByRole).not.toHaveBeenCalled();
@@ -229,7 +237,7 @@ describe('resolveSelector — pipe syntax (string contains "=")', () => {
 
     let errorMsg = '';
     try {
-      await resolveLocator(page, 'data-testid=ghost|id=ghost');
+      await resolveLocator(page, 'data-testid=ghost|id=ghost', undefined, shortDeadline());
     } catch (e) {
       errorMsg = (e as Error).message;
     }
@@ -481,7 +489,7 @@ describe('resolveSelector — wildcard matching', () => {
     });
 
     // Cascade exhausted → throws
-    await expect(resolveLocator(page, 'Submit')).rejects.toThrow();
+    await expect(resolveLocator(page, 'Submit', undefined, shortDeadline())).rejects.toThrow();
     // Verify exact: true was passed
     // (The test confirms the text locator doesn't match "Submit Form" because exact is used)
   });
@@ -525,7 +533,7 @@ describe('resolveSelector — wildcard matching', () => {
     });
 
     // Resolving may throw (no match) — that is fine; we only care that [id*=""] is never called
-    try { await resolveLocator(page, 'id=foo*bar*baz'); } catch { /* expected */ }
+    try { await resolveLocator(page, 'id=foo*bar*baz', undefined, shortDeadline()); } catch { /* expected */ }
     expect(mocks.locator).not.toHaveBeenCalledWith('[id*=""]');
   });
 });
@@ -534,8 +542,8 @@ describe('resolveSelector — wildcard matching', () => {
 
 describe('resolveSelector — backward compatibility (object selectors)', () => {
   // TC-056: { testId } bypasses cascade — no count queries
-  it('TC-056: { testId: "my-btn" } uses getByTestId; no .count() called', async () => {
-    const btestId = { count: vi.fn(), _brand: 'testid-locator' } as unknown as Locator;
+  it('TC-056: { testId: "my-btn" } uses getByTestId; .count() called once (single step, AC6)', async () => {
+    const btestId = { count: vi.fn().mockResolvedValue(1), _brand: 'testid-locator' } as unknown as Locator;
     const { page, mocks } = makeMockPage({
       getByTestId: vi.fn().mockReturnValue(btestId),
     });
@@ -544,13 +552,13 @@ describe('resolveSelector — backward compatibility (object selectors)', () => 
 
     expect(result).toBe(btestId);
     expect(mocks.getByTestId).toHaveBeenCalledWith('my-btn');
-    expect((btestId.count as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+    expect((btestId.count as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
     expect(mocks.locator).not.toHaveBeenCalled();
   });
 
   // TC-057: { text } resolves unchanged
   it('TC-057: { text: "hello" } uses getByText directly; no cascade', async () => {
-    const textLoc = { count: vi.fn(), _brand: 'text-locator' } as unknown as Locator;
+    const textLoc = { count: vi.fn().mockResolvedValue(1), _brand: 'text-locator' } as unknown as Locator;
     const { page, mocks } = makeMockPage({
       getByText: vi.fn().mockReturnValue(textLoc),
     });
@@ -564,7 +572,7 @@ describe('resolveSelector — backward compatibility (object selectors)', () => 
 
   // TC-058: { label } uses getByLabel directly
   it('TC-058: { label: "Email" } uses getByLabel directly', async () => {
-    const labelLoc = { count: vi.fn(), _brand: 'label-locator' } as unknown as Locator;
+    const labelLoc = { count: vi.fn().mockResolvedValue(1), _brand: 'label-locator' } as unknown as Locator;
     const { page, mocks } = makeMockPage({
       getByLabel: vi.fn().mockReturnValue(labelLoc),
     });
@@ -577,7 +585,7 @@ describe('resolveSelector — backward compatibility (object selectors)', () => 
   });
 
   it('backward compat: { role, name } uses getByRole', async () => {
-    const roleLoc = { count: vi.fn() } as unknown as Locator;
+    const roleLoc = { count: vi.fn().mockResolvedValue(1) } as unknown as Locator;
     const { page, mocks } = makeMockPage({
       getByRole: vi.fn().mockReturnValue(roleLoc),
     });
@@ -589,7 +597,7 @@ describe('resolveSelector — backward compatibility (object selectors)', () => 
   });
 
   it('backward compat: { placeholder } uses getByPlaceholder', async () => {
-    const phLoc = { count: vi.fn() } as unknown as Locator;
+    const phLoc = { count: vi.fn().mockResolvedValue(1) } as unknown as Locator;
     const { page, mocks } = makeMockPage({
       getByPlaceholder: vi.fn().mockReturnValue(phLoc),
     });
@@ -601,7 +609,7 @@ describe('resolveSelector — backward compatibility (object selectors)', () => 
   });
 
   it('backward compat: { css } uses page.locator directly', async () => {
-    const cssLoc = { count: vi.fn() } as unknown as Locator;
+    const cssLoc = { count: vi.fn().mockResolvedValue(1) } as unknown as Locator;
     const { page, mocks } = makeMockPage({
       locator: vi.fn().mockReturnValue(cssLoc),
     });
@@ -743,8 +751,8 @@ describe('resolveSelector — xpath object form', () => {
     });
 
     await expect(
-      resolveLocator(page, { xpath: '//button[@id="missing"]' })
-    ).rejects.toThrow(/No element found for xpath selector/i);
+      resolveLocator(page, { xpath: '//button[@id="missing"]' }, undefined, shortDeadline())
+    ).rejects.toThrow('Element not found after 1000ms: {"xpath":"//button[@id=\\"missing\\"]"}');
   });
 
   // TC-XPATH-R6 [FAILING before T6]
@@ -755,29 +763,29 @@ describe('resolveSelector — xpath object form', () => {
 
     let msg = '';
     try {
-      await resolveLocator(page, { xpath: '//input[@name="email"]' });
+      await resolveLocator(page, { xpath: '//input[@name="email"]' }, undefined, shortDeadline());
     } catch (e) {
       msg = (e as Error).message;
     }
 
-    expect(msg).toMatch(/\/\/input\[@name="email"\]/);
-    expect(msg).toMatch(/No element found/i);
+    expect(msg).toContain('//input[@name=\\"email\\"]');
+    expect(msg).toMatch(/^Element not found after 1000ms:/);
   });
 
   // TC-B-009 [FAILING before T6] — regression flip: no longer "Unrecognized", now "No element found"
-  it('TC-B-009: { xpath: "//div" } count=0 — throws "No element found for xpath selector", NOT "Unrecognized"', async () => {
+  it('TC-B-009: { xpath: "//div" } count=0 — throws "Element not found after <T>ms", NOT "Unrecognized"', async () => {
     const { page } = makeMockPage({
       locator: vi.fn().mockReturnValue(mockLocator(0)),
     });
 
     let msg = '';
     try {
-      await resolveLocator(page, { xpath: '//div' });
+      await resolveLocator(page, { xpath: '//div' }, undefined, shortDeadline());
     } catch (e) {
       msg = (e as Error).message;
     }
 
-    expect(msg).toMatch(/No element found for xpath selector/i);
+    expect(msg).toBe('Element not found after 1000ms: {"xpath":"//div"}\n  {"xpath":"//div"}: 0 matches');
     expect(msg).toContain('//div');
     expect(msg).not.toMatch(/unrecognized|unknown/i);
   });
@@ -785,7 +793,7 @@ describe('resolveSelector — xpath object form', () => {
   // ── AC7: 2+ matches → "no unique element" error with count ─────────────────
 
   // TC-XPATH-R8 [FAILING before T6]
-  it('TC-XPATH-R8: { xpath: "//li" } count=2 — throws "No unique element" with count and xpath', async () => {
+  it('TC-XPATH-R8: { xpath: "//li" } count=2 — not-found error reports the 2 matches', async () => {
     const { page } = makeMockPage({
       locator: vi.fn().mockImplementation((s: string) => {
         if (s === 'xpath=//li') return mockLocator(2);
@@ -795,14 +803,12 @@ describe('resolveSelector — xpath object form', () => {
 
     let msg = '';
     try {
-      await resolveLocator(page, { xpath: '//li' });
+      await resolveLocator(page, { xpath: '//li' }, undefined, shortDeadline());
     } catch (e) {
       msg = (e as Error).message;
     }
 
-    expect(msg).toMatch(/No unique element found for xpath selector '\/\/li'/);
-    expect(msg).toMatch(/2 matches/);
-    expect(msg).toMatch(/within/i);
+    expect(msg).toBe('Element not found after 1000ms: {"xpath":"//li"}\n  {"xpath":"//li"}: 2 matches');
   });
 
   // TC-XPATH-R9 [FAILING before T6]
@@ -815,7 +821,7 @@ describe('resolveSelector — xpath object form', () => {
     });
 
     await expect(
-      resolveLocator(page, { xpath: '//li' })
+      resolveLocator(page, { xpath: '//li' }, undefined, shortDeadline())
     ).rejects.toThrow(/3 matches/);
   });
 
@@ -826,7 +832,7 @@ describe('resolveSelector — xpath object form', () => {
     });
 
     await expect(
-      resolveLocator(page, { xpath: '//span' })
+      resolveLocator(page, { xpath: '//span' }, undefined, shortDeadline())
     ).rejects.not.toThrow(/No unique element/);
   });
 
@@ -1081,7 +1087,7 @@ describe('resolveSelector — xpath pipe-string form', () => {
 
     let msg = '';
     try {
-      await resolveLocator(page, 'xpath=//ghost');
+      await resolveLocator(page, 'xpath=//ghost', undefined, shortDeadline());
     } catch (e) {
       msg = (e as Error).message;
     }
@@ -1365,7 +1371,7 @@ describe('resolveSelector — xpath regression guards', () => {
 
   // TC-XPATH-R20 [PASSING]
   it('TC-XPATH-R20 [PASSING]: { text: "Submit" } still uses getByText; xpath addition has no side-effect', async () => {
-    const textLoc = { count: vi.fn(), _brand: 'text' } as unknown as import('playwright').Locator;
+    const textLoc = { count: vi.fn().mockResolvedValue(1), _brand: 'text' } as unknown as import('playwright').Locator;
     const { page, mocks } = makeMockPage({
       getByText: vi.fn().mockReturnValue(textLoc),
     });
@@ -1379,7 +1385,7 @@ describe('resolveSelector — xpath regression guards', () => {
 
   // TC-XPATH-R21 [PASSING]
   it('TC-XPATH-R21 [PASSING]: { testId: "btn" } still uses getByTestId', async () => {
-    const loc = { count: vi.fn() } as unknown as import('playwright').Locator;
+    const loc = { count: vi.fn().mockResolvedValue(1) } as unknown as import('playwright').Locator;
     const { page, mocks } = makeMockPage({
       getByTestId: vi.fn().mockReturnValue(loc),
     });
@@ -1419,7 +1425,7 @@ describe('resolveSelector — xpath regression guards', () => {
 
   // TC-XPATH-R24 [PASSING]
   it('TC-XPATH-R24 [PASSING]: { css: ".my-class" } still calls page.locator(".my-class") directly (not "xpath=...")', async () => {
-    const cssLoc = { count: vi.fn() } as unknown as import('playwright').Locator;
+    const cssLoc = { count: vi.fn().mockResolvedValue(1) } as unknown as import('playwright').Locator;
     const { page, mocks } = makeMockPage({
       locator: vi.fn().mockReturnValue(cssLoc),
     });
@@ -1444,4 +1450,60 @@ describe('resolveSelector — xpath regression guards', () => {
     expect(mocks.getByText).toHaveBeenCalledWith('Submit', { exact: true });
   });
 
+});
+
+// ─── Not-found error format (AC14–AC17, Seam S4 / Errata E2(c)) ────────────────
+
+async function errorOf(p: Promise<unknown>): Promise<string> {
+  try {
+    await p;
+  } catch (e) {
+    return (e as Error).message;
+  }
+  throw new Error('expected a rejection');
+}
+
+describe('resolveSelector — not-found error format after the deadline', () => {
+  it('AC14: not-found error format for a bare-string selector via the app-level resolver wrapper', async () => {
+    const { page } = makeMockPage();
+    const msg = await errorOf(resolveLocator(page, 'int-never-rendered', undefined, shortDeadline()));
+    expect(msg.split('\n')).toEqual([
+      'Element not found after 1000ms: int-never-rendered',
+      '  data-testid=int-never-rendered: 0 matches',
+      '  text=int-never-rendered: 0 matches',
+      '  name=int-never-rendered: 0 matches',
+      '  id=int-never-rendered: 0 matches',
+      '  placeholder=int-never-rendered: 0 matches',
+    ]);
+  });
+
+  it('AC15: not-found error format for a pipe-string selector via the app-level wrapper', async () => {
+    const { page } = makeMockPage();
+    const msg = await errorOf(resolveLocator(page, 'id=a-nope|data-testid=b-nope', undefined, shortDeadline()));
+    expect(msg.split('\n')).toEqual([
+      'Element not found after 1000ms: id=a-nope|data-testid=b-nope',
+      '  id=a-nope: 0 matches',
+      '  data-testid=b-nope: 0 matches',
+    ]);
+  });
+
+  it('AC16: not-found error format for object/xpath selectors via the app-level wrapper', async () => {
+    const { page } = makeMockPage();
+    const objMsg = await errorOf(resolveLocator(page, { testId: 'int-never-rendered' }, undefined, shortDeadline()));
+    expect(objMsg.split('\n')).toEqual([
+      'Element not found after 1000ms: {"testId":"int-never-rendered"}',
+      '  {"testId":"int-never-rendered"}: 0 matches',
+    ]);
+    const xpathMsg = await errorOf(resolveLocator(page, { xpath: "//*[@id='nope']" }, undefined, shortDeadline()));
+    expect(xpathMsg.split('\n')[0]).toBe('Element not found after 1000ms: {"xpath":"//*[@id=\'nope\']"}');
+  });
+
+  it('AC17: duplicate-count-at-deadline error via the app-level wrapper', async () => {
+    const { page } = makeMockPage({ locator: vi.fn().mockReturnValue(mockLocator(2)) });
+    const msg = await errorOf(resolveLocator(page, 'data-testid=row', undefined, shortDeadline()));
+    expect(msg.split('\n')).toEqual([
+      'Element not found after 1000ms: data-testid=row',
+      '  data-testid=row: 2 matches',
+    ]);
+  });
 });
