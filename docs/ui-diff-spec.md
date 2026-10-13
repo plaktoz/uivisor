@@ -62,21 +62,24 @@ flowchart TD
    - Convert to grayscale luminance.
    - Apply a Gaussian blur (`blurRadius`, default 2 px) to suppress character-level detail so that different text strings produce near-identical footprints. Blur is **always applied**; there is no toggle.
    - Apply a Sobel operator and threshold the gradient magnitude at `edgeThreshold` to produce the **structural edge map**. Card borders, input outlines, button outlines, and dividers survive; text becomes low-energy texture.
+   - The gradient magnitude is normalised by `4 × 255` (the response of a full-contrast axis-aligned step), so `edgeThreshold` is a fraction of real edge contrast (`1.0` = black/white step). Border pixels are never edges.
+   - **Tuning note:** `edgeThreshold` trades "ignore text" against "see low-contrast structure". Too low and text edges re-enter the map (text changes then fail); too high and faint borders vanish. The default `0.2` was the only value in the synthetic fixtures where all scenarios behaved correctly. It must be validated on real approved screenshots (AC16).
 
 4. **Structural Dissimilarity (`D_s`)**
-   - Divide both edge maps into non-overlapping blocks of `gridSize` × `gridSize` px.
+   - **Shift tolerance:** before comparison the edge maps are matched within `maxDriftPixels`. Every edge pixel with a counterpart in the other map within that Euclidean distance is snapped to the counterpart's exact position, so edges displaced by no more than `maxDriftPixels` contribute **zero** dissimilarity. Only edges that are added, removed, or displaced by more than `maxDriftPixels` remain different. (Plain SSIM on binary edge maps is all-or-nothing: a 1–7 px shift would score ~1.0 dissimilarity.) Distance is computed with an exact Euclidean distance transform, so cost is independent of the radius.
+   - Divide both (matched) edge maps into non-overlapping blocks of `gridSize` × `gridSize` px.
    - Compute SSIM for each block pair and convert: `dissimilarity = clamp(1 - SSIM, 0, 1)`.
    - `D_s` is the **P-th percentile** (default `P = 95`) of the per-block dissimilarity values. With P95, up to 5% of blocks may be noisy outliers without affecting the result.
    - Blocks that are empty (no edges) in both images are excluded from the percentile population so large blank areas do not dilute the result.
 
 5. **Alignment Drift (`D_a`)**
-   Drift is measured on the **edge map** (not the raw image), on both axes, and must detect both small nudges and large displacements (e.g. right-anchored → left-anchored).
+   Drift is measured on the **tolerance-matched** edge maps (same as D_s), on both axes, and must detect both small nudges and large displacements (e.g. right-anchored → left-anchored). Using the matched maps means that a shift within `maxDriftPixels` does not register as drift (band centroids and extents move when edges cross a band boundary, so measuring on raw maps would give spurious drift).
    - Split the edge map into horizontal bands and vertical bands of `gridSize` px thickness.
    - For every band with edge mass in either image compute:
      - the **edge-mass centroid** (along the band's axis), and
      - the **anchor extents**: the first and last edge position along the band's axis (e.g. the right-most edge of a right-aligned toolbar).
    - Band drift = `max(|Δcentroid|, |Δfirst extent|, |Δlast extent|)`, in baseline pixels.
-   - A band that has edge mass in only one image is treated as maximum drift for that band (component appeared/disappeared).
+   - A band that has edge mass in only one image is treated as maximum drift for that band (component appeared/disappeared). Such a one-sided band is attributed to the **perpendicular axis** and uses that axis' full length as its drift. It only counts when at least a minimum fraction of its edge pixels have **no counterpart within `maxDriftPixels`** in the other map; otherwise edges merely crossing a band boundary would be misreported as appearing/disappearing.
    - `D_a` = the maximum band drift over all bands and both axes.
    - Extents are used in addition to centroids so that right-aligned content with varying text length is judged by its anchored edge rather than its centre of mass.
 
@@ -176,6 +179,7 @@ Precedence: **CLI flags > config file > built-in defaults**. Relative paths in t
 | `PASS` | `D_s` and `D_a` within thresholds | No |
 | `FAIL` | One or more `reasons` apply | Yes |
 | `NEW` | Image exists only in current | No (warning) |
+| `MISSING` | Image exists only in baseline and `--no-fail-on-missing` is set | No (warning) |
 
 ### 4.2 Failure reasons (`reasons` array on `FAIL`)
 
@@ -187,7 +191,7 @@ Precedence: **CLI flags > config file > built-in defaults**. Relative paths in t
 | `INVALID_IMAGE` | Unreadable/corrupt image; includes error detail. Always a failure |
 
 ### 4.3 Warnings
-`DIMENSION_WARNING` (size differs by > 10%), `EXTENSION_MISMATCH`, `MISSING_IN_CURRENT` (when `--no-fail-on-missing`), `NEW` images, and `EMPTY_INPUT` (when `--allow-empty`). Warnings never affect the exit code.
+Per-image codes: `DIMENSION_WARNING` (size differs by > 10%), `EXTENSION_MISMATCH`, `MISSING_IN_CURRENT` (when `--no-fail-on-missing`), `NEW_IN_CURRENT` (image only in current). Run-level: `EMPTY_INPUT` (when `--allow-empty`). Warnings never affect the exit code.
 
 ### 4.4 Exit codes
 
@@ -318,7 +322,7 @@ Synthetic image pairs live in `packages/ui-diff/test/fixtures/` and drive automa
 | `size-mismatch/` (AC11) | `PASS` with warning |
 | `missing/`, `new/`, `corrupt/` | AC6, AC12, AC13 |
 
-The default thresholds (`0.05`, `8 px`, P95) MUST be validated against these fixtures and against a set of real approved screenshots from the target application before being finalised.
+The default thresholds (`0.05`, `8 px`, P95, `edgeThreshold` 0.2, `blurRadius` 2) were trialled on the uivisor test-app (six pages, 1280 × 800, Playwright/Chromium), using variants of the baseline made by injecting CSS/text changes. Results: a spacing/padding regression failed on login and profile; a 6 × 4 px nudge and a colour-only change passed; a text rewrite **failed** on login (heading glyph edges). The injected regression only touched classes used on login and profile, so it says nothing about the other pages. Coverage on sparse pages is weak: at 0.2, `integration-sessions` kept ~115 edge pixels and the task list ~1.6k. In a sweep of the implemented knobs (threshold 0.02–0.2, blur 2–8), no setting passed the login text rewrite. A prototype long-straight-run filter (not implemented) at threshold 0.2 passed the text rewrite and failed the regression, but then failed colour-only changes. This is a small, single-application trial, not a validation: calibrate on your own approved screenshots (AC16 stays open for the target application).
 
 ---
 
@@ -346,3 +350,5 @@ Error messages shown to users are concise and never include stack traces; detail
 - **P95 vs small components:** a removed component covering under 5% of blocks may not move `D_s` past the threshold. It is expected to be caught by the drift check (§2.1.5, band with edge mass in one image only). If calibration (AC16) shows gaps, raise the percentile toward 99 or add a contiguous-failing-region rule.
 - **Resize distortion:** resizing a candidate whose width differs from the baseline distorts horizontal geometry and can produce drift. The 10% warning flags such cases for manual review.
 - **Fixed viewport assumption:** the tool assumes baseline and current screenshots are captured with the same viewport and device pixel ratio.
+- **Text changes can fail on pages with a bold heading (known limitation).** At `edgeThreshold` 0.2 only high-contrast elements enter the edge map: bold headings, thick button outlines. Faint input borders and card outlines drop out. A rewritten heading changes the glyph edges that dominate the map, so `D_s` ≈ 1.0 on the login page. This conflicts with the goal of ignoring text. Lower thresholds and larger blur did not fix it in the trial (threshold 0.02–0.2, blur 2–8). Candidate fixes, not yet implemented: mask or down-weight text-like regions, or compare only long straight edge runs (a prototype at threshold 0.2 fixed the text case but made colour-only changes fail).
+- **Drift uses matched maps.** Both `D_s` and `D_a` are measured on the tolerance-matched edge maps. A real shift that falls exactly at the tolerance boundary therefore scores zero on both metrics. If this boundary region matters for a particular application, lower `maxDriftPixels` by a few pixels from the true acceptable limit.

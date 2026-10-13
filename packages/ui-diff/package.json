@@ -1,0 +1,32 @@
+{
+  "name": "@uivisor/ui-diff",
+  "version": "0.1.0",
+  "description": "Structural (layout) image directory comparison for post-upgrade UI verification",
+  "type": "module",
+  "bin": {
+    "ui-diff": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^5.0.0"
+  }
+}
