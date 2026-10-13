@@ -123,6 +123,8 @@ This follows the existing `session:` sibling key, which `parseSessionedCommand` 
 
 Sibling keys travel with the command all the way to execution. Today the runner and `within` hand only `sc.command` to `dispatch`, and `dispatch` interpolates only the `Command`. Both change: `dispatch` takes the whole step (command plus options), and interpolates `${var}` in the options at dispatch time, like `waitForPageLoad`'s `timeout` today.
 
+A `timeout:` sibling on a command whose timeout trait is `none` (§6.2: `wait`, `waitFor: <ms>`, `scroll`, `setViewport`, `screenshot`, `setVar`, `testVarSet`, `unsetVar`, `runFlow`) is a parse error: `timeout is not supported on runFlow`. A stray key would otherwise do nothing silently.
+
 ### 5.2 Precedence and built-in defaults
 
 From highest to lowest. The first one that's set wins.
@@ -139,6 +141,8 @@ Built-in defaults within `loading` when it is set: `indicators: []`, `network` o
 With no `loading`/`sla` configured, existing flows behave as today except for two deliberate changes: string selectors now wait (§6.1), and `assertUrl`, `assertCount` and `within` now retry (§6, Q1). A flow that passes today still passes.
 
 **Nested flows (`runFlow`):** a child flow inherits every setting in this section from the top-level flow. If a child flow's header or config sets one of these keys, it is ignored while the file runs via `runFlow`, and the console prints one notice per file: `login-flow-v1.yaml: defaultTimeout ignored (inherited from my-flow.yaml)`. The same keys apply normally when that file runs as a top-level flow. Commands inside `within` inherit the settings that apply around them. Per-command sibling keys work everywhere, including inside child flows and `within`.
+
+This differs on purpose from vars. Since #100, a child flow's `vars` (including its own `config:` vars) apply as defaults unless the caller set them, and `runFlow: { file, vars }` overrides them per call. Timeouts and `loading` stay inherit-only: a run has one timing policy, set by the top-level flow, its config and the CLI. A child that needs more time for one step uses a per-command `timeout:`.
 
 ### 5.3 Where the keys live
 
@@ -555,10 +559,11 @@ Example flows:
 | Q10 | Should image loading be an optional "looks ready" signal? Users waited for images on Discover (A11). | Not in v1. Measure data ready only. Proposed default, not contested in review. |
 | Q11 | Is the extra run time acceptable (up to ~1.2 s after page changes, +1 s after first-visit code downloads)? | Yes, as a correctness trade-off. Settings are per project. Proposed default, not contested in review. |
 | Q12 | How should retrying resolution handle a lower-priority cascade match that appears first? | **Decided:** stability check, only when the winning step isn't the first (§6.1). |
-| Q13 | What may a child flow override? | **Decided:** nothing. Child flows inherit every setting; their own values apply only when run top-level (§5.2). |
+| Q13 | What may a child flow override? | **Decided:** nothing. Child flows inherit every setting; their own values apply only when run top-level (§5.2). Re-confirmed after #100 made child `vars` act as defaults: timeouts deliberately don't follow that model. |
 | Q14 | How do the new settings live in the config file? | **Decided:** reserved top-level names (§5.3). |
 | Q15 | Should an SLA breach ever fail the run? | **Decided:** no. Warning on the action's line and in the end-of-run summary. `failOnBreach` and `--sla-strict` are dropped, and `sla` is a plain number (§9). |
 | Q16 | How do the pre-check, element wait and settle timeouts combine? | **Decided:** one budget per command, the command's timeout. `loading.timeout` is dropped (§6). |
+| Q17 | What does `timeout:` do on a command with no timeout (`runFlow`, `wait`, …)? | **Decided:** parse error (§5.1). |
 
 ---
 
