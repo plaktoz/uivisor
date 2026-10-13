@@ -18,7 +18,7 @@ Provide a layout diffing tool (`ui-diff`) that compares a **baseline directory**
 
 ### 1.4 Implementation Context
 - Language: TypeScript (Node.js), matching the existing workspace.
-- Location: new workspace package `packages/ui-diff/`.
+- Location: new top-level workspace package `ui-diff/`.
 - Image I/O and convolution: [`sharp`](https://sharp.pixelplumbing.com/).
 - CLI parsing: `commander`.
 - Dependencies MUST be the latest stable, actively maintained versions and be recorded in the lock file.
@@ -311,7 +311,7 @@ Usage errors print usage guidance and a clear message (including the offending p
 - **Expected:** `4` is used. Without the CLI flag, `20` is used. Invalid or unknown config keys exit `2`.
 
 ### AC16: Calibration fixtures
-Synthetic image pairs live in `packages/ui-diff/test/fixtures/` and drive automated tests:
+Synthetic image pairs live in `ui-diff/test/fixtures/` and drive automated tests:
 
 | Fixture | Expected |
 |---|---|
