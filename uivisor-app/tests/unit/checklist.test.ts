@@ -13,6 +13,7 @@ import {
   toRows,
   type Checklist,
 } from '../../src/reporter/checklist';
+import { width } from '../../src/reporter/cells';
 
 const T0 = 1_000_000;
 
@@ -41,6 +42,8 @@ function flowResult(passed: boolean, passedCommands: number, totalCommands: numb
 }
 
 const rightAligned = (cols: number, left: string, right: string) => left + ' '.repeat(cols - [...left].length - [...right].length) + right;
+
+const cellWidthOf = width;
 
 const marks = (list: Checklist, now = T0) => toRows(list, now).map((r) => `${'  '.repeat(r.depth - 1)}${r.mark} ${r.label}`);
 
@@ -263,6 +266,48 @@ describe('renderLive', () => {
     expect(frame).toContain(rightAligned(39, '  ✗ tapOn: "s25"', '0.1s'));
     expect(frame).toContain('    line one');
     expect(frame).toContain('    line two');
+  });
+
+  it('shows control characters in a label as escapes so a step stays on one line', () => {
+    const text = 'a\nb\r\tc\u001b[31m';
+    const list = applyEvent(planChecklist(file('/flows/my-flow.yaml', { type: 'inputText', text }), T0), start({ type: 'inputText', text }), T0);
+    const frame = renderLive(list, T0, { columns: 80, rows: 24 });
+
+    expect(frame).toHaveLength(2);
+    expect(frame[1]).toMatch(/^ {2}. inputText: a\\nb\\r\\tc\\u001b\[31m +0\.0s…$/);
+    for (const line of frame) expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
+  });
+
+  it('measures double-width labels in terminal cells, never exceeding columns - 1', () => {
+    const cjk = '日本語のテキストを入力します'.repeat(2);
+    const list = replay(planChecklist(file('/flows/my-flow.yaml', { type: 'inputText', text: cjk }), T0),
+      [0, start({ type: 'inputText', text: cjk })]);
+    for (const columns of [20, 30, 60]) {
+      const frame = renderLive(list, T0, { columns, rows: 24 });
+      expect(frame).toHaveLength(2);
+      for (const line of frame) expect(cellWidthOf(line), `${columns} columns`).toBeLessThanOrEqual(columns - 1);
+      expect(frame[1]).toContain('…');
+      expect(frame[1].endsWith('0.0s…')).toBe(true);
+    }
+  });
+
+  it('counts emoji as two cells and combining marks as none', () => {
+    const emoji = '🙂'.repeat(30);
+    const combining = 'e\u0301'.repeat(30);
+    for (const text of [emoji, combining]) {
+      const list = applyEvent(planChecklist(file('/flows/my-flow.yaml', { type: 'inputText', text }), T0), start({ type: 'inputText', text }), T0);
+      const frame = renderLive(list, T0, { columns: 40, rows: 24 });
+      for (const line of frame) expect(cellWidthOf(line)).toBeLessThanOrEqual(39);
+    }
+  });
+
+  it('escapes control characters and truncates wide characters in failure details', () => {
+    const list = replay(midRun(),
+      [3_000, fail(tap({ css: 'h6' }), 1_300, { message: `bad\tvalue ${'語'.repeat(40)}` })],
+    );
+    const frame = renderLive(list, T0 + 3_000, { columns: 30, rows: 24 });
+    for (const line of frame) expect(cellWidthOf(line)).toBeLessThanOrEqual(29);
+    expect(frame.some((l) => l.includes('bad\\tvalue'))).toBe(true);
   });
 
   it('never wraps or scrolls, whatever the terminal size', () => {

@@ -2,6 +2,7 @@ import * as path from 'path';
 import type { Command, CommandResult, FlowFile, FlowResult, ProgressEvent, SessionedCommand } from '@uivisor/core';
 import { commandLabel } from './label.js';
 import { failureLines, flowSummary } from './console.js';
+import { width, truncate, visible } from './cells.js';
 
 export type StepState =
   | { readonly phase: 'pending' }
@@ -134,14 +135,14 @@ function markOf(step: Step, closed: boolean, aborted: boolean): Mark {
 
 function labelOf(step: Step): string {
   switch (step.state.phase) {
-    case 'pending': return commandLabel(step.planned);
-    case 'running': return commandLabel(step.state.command);
-    case 'done': return commandLabel(step.state.result.command);
+    case 'pending': return visible(commandLabel(step.planned));
+    case 'running': return visible(commandLabel(step.state.command));
+    case 'done': return visible(commandLabel(step.state.result.command));
   }
 }
 
 function failureDetails(r: CommandResult): string[] {
-  return failureLines(r).flatMap((l) => l.split('\n'));
+  return failureLines(r).flatMap((l) => l.split('\n').map(visible));
 }
 
 export function toRows(list: Checklist, now: number): Row[] {
@@ -222,14 +223,6 @@ function stepLeft(row: Row, now: number): string {
 
 function detailLines(row: Row): string[] {
   return row.details.map((d) => `${'  '.repeat(row.depth + 1)}${d}`);
-}
-
-const width = (s: string): number => [...s].length;
-
-function truncate(s: string, max: number): string {
-  const chars = [...s];
-  if (chars.length <= max) return s;
-  return max <= 0 ? '' : `${chars.slice(0, max - 1).join('')}…`;
 }
 
 function fitLine(left: string, right: string, cols: number): string {
