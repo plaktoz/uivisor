@@ -14,7 +14,7 @@ Reads a file with `fs.readFileSync` and parses it with `js-yaml.load()`. On `YAM
 
 ## validator.ts
 
-Four validation functions called by `parser/index.ts` after reading raw YAML.
+Three validation functions called by `parser/index.ts` after reading raw YAML.
 
 ### `validateHeader(raw, filePath?): string`
 
@@ -26,10 +26,6 @@ Four validation functions called by `parser/index.ts` after reading raw YAML.
 ### `validateCommandList(rawCommands): void`
 
 Asserts `rawCommands` is a non-empty array.
-
-### `validateVars(raw, filePath?): void`
-
-Asserts `vars` is a plain object (not null, not array).
 
 ### `validateSessions(raw, filePath?): SessionDef[]`
 
@@ -45,7 +41,7 @@ No internal imports.
 
 ## interpolate.ts
 
-Config loading. The `${...}` interpolation functions, `flattenVars`, and `parseRunFlow` live in `@uivisor/core` (`packages/core/src/interpolate.ts`), which recorder-app also uses. They are described under [Interpolation](#interpolation-uivisorcore).
+Config loading. The `${...}` interpolation functions, `validateVars`, `flattenVars`, and `parseRunFlow` live in `@uivisor/core` (`packages/core/src/interpolate.ts`), which recorder-app also uses. They are described under [Interpolation](#interpolation-uivisorcore).
 
 ### `loadConfigFile(configPath, flowFilePath): Record<string, string>`
 
@@ -66,6 +62,10 @@ Forward-scan over a string, replacing all `${...}` expressions via `resolveRef`.
 #### `interpolateObject(obj, vars, strict = false): unknown`
 
 Deep-walks any value (string, array, object, primitive) and calls `interpolateValue` on string leaves. Never mutates input.
+
+#### `validateVars(raw, filePath?): void`
+
+Asserts `vars` is a plain object (not null, not array).
 
 #### `flattenVars(raw, filePath?): Record<string, string>`
 
@@ -114,13 +114,13 @@ Full YAML-to-`FlowFile` pipeline in three passes.
 2. If `config:` is present, interpolate `${env.*}` only and call `loadConfigFile` to load external vars.
 
 **Pass 2 — Variable merging:**
-1. `flattenVars` on inline `vars:` block.
+1. `validateVars` then `flattenVars` on inline `vars:` block.
 2. Merge with config vars (config wins on conflicts).
 
 **Pass 3 — Interpolation and parsing:**
 1. `interpolateObject` on the entire document using the merged vars.
 2. `validateHeader` — validate keys, get `baseUrl`.
-3. `validateVars`, `validateCommandList`, `validateSessions`.
+3. `validateCommandList`, `validateSessions`.
 4. `parseSessionedCommand` for each command.
 5. Validate that any `session:` field references a declared session ID.
 
@@ -138,4 +138,4 @@ Full YAML-to-`FlowFile` pipeline in three passes.
 }
 ```
 
-**Internal imports:** `parser/reader`, `parser/validator`, `parser/commandParser`, `parser/interpolate`. `flattenVars`, `interpolateValue`, and `interpolateObject` come from `@uivisor/core`.
+**Internal imports:** `parser/reader`, `parser/validator`, `parser/commandParser`, `parser/interpolate`. `validateVars`, `flattenVars`, `interpolateValue`, and `interpolateObject` come from `@uivisor/core`.

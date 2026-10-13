@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Hoist mock before any module imports so Vitest replaces the real module.
 vi.mock('../../src/parser/reader');
 
-import { validateHeader, validateCommandList, validateVars } from '../../src/parser/validator';
+import { validateHeader, validateCommandList } from '../../src/parser/validator';
 import { loadConfigFile } from '../../src/parser/interpolate';
 import { parseSelector } from '@uivisor/core';
 import { parseCommand } from '../../src/parser/commandParser';

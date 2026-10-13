@@ -115,6 +115,12 @@ export function interpolateObject(obj: unknown, vars: Record<string, string>, st
   return obj;
 }
 
+export function validateVars(raw: unknown, filePath?: string): void {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(`Invalid vars: must be a plain object${filePath ? ' in ' + filePath : ''}`);
+  }
+}
+
 const VAR_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 
 /**
