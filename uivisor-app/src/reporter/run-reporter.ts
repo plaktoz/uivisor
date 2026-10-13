@@ -15,6 +15,19 @@ export interface RunReporter {
   close(): void;
 }
 
+/** `--reporter plain|live`; auto when neither is given. */
+export type ConsoleFlag = 'auto' | 'plain' | 'live';
+
+/** A forced flag wins, so `--reporter live` into a pipe still draws the checklist. */
+export function resolveConsoleMode(
+  flag: ConsoleFlag,
+  out: { readonly isTTY?: boolean },
+  env: Readonly<Record<string, string | undefined>>,
+): 'plain' | 'live' {
+  if (flag !== 'auto') return flag;
+  return out.isTTY === true && env.TERM !== 'dumb' ? 'live' : 'plain';
+}
+
 /**
  * Today's append-only output. It ignores progress and prints each flow after it finishes,
  * because a passing runFlow line is printed before its children, which a streaming printer

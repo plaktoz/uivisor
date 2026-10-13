@@ -409,3 +409,25 @@ describe('console output format', () => {
     expect(combined).toMatch(/File not found.*ghost\.yaml/i);
   }, 30_000);
 });
+
+describe('console style', () => {
+  it('piped output with no --reporter style is plain, with no escape codes', async () => {
+    const cwd = makeTmpDir();
+    writeFlow(cwd, 'flow.yaml', `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`);
+
+    const { stdout, exitCode } = await runUivsor(['test', 'flow.yaml'], cwd);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe(`▶ Running: flow.yaml\n  ✓ goto: ${baseUrl}\n  ✓ assertVisible: "Welcome, user"\nPASSED — 2/2 commands passed\n`);
+  }, 30_000);
+
+  it('--reporter live draws the checklist even into a pipe and restores the cursor', async () => {
+    const cwd = makeTmpDir();
+    writeFlow(cwd, 'flow.yaml', `url: ${baseUrl}\ncommands:\n  - goto: ${baseUrl}\n  - assertVisible: "Welcome, user"\n`);
+
+    const { stdout, exitCode } = await runUivsor(['test', 'flow.yaml', '--reporter', 'live'], cwd);
+    expect(exitCode).toBe(0);
+    expect(stdout.startsWith('\x1b[?25l▶ flow.yaml'), 'hides the cursor, then the pending list').toBe(true);
+    expect(stdout).toMatch(/○ goto: .*\n {2}○ assertVisible: "Welcome, user"\n/);
+    expect(stdout).toMatch(/✓ assertVisible: "Welcome, user" +\d+\.\ds\nPASSED — 2\/2 commands passed\n\x1b\[\?25h$/);
+  }, 30_000);
+});

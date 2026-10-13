@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FlowFile, FlowResult, RunResult } from '@uivisor/core';
-import { createPlainReporter } from '../../src/reporter/run-reporter';
+import { createPlainReporter, resolveConsoleMode } from '../../src/reporter/run-reporter';
 
 let out: string;
 
@@ -90,5 +90,20 @@ describe('createPlainReporter', () => {
 
     plain.runEnd(run(2));
     expect(out).toBe('\n1 flows passed, 1 flows failed\n');
+  });
+});
+
+describe('resolveConsoleMode', () => {
+  it('auto draws live only on a real terminal', () => {
+    expect(resolveConsoleMode('auto', { isTTY: true }, { TERM: 'xterm-256color' })).toBe('live');
+    expect(resolveConsoleMode('auto', { isTTY: true }, {}), 'TERM unset').toBe('live');
+    expect(resolveConsoleMode('auto', { isTTY: true }, { TERM: 'dumb' })).toBe('plain');
+    expect(resolveConsoleMode('auto', { isTTY: false }, {})).toBe('plain');
+    expect(resolveConsoleMode('auto', {}, {}), 'pipes have no isTTY').toBe('plain');
+  });
+
+  it('a forced style wins', () => {
+    expect(resolveConsoleMode('live', {}, { TERM: 'dumb' })).toBe('live');
+    expect(resolveConsoleMode('plain', { isTTY: true }, {})).toBe('plain');
   });
 });

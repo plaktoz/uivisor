@@ -52,6 +52,7 @@ npm run uivisor -- test <target> [options]
 | `--slow-mo <ms>` | Delay in milliseconds between each action |
 | `--reporter html` | Write an HTML report to `<output-dir>/<YYYYMMDD-HHmm>/uivisor-report.html` |
 | `--reporter md` | Write a Markdown report to `<output-dir>/<YYYYMMDD-HHmm>/uivisor-report.md` |
+| `--reporter live` / `--reporter plain` | Force the live checklist or the append-only console output (default: live on a terminal, plain otherwise). Combines with `html`/`md`: `--reporter md --reporter live` |
 | `--output-dir <path>` | Base directory for report output (default: `target/`) |
 | `--tag <name>` | Only run flows with this tag (repeatable; multiple flags use OR semantics) |
 
@@ -711,7 +712,9 @@ commands:
 
 ### Console (default)
 
-Steps print as they run with pass/fail icons and durations. Failed steps show the error and a path to an auto-captured screenshot.
+On a terminal, each flow is shown as a live checklist: every step is listed as `○` before the first one runs, the running step shows a spinner and elapsed time, and finished steps show `✓`/`✗` with their duration. Steps after a failure show `–`. A `runFlow` expands into its child steps when it starts; `within` steps are listed nested from the start. When the flow ends, the finished checklist stays on screen.
+
+When output is not a terminal (CI, a pipe, `> log.txt`), each flow prints after it finishes as append-only lines with pass/fail icons. Failed steps show the error and a path to an auto-captured screenshot. `--reporter plain` or `--reporter live` overrides the choice.
 
 ### HTML report (`--reporter html`)
 
