@@ -39,7 +39,7 @@ function setup(term: { columns?: number; rows?: number } = { columns: 60, rows: 
   const reporter = createLiveReporter({
     out: { ...term, write: (s: string) => writes.push(s) },
     now: () => t,
-    every: (_ms, fn) => {
+    unrefInterval: (_ms, fn) => {
       tick = fn;
       return { stop: () => { tick = null; } };
     },

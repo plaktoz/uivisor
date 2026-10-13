@@ -29,8 +29,7 @@ export interface ProcessHooks {
 export interface LiveDeps {
   readonly out: Terminal;
   readonly now: () => number;
-  /** Must not keep the process alive on its own. */
-  readonly every: (ms: number, fn: () => void) => { stop(): void };
+  readonly unrefInterval: (ms: number, fn: () => void) => { stop(): void };
   readonly proc: ProcessHooks;
   readonly plain: RunReporter;
 }
@@ -42,15 +41,14 @@ const rewind = (lines: number): string => (lines > 0 ? `\x1b[${lines}F\x1b[J` : 
 type Screen =
   | { readonly kind: 'idle' }
   | { readonly kind: 'flow'; readonly file: FlowFile; readonly list: Checklist; readonly height: number; readonly painted: string }
-  /** An internal error happened: plain output for the rest of the run. */
-  | { readonly kind: 'degraded' }
+  | { readonly kind: 'plain' }
   | { readonly kind: 'closed' };
 
 function defaultDeps(): LiveDeps {
   return {
     out: process.stdout,
     now: Date.now,
-    every: (ms, fn) => {
+    unrefInterval: (ms, fn) => {
       const timer = setInterval(fn, ms);
       timer.unref();
       return { stop: () => clearInterval(timer) };
@@ -60,13 +58,8 @@ function defaultDeps(): LiveDeps {
   };
 }
 
-/**
- * The in-place checklist. All content decisions live in checklist.ts; this owns the terminal:
- * cursor visibility, repainting the region, and putting the terminal back on close, exit or
- * Ctrl-C. A reporter failure never fails the run: it falls back to plain output instead.
- */
 export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReporter {
-  const { out, now, every, proc, plain } = { ...defaultDeps(), ...overrides };
+  const { out, now, unrefInterval, proc, plain } = { ...defaultDeps(), ...overrides };
   let screen: Screen = { kind: 'idle' };
   let ticker: { stop(): void } | null = null;
   let hooked = false;
@@ -83,8 +76,7 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
     screen = { ...screen, height: frame.length, painted: body };
   };
 
-  /** Replaces the live region with lines that stay in scrollback. */
-  const commit = (lines: readonly string[]): void => {
+  const commitToScrollback = (lines: readonly string[]): void => {
     if (screen.kind !== 'flow') return;
     out.write(`${rewind(screen.height)}${lines.join('\n')}\n`);
     screen = { kind: 'idle' };
@@ -107,7 +99,7 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
     out.write(HIDE_CURSOR);
     proc.on('exit', onExit);
     proc.on('SIGINT', onSigint);
-    ticker = every(FRAME_MS, () => guard(paint));
+    ticker = unrefInterval(FRAME_MS, () => guard(paint));
   };
 
   const unhook = (): void => {
@@ -125,11 +117,10 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
       fn();
     } catch {
       const file = screen.kind === 'flow' ? screen.file : null;
-      screen = { kind: 'degraded' };
+      screen = { kind: 'plain' };
       try {
         unhook();
       } catch {
-        // the terminal is already unusable; plain output below is all that is left
       }
       if (file) plain.startFlow(file);
     }
@@ -137,7 +128,7 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
 
   const reporter: RunReporter = {
     startFlow(file) {
-      if (screen.kind === 'degraded') return plain.startFlow(file);
+      if (screen.kind === 'plain') return plain.startFlow(file);
       if (screen.kind === 'closed') return;
       guard(() => {
         hook();
@@ -155,9 +146,9 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
     endFlow(result: FlowResult) {
       if (screen.kind === 'flow') {
         const list = screen.list;
-        guard(() => commit(renderFinal(finishChecklist(list, result), view().columns)));
+        guard(() => commitToScrollback(renderFinal(finishChecklist(list, result), view().columns)));
       }
-      if (screen.kind === 'degraded') plain.endFlow(result);
+      if (screen.kind === 'plain') plain.endFlow(result);
     },
 
     runEnd(result) {
@@ -167,7 +158,7 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
     close() {
       if (screen.kind === 'flow') {
         const list = screen.list;
-        guard(() => commit(renderFinal(abortChecklist(list, now()), view().columns)));
+        guard(() => commitToScrollback(renderFinal(abortChecklist(list, now()), view().columns)));
       }
       guard(unhook);
       screen = { kind: 'closed' };

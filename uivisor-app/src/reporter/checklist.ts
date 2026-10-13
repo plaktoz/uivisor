@@ -1,7 +1,7 @@
 import * as path from 'path';
 import type { Command, CommandResult, FlowFile, FlowResult, ProgressEvent, SessionedCommand } from '@uivisor/core';
 import { commandLabel } from './label.js';
-import { flowSummary } from './console.js';
+import { failureLines, flowSummary } from './console.js';
 
 export type StepState =
   | { readonly phase: 'pending' }
@@ -11,10 +11,6 @@ export type StepState =
 type WithinCommand = Extract<Command, { type: 'within' }>;
 type RunFlowCommand = Extract<Command, { type: 'runFlow' }>;
 
-/**
- * `planned` is the raw command from the plan. within children come from `do:` up front;
- * runFlow children stay null until the included file has loaded.
- */
 export type Step =
   | { readonly kind: 'leaf'; readonly planned: Command; readonly state: StepState }
   | { readonly kind: 'within'; readonly planned: WithinCommand; readonly state: StepState; readonly children: readonly Step[] }
@@ -55,10 +51,9 @@ function childrenOf(step: Step): readonly Step[] {
   return step.kind === 'leaf' ? [] : step.children ?? [];
 }
 
-/** Index path to the deepest running step; [] when nothing is running. */
-function cursorPath(steps: readonly Step[]): number[] {
+function runningPath(steps: readonly Step[]): number[] {
   const i = steps.findIndex((s) => s.state.phase === 'running');
-  return i < 0 ? [] : [i, ...cursorPath(childrenOf(steps[i]))];
+  return i < 0 ? [] : [i, ...runningPath(childrenOf(steps[i]))];
 }
 
 function stepAt(steps: readonly Step[], at: readonly number[]): Step {
@@ -75,14 +70,9 @@ function updateAt(steps: readonly Step[], at: readonly number[], fn: (s: Step) =
   });
 }
 
-/**
- * Fold one engine event into the checklist. Steps are located by the bracket structure the
- * engine guarantees: stepStart claims the first pending child of the deepest running step,
- * stepEnd closes that step, include expands it. A stream that breaks the structure throws.
- */
 export function applyEvent(list: Checklist, event: ProgressEvent, now: number): Checklist {
   if (list.end !== null) throw new ChecklistProtocolError(`${event.kind} after the flow ended`);
-  const open = cursorPath(list.steps);
+  const open = runningPath(list.steps);
   const openStep = open.length > 0 ? stepAt(list.steps, open) : null;
 
   switch (event.kind) {
@@ -120,12 +110,9 @@ export function finishChecklist(list: Checklist, result: FlowResult): EndedCheck
   return { ...list, end: { kind: 'finished', result } };
 }
 
-/** The run stopped before the flow reported its result. Keeps an existing end. */
 export function abortChecklist(list: Checklist, now: number): EndedChecklist {
   return list.end !== null ? { ...list, end: list.end } : { ...list, end: { kind: 'aborted', at: now } };
 }
-
-// ─── Rows: the tree flattened, with every status derived ─────────────────────
 
 export type Mark = 'pending' | 'running' | 'passed' | 'failed' | 'skipped' | 'interrupted';
 
@@ -133,7 +120,6 @@ export interface Row {
   readonly depth: number;
   readonly mark: Mark;
   readonly label: string;
-  /** done: final duration; running or interrupted: elapsed; otherwise null. */
   readonly ms: number | null;
   readonly details: readonly string[];
 }
@@ -154,22 +140,10 @@ function labelOf(step: Step): string {
   }
 }
 
-/** Same lines, in the same order, as ConsoleReporter prints under a failed command. */
 function failureDetails(r: CommandResult): string[] {
-  const lines: string[] = [];
-  if (r.expected) lines.push(`Expected: ${r.expected}`);
-  if (r.got) lines.push(`Got: ${r.got}`);
-  if (r.screenshotPath) lines.push(`Screenshot: ${r.screenshotPath}`);
-  if (r.message && !r.expected) lines.push(r.message);
-  return lines.flatMap((l) => l.split('\n'));
+  return failureLines(r).flatMap((l) => l.split('\n'));
 }
 
-/**
- * Depth-first rows; top-level steps have depth 1. A pending step is skipped once its container
- * can no longer run it: the parent step is done or skipped, or the flow has ended. Failure details sit on
- * the step where the failure originated, so a failed runFlow or within with a failed child
- * shows none of its own.
- */
 export function toRows(list: Checklist, now: number): Row[] {
   const ended = list.end !== null;
   const aborted = list.end?.kind === 'aborted';
@@ -201,8 +175,6 @@ function msOf(step: Step, now: number): number | null {
   }
 }
 
-// ─── Rendering ───────────────────────────────────────────────────────────────
-
 export interface Viewport {
   readonly columns: number;
   readonly rows: number;
@@ -210,7 +182,7 @@ export interface Viewport {
 
 /**
  * Lines that can be repainted in place: no line wraps and the block never scrolls, so moving
- * the cursor up by the line count lands on the first line. Only renderLive produces one.
+ * the cursor up by the line count lands on the first line.
  */
 export type LiveFrame = readonly string[] & { readonly __liveFrame: unique symbol };
 
@@ -225,14 +197,12 @@ const ICON: Record<Exclude<Mark, 'running'>, string> = {
   interrupted: '✗',
 };
 
-/** 0.4s · 38.2s · 1m02s */
 export function formatDuration(ms: number): string {
   if (ms < 60_000) return `${(Math.floor(ms / 100) / 10).toFixed(1)}s`;
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`;
 }
 
-/** 00:41 · 12:03 */
 export function formatClock(ms: number): string {
   const s = Math.floor(Math.max(0, ms) / 1000);
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -262,7 +232,6 @@ function truncate(s: string, max: number): string {
   return max <= 0 ? '' : `${chars.slice(0, max - 1).join('')}…`;
 }
 
-/** `left` and right-aligned `right` in exactly `cols` or fewer columns; the left side gives way. */
 function fitLine(left: string, right: string, cols: number): string {
   if (right === '') return truncate(left, cols);
   const room = cols - width(right) - 1;
@@ -271,8 +240,7 @@ function fitLine(left: string, right: string, cols: number): string {
   return l + ' '.repeat(cols - width(l) - width(right)) + right;
 }
 
-/** Pads to `cols` when it fits; otherwise keeps everything with a single space. */
-function alignLine(left: string, right: string, cols: number): string {
+function padLine(left: string, right: string, cols: number): string {
   if (right === '') return left;
   const gap = cols - width(left) - width(right);
   return left + ' '.repeat(Math.max(1, gap)) + right;
@@ -280,11 +248,6 @@ function alignLine(left: string, right: string, cols: number): string {
 
 const title = (list: Checklist): string => `▶ ${path.basename(list.filePath)}`;
 
-/**
- * The in-place frame for the running flow. Every line is fitted to columns - 1 and the frame
- * is at most rows - 1 lines; when the steps do not fit, the body is a window around the
- * deepest running step (else the last finished one) with `… N more` markers.
- */
 export function renderLive(list: Checklist, now: number, view: Viewport): LiveFrame {
   const cols = Math.max(1, view.columns - 1);
   const maxLines = Math.max(1, view.rows - 1);
@@ -312,15 +275,12 @@ export function renderLive(list: Checklist, now: number, view: Viewport): LiveFr
   return [header, ...windowLines(body, focusStart, focusEnd, maxLines - 1, cols)] as unknown as LiveFrame;
 }
 
-/**
- * At most `budget` lines around the focus block [focusStart, focusEnd): about a third of the
- * window is left for what comes next, and the focus step's own line wins over the tail of its
- * details. Each hidden run becomes one `… N more` marker line.
- */
+const LOOKAHEAD_FRACTION_DIVISOR = 3;
+
 function windowLines(lines: readonly string[], focusStart: number, focusEnd: number, budget: number, cols: number): string[] {
   if (lines.length <= budget) return [...lines];
   if (budget < 3) return lines.slice(focusStart, focusStart + budget);
-  const after = Math.floor((budget - 1) / 3);
+  const after = Math.floor((budget - 1) / LOOKAHEAD_FRACTION_DIVISOR);
   let start = Math.min(Math.max(0, focusEnd + after - budget), lines.length - budget);
   start = Math.min(start, Math.max(0, focusStart - 1));
   const end = start + budget;
@@ -334,16 +294,12 @@ function windowLines(lines: readonly string[], focusStart: number, focusEnd: num
   ];
 }
 
-/**
- * The block left in scrollback when the flow ends: every step, untruncated, times aligned to
- * `columns - 1` like the live frame, then the same footer line ConsoleReporter prints.
- */
 export function renderFinal(list: EndedChecklist, columns: number): string[] {
   const cols = Math.max(1, columns - 1);
   const endAt = list.end.kind === 'aborted' ? list.end.at : list.startedAt + list.end.result.durationMs;
-  const lines = [alignLine(title(list), `(${formatClock(endAt - list.startedAt)})`, cols)];
+  const lines = [padLine(title(list), `(${formatClock(endAt - list.startedAt)})`, cols)];
   for (const row of toRows(list, endAt)) {
-    lines.push(alignLine(stepLeft(row, endAt), rightColumn(row), cols));
+    lines.push(padLine(stepLeft(row, endAt), rightColumn(row), cols));
     lines.push(...detailLines(row));
   }
   if (list.end.kind === 'finished') lines.push(flowSummary(list.end.result));

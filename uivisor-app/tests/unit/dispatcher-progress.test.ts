@@ -24,8 +24,7 @@ function makeLocator(count: number): Locator {
   return loc as unknown as Locator;
 }
 
-/** `text=` containers resolve to one match; everything else to none. */
-function makePage(): Page {
+function pageWhereOnlyTextMatches(): Page {
   return {
     url: vi.fn().mockReturnValue('http://test/'),
     locator: vi.fn().mockReturnValue(makeLocator(0)),
@@ -40,7 +39,7 @@ function makePage(): Page {
 
 function record(): { ctx: RunContext; events: ProgressEvent[]; page: Page } {
   const events: ProgressEvent[] = [];
-  const page = makePage();
+  const page = pageWhereOnlyTextMatches();
   const ctx: RunContext = {
     lastTappedLocator: null,
     callStack: new Set(),
@@ -55,7 +54,6 @@ function record(): { ctx: RunContext; events: ProgressEvent[]; page: Page } {
   return { ctx, events, page };
 }
 
-/** Compact trace: `+type` start, `-type✓|✗` end, `@file` include. */
 function trace(events: ProgressEvent[]): string[] {
   return events.map((e) => {
     switch (e.kind) {
@@ -66,7 +64,6 @@ function trace(events: ProgressEvent[]): string[] {
   });
 }
 
-/** The invariant listeners rely on, checked independently of any one expected trace. */
 function assertWellBracketed(events: ProgressEvent[]): void {
   const open: { type: Command['type']; children: number }[] = [];
   for (const e of events) {

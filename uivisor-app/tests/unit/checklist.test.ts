@@ -32,7 +32,6 @@ const fail = (command: Command, durationMs: number, extra: Partial<CommandResult
   ({ kind: 'stepEnd', result: { command, passed: false, durationMs, ...extra } });
 const include = (f: FlowFile): ProgressEvent => ({ kind: 'include', file: f });
 
-/** Applies events at T0 + the given offsets (ms). */
 function replay(list: Checklist, ...steps: [number, ProgressEvent][]): Checklist {
   return steps.reduce((l, [at, e]) => applyEvent(l, e, T0 + at), list);
 }
@@ -41,8 +40,7 @@ function flowResult(passed: boolean, passedCommands: number, totalCommands: numb
   return { filePath: '/flows/my-flow.yaml', passed, commandResults: [], totalCommands, passedCommands, durationMs };
 }
 
-/** `left` and `right` right-aligned in exactly `cols` code points. */
-const ra = (cols: number, left: string, right: string) => left + ' '.repeat(cols - [...left].length - [...right].length) + right;
+const rightAligned = (cols: number, left: string, right: string) => left + ' '.repeat(cols - [...left].length - [...right].length) + right;
 
 const marks = (list: Checklist, now = T0) => toRows(list, now).map((r) => `${'  '.repeat(r.depth - 1)}${r.mark} ${r.label}`);
 
@@ -186,7 +184,6 @@ describe('formatting', () => {
   });
 });
 
-/** Mid-run state matching the backlog example: login done, step 3 running for 2.1s. */
 function midRun(): Checklist {
   const flow = file('/flows/my-flow.yaml', runFlow('./login.yaml'), tap('text=N3-3'), tap({ css: 'h6' }), tap('text=12'), { type: 'inputText', text: '${date}' });
   return replay(planChecklist(flow, T0),
@@ -207,12 +204,12 @@ describe('renderLive', () => {
   it('draws the in-place frame: header, nested rows, spinner and live timer on the running step', () => {
     const now = T0 + 3_800;
     expect(renderLive(midRun(), now, { columns: 61, rows: 24 })).toEqual([
-      ra(60, '▶ my-flow.yaml', '(step 3 of 5 · 00:03)'),
-      ra(60, '  ✓ runFlow: ./login.yaml', '1.3s'),
-      ra(60, '    ✓ goto: http://test/login', '1.1s'),
-      ra(60, '    ✓ tapOn: "login-submit"', '0.2s'),
-      ra(60, '  ✓ tapOn: "text=N3-3"', '0.4s'),
-      ra(60, '  ◑ tapOn: {"css":"h6"}', '2.1s…'),
+      rightAligned(60, '▶ my-flow.yaml', '(step 3 of 5 · 00:03)'),
+      rightAligned(60, '  ✓ runFlow: ./login.yaml', '1.3s'),
+      rightAligned(60, '    ✓ goto: http://test/login', '1.1s'),
+      rightAligned(60, '    ✓ tapOn: "login-submit"', '0.2s'),
+      rightAligned(60, '  ✓ tapOn: "text=N3-3"', '0.4s'),
+      rightAligned(60, '  ◑ tapOn: {"css":"h6"}', '2.1s…'),
       '  ○ tapOn: "text=12"',
       '  ○ inputText: ${date}',
     ]);
@@ -232,7 +229,7 @@ describe('renderLive', () => {
   it('truncates long labels with … and keeps the time column', () => {
     const frame = renderLive(midRun(), T0 + 3_800, { columns: 30, rows: 24 });
     expect(frame[2]).toBe('    ✓ goto: http://test… 1.1s');
-    expect(frame[5]).toBe(ra(29, '  ◑ tapOn: {"css":"h6"}', '2.1s…'));
+    expect(frame[5]).toBe(rightAligned(29, '  ◑ tapOn: {"css":"h6"}', '2.1s…'));
   });
 
   it('windows a tall checklist around the running step with … N more markers', () => {
@@ -243,13 +240,13 @@ describe('renderLive', () => {
 
     const frame = renderLive(list, T0, { columns: 40, rows: 10 });
     expect(frame).toEqual([
-      ra(39, '▶ long.yaml', '(step 21 of 30 · 00:00)'),
+      rightAligned(39, '▶ long.yaml', '(step 21 of 30 · 00:00)'),
       '  … 16 more',
-      ra(39, '  ✓ tapOn: "s16"', '0.1s'),
-      ra(39, '  ✓ tapOn: "s17"', '0.1s'),
-      ra(39, '  ✓ tapOn: "s18"', '0.1s'),
-      ra(39, '  ✓ tapOn: "s19"', '0.1s'),
-      ra(39, '  ◐ tapOn: "s20"', '0.0s…'),
+      rightAligned(39, '  ✓ tapOn: "s16"', '0.1s'),
+      rightAligned(39, '  ✓ tapOn: "s17"', '0.1s'),
+      rightAligned(39, '  ✓ tapOn: "s18"', '0.1s'),
+      rightAligned(39, '  ✓ tapOn: "s19"', '0.1s'),
+      rightAligned(39, '  ◐ tapOn: "s20"', '0.0s…'),
       '  ○ tapOn: "s21"',
       '  … 8 more',
     ]);
@@ -263,7 +260,7 @@ describe('renderLive', () => {
 
     const frame = renderLive(list, T0, { columns: 40, rows: 8 });
     expect(frame.length).toBe(7);
-    expect(frame).toContain(ra(39, '  ✗ tapOn: "s25"', '0.1s'));
+    expect(frame).toContain(rightAligned(39, '  ✗ tapOn: "s25"', '0.1s'));
     expect(frame).toContain('    line one');
     expect(frame).toContain('    line two');
   });
@@ -288,12 +285,12 @@ describe('renderFinal', () => {
     const list = replay(midRun(), [3_000, fail(tap({ css: 'h6' }), 1_300, { message: 'not found', screenshotPath: shot })]);
     const lines = renderFinal(finishChecklist(list, flowResult(false, 2, 5, 3_000)), 50);
     expect(lines).toEqual([
-      ra(49, '▶ my-flow.yaml', '(00:03)'),
-      ra(49, '  ✓ runFlow: ./login.yaml', '1.3s'),
-      ra(49, '    ✓ goto: http://test/login', '1.1s'),
-      ra(49, '    ✓ tapOn: "login-submit"', '0.2s'),
-      ra(49, '  ✓ tapOn: "text=N3-3"', '0.4s'),
-      ra(49, '  ✗ tapOn: {"css":"h6"}', '1.3s'),
+      rightAligned(49, '▶ my-flow.yaml', '(00:03)'),
+      rightAligned(49, '  ✓ runFlow: ./login.yaml', '1.3s'),
+      rightAligned(49, '    ✓ goto: http://test/login', '1.1s'),
+      rightAligned(49, '    ✓ tapOn: "login-submit"', '0.2s'),
+      rightAligned(49, '  ✓ tapOn: "text=N3-3"', '0.4s'),
+      rightAligned(49, '  ✗ tapOn: {"css":"h6"}', '1.3s'),
       `    Screenshot: ${shot}`,
       '    not found',
       '  – tapOn: "text=12"',
@@ -304,7 +301,7 @@ describe('renderFinal', () => {
 
   it('ends an aborted flow with the interrupted step and no footer', () => {
     const lines = renderFinal(abortChecklist(midRun(), T0 + 2_500), 50);
-    expect(lines[5]).toBe(ra(49, '  ✗ tapOn: {"css":"h6"}', '0.8s interrupted'));
+    expect(lines[5]).toBe(rightAligned(49, '  ✗ tapOn: {"css":"h6"}', '0.8s interrupted'));
     expect(lines.at(-1)).toBe('  – inputText: ${date}');
   });
 });

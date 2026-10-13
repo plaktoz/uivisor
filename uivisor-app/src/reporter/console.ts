@@ -16,10 +16,7 @@ export class ConsoleReporter {
       process.stdout.write(`${indent}✓ ${cmdSummary}\n`);
     } else {
       process.stdout.write(`${indent}✗ ${cmdSummary} — FAILED\n`);
-      if (result.expected) process.stdout.write(`${indent}  Expected: ${result.expected}\n`);
-      if (result.got) process.stdout.write(`${indent}  Got: ${result.got}\n`);
-      if (result.screenshotPath) process.stdout.write(`${indent}  Screenshot: ${result.screenshotPath}\n`);
-      if (result.message && !result.expected) process.stdout.write(`${indent}  ${result.message}\n`);
+      for (const line of failureLines(result)) process.stdout.write(`${indent}  ${line}\n`);
 
       // Print nested flow results recursively
       if (result.nestedResult) {
@@ -50,6 +47,15 @@ export class ConsoleReporter {
       process.stdout.write(`\n${result.passedFlows} flows passed, ${result.failedFlows} flows failed\n`);
     }
   }
+}
+
+export function failureLines(r: CommandResult): string[] {
+  const lines: string[] = [];
+  if (r.expected) lines.push(`Expected: ${r.expected}`);
+  if (r.got) lines.push(`Got: ${r.got}`);
+  if (r.screenshotPath) lines.push(`Screenshot: ${r.screenshotPath}`);
+  if (r.message && !r.expected) lines.push(r.message);
+  return lines;
 }
 
 export function flowSummary(result: FlowResult): string {
