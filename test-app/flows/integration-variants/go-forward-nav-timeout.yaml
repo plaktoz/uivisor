@@ -1,0 +1,21 @@
+appId: ${base}/integration
+config: ../integration/config.yml
+navigationTimeout: 20000
+# Tests: goForward keeps its behaviour under a custom navigationTimeout (AC34)
+# Copy of integration/go-forward.yaml with navigationTimeout: 20000 added.
+# Uses link-click navigation (tapOn) to build a traversable history stack
+commands:
+  - goto: ${base}/login
+  # Click through to integration so /login is in the back history
+  - tapOn:
+      testId: login-integration-link
+  - assertUrl: /integration
+  # Navigate away via link click
+  - tapOn:
+      testId: int-nav-away-link
+  - assertUrl: /login
+  # Go back to integration, then go forward to login
+  - goBack: ~
+  - assertUrl: /integration
+  - goForward: ~
+  - assertUrl: /login
