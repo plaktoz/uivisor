@@ -14,6 +14,7 @@ step() { echo; echo "── $* ──"; }
 step "Cleaning"
 log "Removing workspace node_modules and dist directories..."
 rm -rf node_modules packages/core/node_modules packages/core/dist \
+       ui-diff/node_modules ui-diff/dist ui-diff/coverage \
        uivisor-app/node_modules uivisor-app/dist \
        recorder-app/node_modules recorder-app/dist
 log "Removing test-app node_modules and dist..."
@@ -22,6 +23,13 @@ rm -rf test-app/node_modules test-app/dist
 # ── workspace install ─────────────────────────────────────────────────────────
 step "Installing workspace dependencies"
 npm install
+
+# ── ui-diff ───────────────────────────────────────────────────────────────────
+step "Building ui-diff"
+npm run build --workspace=ui-diff
+
+step "Testing ui-diff"
+npm test --workspace=ui-diff
 
 # ── packages/core ─────────────────────────────────────────────────────────────
 step "Building packages/core"
