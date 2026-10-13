@@ -20,6 +20,9 @@ export interface VarMap {
   set(name: string, value: string): void;
   unset(name: string): void;               // always no-op if absent
   toRecord(): Record<string, string>;      // runtime entries override base
+  hasRuntime(name: string): boolean;       // check if overridden in runtime map
+  isUnset(name: string): boolean;          // check if explicitly unset
+  delete(name: string): void;              // delete from runtime override and unset flags
 }
 
 /** Runner for built-in and user-defined method calls in setVar. */
@@ -49,7 +52,7 @@ export type Command =
   | { type: 'assertNotVisible';   selector: Selector }
   | { type: 'wait';               ms: number }
   | { type: 'assertUrl';          path: string }
-  | { type: 'runFlow';            path: string }
+  | { type: 'runFlow';            path: string; vars?: Record<string, string> }
   | { type: 'scroll';             direction: 'up' | 'down' | 'left' | 'right' }
   | { type: 'assertText';      selector: Selector; expected: string }
   | { type: 'assertValue';     selector: Selector; expected: string }

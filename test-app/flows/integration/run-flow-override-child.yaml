@@ -1,0 +1,13 @@
+appId: ${base}/integration
+config: config.yml
+vars:
+  textToType: Child Default Text
+commands:
+  - tapOn:
+      testId: int-input-shorthand
+  - clearText:
+      testId: int-input-shorthand
+  - inputText: ${textToType}
+  - assertValue:
+      testId: int-input-shorthand
+      expected: ${textToType}

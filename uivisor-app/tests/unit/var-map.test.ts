@@ -92,4 +92,42 @@ describe('createVarMap', () => {
     const r2 = vm.toRecord();
     expect(r2['a']).toBe('1');
   });
+
+  it('hasRuntime reports whether a key is overridden in the runtime map', () => {
+    const vm = createVarMap({ a: '1' });
+    expect(vm.hasRuntime('a')).toBe(false);
+    vm.set('a', 'overridden');
+    expect(vm.hasRuntime('a')).toBe(true);
+    expect(vm.hasRuntime('b')).toBe(false);
+    vm.set('b', 'new');
+    expect(vm.hasRuntime('b')).toBe(true);
+  });
+
+  it('isUnset reports whether a key is explicitly unset', () => {
+    const vm = createVarMap({ a: '1' });
+    expect(vm.isUnset('a')).toBe(false);
+    vm.unset('a');
+    expect(vm.isUnset('a')).toBe(true);
+    expect(vm.isUnset('b')).toBe(false);
+    vm.unset('b');
+    expect(vm.isUnset('b')).toBe(true);
+  });
+
+  it('delete removes runtime overrides and unset flags completely', () => {
+    const vm = createVarMap({ a: '1' });
+    vm.set('a', 'overridden');
+    expect(vm.get('a')).toBe('overridden');
+    vm.delete('a');
+    expect(vm.get('a')).toBe('1'); // falls back to base
+
+    vm.unset('a');
+    expect(vm.get('a')).toBeUndefined();
+    vm.delete('a');
+    expect(vm.get('a')).toBe('1'); // falls back to base
+
+    vm.set('b', 'new');
+    expect(vm.get('b')).toBe('new');
+    vm.delete('b');
+    expect(vm.get('b')).toBeUndefined();
+  });
 });

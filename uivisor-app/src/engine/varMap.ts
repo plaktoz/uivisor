@@ -43,5 +43,18 @@ export function createVarMap(base: Record<string, string>): VarMap {
       }
       return result;
     },
+
+    hasRuntime(name: string): boolean {
+      return runtimeMap.has(name);
+    },
+
+    isUnset(name: string): boolean {
+      return unsetKeys.has(name);
+    },
+
+    delete(name: string): void {
+      runtimeMap.delete(name);
+      unsetKeys.delete(name);
+    },
   };
 }
