@@ -320,6 +320,42 @@ describe('parseCommand', () => {
     });
   });
 
+  it('parses { runFlow: { file: path, vars: { k: v } } } → runFlow Command with vars', () => {
+    expect(parseCommand({
+      runFlow: {
+        file: './sub-flow.yaml',
+        vars: {
+          userNric: 'S1234567A',
+          age: 42,
+        },
+      },
+    })).toEqual({
+      type: 'runFlow',
+      path: './sub-flow.yaml',
+      vars: {
+        userNric: 'S1234567A',
+        age: '42',
+      },
+    });
+  });
+
+  it('throws on invalid runFlow file type', () => {
+    expect(() => parseCommand({
+      runFlow: {
+        file: 123,
+      },
+    })).toThrow('runFlow file must be a string');
+  });
+
+  it('throws on invalid runFlow vars type', () => {
+    expect(() => parseCommand({
+      runFlow: {
+        file: './sub-flow.yaml',
+        vars: 'not-an-object',
+      },
+    })).toThrow('runFlow vars must be an object');
+  });
+
   // AC6: unknown command name
   it('AC6: throws an error that identifies the unknown command name', () => {
     expect(() => parseCommand({ unknownCmd: 'value' })).toThrow(

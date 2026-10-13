@@ -161,3 +161,154 @@ describe('var scope: shared varMap across nested runFlow', () => {
     }
   });
 });
+
+describe('var scope: nested runFlow with overrides and defaults', () => {
+  it('uses child flow defaults when not overridden by caller', async () => {
+    const pageA = makePage();
+    const ctx = makeCtx(pageA);
+
+    const tmpDir = os.tmpdir();
+    const subFlowPath = path.join(tmpDir, `uivisor-sub-defaults-${Date.now()}.yaml`);
+    fs.writeFileSync(
+      subFlowPath,
+      `appId: http://test\nvars:\n  childDefault: "defaultValue"\ncommands:\n  - testVarSet: childDefault\n`,
+      'utf8',
+    );
+
+    const testFlow = flow([
+      { command: { type: 'runFlow', path: subFlowPath } },
+    ]);
+
+    try {
+      const result = await runFlow(testFlow, pageA, ctx);
+      expect(result.passed).toBe(true);
+      // Child defaults should be removed from parent scope after the call
+      expect(ctx.varMap.get('childDefault')).toBeUndefined();
+    } finally {
+      fs.unlinkSync(subFlowPath);
+    }
+  });
+
+  it('allows call-site overrides to override child defaults and shared map, restoring them after return', async () => {
+    const pageA = makePage();
+    const ctx = makeCtx(pageA);
+
+    const tmpDir = os.tmpdir();
+    const subFlowPath = path.join(tmpDir, `uivisor-sub-overrides-${Date.now()}.yaml`);
+    fs.writeFileSync(
+      subFlowPath,
+      `appId: http://test\nvars:\n  userNric: "S111"\ncommands:\n  - testVarSet: userNric\n`,
+      'utf8',
+    );
+
+    // Initial state: userNric is not in parent map, but parent has another var that child will use.
+    ctx.varMap.set('someOtherVar', 'parentVal');
+
+    const testFlow = flow([
+      {
+        command: {
+          type: 'runFlow',
+          path: subFlowPath,
+          vars: {
+            userNric: 'S999',
+          },
+        },
+      },
+    ]);
+
+    try {
+      const result = await runFlow(testFlow, pageA, ctx);
+      expect(result.passed).toBe(true);
+      // Scoped override userNric is removed/restored after return
+      expect(ctx.varMap.get('userNric')).toBeUndefined();
+    } finally {
+      fs.unlinkSync(subFlowPath);
+    }
+  });
+
+  it('can call same sub-flow twice with different vars', async () => {
+    const pageA = makePage();
+    const ctx = makeCtx(pageA);
+
+    const tmpDir = os.tmpdir();
+    const subFlowPath = path.join(tmpDir, `uivisor-sub-double-${Date.now()}.yaml`);
+    fs.writeFileSync(
+      subFlowPath,
+      `appId: http://test\nvars:\n  item: "defaultItem"\ncommands:\n  - testVarSet: item\n`,
+      'utf8',
+    );
+
+    const testFlow = flow([
+      {
+        command: {
+          type: 'runFlow',
+          path: subFlowPath,
+          vars: {
+            item: 'apple',
+          },
+        },
+      },
+      {
+        command: {
+          type: 'runFlow',
+          path: subFlowPath,
+          vars: {
+            item: 'banana',
+          },
+        },
+      },
+    ]);
+
+    try {
+      const result = await runFlow(testFlow, pageA, ctx);
+      expect(result.passed).toBe(true);
+      expect(ctx.varMap.get('item')).toBeUndefined();
+    } finally {
+      fs.unlinkSync(subFlowPath);
+    }
+  });
+
+  it('returns a clear error when a variable is unresolved, naming both child flow and call site', async () => {
+    const pageA = makePage();
+    const ctx = makeCtx(pageA);
+
+    const tmpDir = os.tmpdir();
+    const subFlowPath = path.join(tmpDir, `uivisor-sub-unresolved-${Date.now()}.yaml`);
+    fs.writeFileSync(
+      subFlowPath,
+      `appId: http://test\ncommands:\n  - goto: "http://test/\${unresolvedVar}"\n`,
+      'utf8',
+    );
+
+    const parentFlowPath = path.join(tmpDir, `uivisor-parent-unresolved-${Date.now()}.yaml`);
+    fs.writeFileSync(
+      parentFlowPath,
+      `appId: http://test\ncommands:\n  - runFlow: "${subFlowPath}"\n`,
+      'utf8',
+    );
+
+    const testFlow: FlowFile = {
+      baseUrl: 'http://test',
+      filePath: parentFlowPath,
+      commands: [
+        { command: { type: 'runFlow', path: subFlowPath } },
+      ],
+      sessions: [],
+      tags: [],
+    };
+
+    try {
+      const result = await runFlow(testFlow, pageA, ctx);
+      expect(result.passed).toBe(false);
+      
+      const failedResult = result.commandResults.find(r => r.command.type === 'runFlow');
+      expect(failedResult).toBeDefined();
+      expect(failedResult?.message).toContain('Variable "unresolvedVar" is not defined');
+      expect(failedResult?.message).toContain(`in child flow ${subFlowPath}`);
+      expect(failedResult?.message).toContain(`called from ${parentFlowPath}`);
+    } finally {
+      fs.unlinkSync(subFlowPath);
+      fs.unlinkSync(parentFlowPath);
+    }
+  });
+});

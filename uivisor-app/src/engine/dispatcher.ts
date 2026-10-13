@@ -91,7 +91,19 @@ export async function dispatch(
   try {
     resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    let message = err instanceof Error ? err.message : String(err);
+    if (message.includes('is not defined') || message.includes('Unclosed ${')) {
+      const stack = Array.from(ctx.callStack);
+      if (stack.length > 0) {
+        const currentFlow = stack[stack.length - 1];
+        if (stack.length >= 2) {
+          const parentFlow = stack[stack.length - 2];
+          message = `${message} (in child flow ${currentFlow}, called from ${parentFlow})`;
+        } else {
+          message = `${message} (in flow ${currentFlow})`;
+        }
+      }
+    }
     return { command: cmd, passed: false, message, durationMs: Date.now() - start };
   }
 
@@ -119,16 +131,58 @@ export async function dispatch(
       };
     }
 
+    const preCallStates = new Map<string, { hasRuntime: boolean; runtimeValue?: string; isUnset: boolean }>();
+    let callStackAdded = false;
+    let indentLevelIncreased = false;
+
     try {
       const file = loadAndParse(absPath);
+
+      // ── Variable scoping and defaults merging ──
+      const overrides = resolvedCmd.vars ?? {};
+      const defaults = file.vars ?? {};
+
+      // Identify scoped keys:
+      // 1. Any key in overrides is a scoped override.
+      // 2. Any key in defaults that is NOT already in the varMap is a scoped default.
+      const scopedKeys = new Set<string>();
+      for (const key of Object.keys(overrides)) {
+        scopedKeys.add(key);
+      }
+      for (const key of Object.keys(defaults)) {
+        if (ctx.varMap.get(key) === undefined) {
+          scopedKeys.add(key);
+        }
+      }
+
+      // Capture pre-call state of scoped keys
+      for (const key of scopedKeys) {
+        preCallStates.set(key, {
+          hasRuntime: ctx.varMap.hasRuntime(key),
+          runtimeValue: ctx.varMap.hasRuntime(key) ? ctx.varMap.get(key) : undefined,
+          isUnset: ctx.varMap.isUnset(key),
+        });
+      }
+
+      // Apply child defaults first (fill-in only for keys that are undefined)
+      for (const [key, value] of Object.entries(defaults)) {
+        if (ctx.varMap.get(key) === undefined) {
+          ctx.varMap.set(key, value);
+        }
+      }
+
+      // Apply call-site overrides (highest precedence)
+      for (const [key, value] of Object.entries(overrides)) {
+        ctx.varMap.set(key, value);
+      }
+
       ctx.callStack.add(absPath);
+      callStackAdded = true;
       ctx.indentLevel++;
+      indentLevelIncreased = true;
 
       const runFn = _runFlowImpl!;
       const nestedResult = await runFn(file, page, ctx);
-
-      ctx.indentLevel--;
-      ctx.callStack.delete(absPath);
 
       return {
         command: resolvedCmd,
@@ -138,15 +192,41 @@ export async function dispatch(
         durationMs: Date.now() - start,
       };
     } catch (err: unknown) {
-      ctx.indentLevel--;
-      ctx.callStack.delete(absPath);
-      const message = err instanceof Error ? err.message : String(err);
+      let message = err instanceof Error ? err.message : String(err);
+      if (message.includes('is not defined') || message.includes('Unclosed ${')) {
+        const stack = Array.from(ctx.callStack);
+        // Include the child flow path being initialized if it wasn't added to callStack yet
+        const childPath = absPath;
+        if (stack.length > 0) {
+          const parentFlow = stack[stack.length - 1];
+          message = `${message} (in child flow ${childPath}, called from ${parentFlow})`;
+        } else {
+          message = `${message} (in flow ${childPath})`;
+        }
+      }
       return {
         command: resolvedCmd,
         passed: false,
         message,
         durationMs: Date.now() - start,
       };
+    } finally {
+      if (indentLevelIncreased) {
+        ctx.indentLevel--;
+      }
+      if (callStackAdded) {
+        ctx.callStack.delete(absPath);
+      }
+      // Restore pre-call state of scoped keys
+      for (const [key, state] of preCallStates.entries()) {
+        if (state.hasRuntime) {
+          ctx.varMap.set(key, state.runtimeValue!);
+        } else if (state.isUnset) {
+          ctx.varMap.unset(key);
+        } else {
+          ctx.varMap.delete(key);
+        }
+      }
     }
   }
 
