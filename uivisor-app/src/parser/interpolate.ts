@@ -1,64 +1,9 @@
 import * as path from 'path';
 import { readYamlFile } from './reader.js';
-import { interpolateValue } from '@uivisor/core';
+import { flattenVars, interpolateValue } from '@uivisor/core';
 import type { FlowConfig, WorkingScheduleEntry } from '@uivisor/core';
 
-const VAR_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
-
-/**
- * Recursively flatten a nested YAML object to dotted keys.
- * Validates assembled key names; coerces number/boolean/null leaves to string.
- * Rejects array/object leaves, empty/invalid names, reserved names, and duplicates.
- */
-export function flattenVars(
-  raw: Record<string, unknown>,
-  filePath?: string,
-): Record<string, string> {
-  const result: Record<string, string> = {};
-
-  function walk(obj: Record<string, unknown>, prefix: string): void {
-    for (const [key, value] of Object.entries(obj)) {
-      const fullKey = prefix ? `${prefix}.${key}` : key;
-
-      // Validate the assembled key name
-      if (!VAR_NAME_RE.test(fullKey)) {
-        throw new Error(
-          `Invalid variable name: "${fullKey}"${filePath ? ' in ' + filePath : ''}`,
-        );
-      }
-
-      // Reject reserved names (env and env.*)
-      if (fullKey === 'env' || fullKey.startsWith('env.')) {
-        throw new Error(
-          `Reserved variable name: "${fullKey}"${filePath ? ' in ' + filePath : ''}`,
-        );
-      }
-
-      if (Array.isArray(value)) {
-        throw new Error(
-          `Invalid variable value: arrays are not allowed (at "${fullKey}")${filePath ? ' in ' + filePath : ''}`,
-        );
-      } else if (
-        value !== null &&
-        typeof value === 'object'
-      ) {
-        // Nested object — recurse
-        walk(value as Record<string, unknown>, fullKey);
-      } else {
-        // Leaf: string, number, boolean, or null
-        if (fullKey in result) {
-          throw new Error(
-            `Duplicate variable key: "${fullKey}"${filePath ? ' in ' + filePath : ''}`,
-          );
-        }
-        result[fullKey] = String(value);
-      }
-    }
-  }
-
-  walk(raw, '');
-  return result;
-}
+export { flattenVars };
 
 /** Keys in config.yml that are NOT simple variables but flow-config data. */
 const FLOW_CONFIG_KEYS = new Set(['workingSchedule', 'holidays', 'functions']);

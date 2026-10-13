@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRef, interpolateValue, interpolateObject, UnresolvedVariableError } from './interpolate.js';
+import {
+  resolveRef,
+  interpolateValue,
+  interpolateObject,
+  UnresolvedVariableError,
+  flattenVars,
+  parseRunFlow,
+} from './interpolate.js';
 
 describe('variable interpolation', () => {
   // ── resolveRef (TC-021 to TC-035) ───────────────────────────────────────────
@@ -219,6 +226,208 @@ describe('variable interpolation', () => {
 
     it('still uses the default, and an empty value, without throwing', () => {
       expect(interpolateObject('${missing:dflt}|${empty}', { empty: '' }, true)).toBe('dflt|');
+    });
+  });
+
+  // ── flattenVars (TC-001 to TC-020) ──────────────────────────────────────────
+
+  describe('flattenVars', () => {
+    // TC-001: single flat key
+    it('TC-001: returns a flat map for a single string value', () => {
+      expect(flattenVars({ greeting: 'hello' })).toEqual({ greeting: 'hello' });
+    });
+
+    // TC-002: empty object
+    it('TC-002: returns {} for an empty object', () => {
+      expect(flattenVars({})).toEqual({});
+    });
+
+    // TC-003: multiple flat keys
+    it('TC-003: returns all keys for multiple flat string values', () => {
+      expect(flattenVars({ a: '1', b: '2' })).toEqual({ a: '1', b: '2' });
+    });
+
+    // TC-004: integer leaf → coerced to string
+    it('TC-004: coerces integer leaf to string', () => {
+      expect(flattenVars({ port: 5173 })).toEqual({ port: '5173' });
+    });
+
+    // TC-005: boolean true leaf → "true"
+    it('TC-005: coerces boolean true to "true"', () => {
+      expect(flattenVars({ flag: true })).toEqual({ flag: 'true' });
+    });
+
+    // TC-006: null leaf → "null"
+    it('TC-006: coerces null to "null"', () => {
+      expect(flattenVars({ key: null })).toEqual({ key: 'null' });
+    });
+
+    // TC-007: boolean false → "false"
+    it('TC-007: coerces boolean false to "false"', () => {
+      expect(flattenVars({ enabled: false })).toEqual({ enabled: 'false' });
+    });
+
+    // TC-008: float leaf → coerced to string
+    it('TC-008: coerces float to string', () => {
+      expect(flattenVars({ ratio: 1.5 })).toEqual({ ratio: '1.5' });
+    });
+
+    // TC-009: single nested object
+    it('TC-009: flattens a single nested object to a dotted key', () => {
+      expect(flattenVars({ db: { host: 'localhost' } })).toEqual({ 'db.host': 'localhost' });
+    });
+
+    // TC-010: triple nesting
+    it('TC-010: flattens triple-nested object to triple-dotted key', () => {
+      expect(flattenVars({ a: { b: { c: 'deep' } } })).toEqual({ 'a.b.c': 'deep' });
+    });
+
+    // TC-011: mix of flat and nested
+    it('TC-011: handles a mix of flat and nested keys', () => {
+      expect(flattenVars({ x: 'flat', y: { z: 'nested' } })).toEqual({
+        x: 'flat',
+        'y.z': 'nested',
+      });
+    });
+
+    // TC-012: multiple top-level nested groups
+    it('TC-012: flattens multiple top-level nested groups', () => {
+      expect(
+        flattenVars({ server: { host: 'localhost', port: '3000' }, db: { name: 'mydb' } }),
+      ).toEqual({ 'server.host': 'localhost', 'server.port': '3000', 'db.name': 'mydb' });
+    });
+
+    // TC-013: flat key containing a literal dot → kept as-is
+    it('TC-013: accepts a literal dotted key (not treated as nested)', () => {
+      expect(flattenVars({ 'a.b': 'value' })).toEqual({ 'a.b': 'value' });
+    });
+
+    // TC-014: empty string key → parse error
+    it('TC-014: throws on an empty-string key', () => {
+      expect(() => flattenVars({ '': 'x' })).toThrow(/invalid.*variable.*name|empty/i);
+    });
+
+    // TC-015: lone dot key → parse error
+    it('TC-015: throws on a lone-dot key', () => {
+      expect(() => flattenVars({ '.': 'x' })).toThrow(/invalid.*variable.*name/i);
+    });
+
+    // TC-016: key starting with a digit → parse error
+    it('TC-016: throws when key starts with a digit', () => {
+      expect(() => flattenVars({ '3invalid': 'x' })).toThrow(/invalid.*variable.*name/i);
+    });
+
+    // TC-017: reserved name "env"
+    it('TC-017: throws on reserved name "env"', () => {
+      expect(() => flattenVars({ env: 'x' })).toThrow(/reserved.*variable.*name|reserved/i);
+    });
+
+    // TC-018: nested under "env" → produces env.* key → parse error
+    it('TC-018: throws on a nested object under "env" (produces env.* key)', () => {
+      expect(() => flattenVars({ env: { MY_VAR: 'x' } })).toThrow(/reserved/i);
+    });
+
+    // TC-019: literal "a.b" key + nested a: { b: ... } → duplicate key error
+    it('TC-019: throws on duplicate dotted key from literal key and nested path', () => {
+      expect(() => flattenVars({ 'a.b': 'x', a: { b: 'y' } })).toThrow(
+        /duplicate.*variable.*key|duplicate/i,
+      );
+    });
+
+    // TC-020: array leaf → parse error
+    it('TC-020: throws when a leaf value is an array', () => {
+      expect(() => flattenVars({ list: ['a', 'b'] })).toThrow(
+        /array.*not.*allowed|invalid.*variable.*value/i,
+      );
+    });
+  });
+
+  // ── parseRunFlow ────────────────────────────────────────────────────────────
+
+  describe('parseRunFlow', () => {
+    it('parses a string path', () => {
+      expect(parseRunFlow('./sub.yaml')).toEqual({
+        type: 'runFlow',
+        path: './sub.yaml',
+      });
+    });
+
+    it('parses { file } without vars', () => {
+      expect(parseRunFlow({ file: './sub.yaml' })).toEqual({
+        type: 'runFlow',
+        path: './sub.yaml',
+      });
+    });
+
+    it('parses { file, vars } with flat vars', () => {
+      expect(parseRunFlow({ file: './sub.yaml', vars: { u: '1', name: 'Alice' } })).toEqual({
+        type: 'runFlow',
+        path: './sub.yaml',
+        vars: { u: '1', name: 'Alice' },
+      });
+    });
+
+    it('flattens nested vars', () => {
+      expect(
+        parseRunFlow({
+          file: './sub.yaml',
+          vars: { num: 42, flag: true, user: { id: 'u1', role: 'admin' } },
+        }),
+      ).toEqual({
+        type: 'runFlow',
+        path: './sub.yaml',
+        vars: { num: '42', flag: 'true', 'user.id': 'u1', 'user.role': 'admin' },
+      });
+    });
+
+    it('normalises empty vars object to omit vars property', () => {
+      expect(parseRunFlow({ file: './sub.yaml', vars: {} })).toEqual({
+        type: 'runFlow',
+        path: './sub.yaml',
+      });
+    });
+
+    it.each([
+      ['null', null],
+      ['a number', 123],
+      ['an array', ['x']],
+      ['an empty string', ''],
+      ['whitespace only', '   '],
+    ])('rejects non-object or empty path: %s', (_label, val) => {
+      expect(() => parseRunFlow(val)).toThrow(/^Invalid runFlow:/);
+    });
+
+    it('rejects unknown keys', () => {
+      expect(() => parseRunFlow({ file: './x.yaml', var: { u: 1 } })).toThrow(
+        'Invalid runFlow: unknown key "var" (allowed: file, vars)',
+      );
+    });
+
+    it('rejects missing or empty file property', () => {
+      expect(() => parseRunFlow({ vars: { a: '1' } })).toThrow(
+        'Invalid runFlow: "file" must be a non-empty string',
+      );
+      expect(() => parseRunFlow({ file: '' })).toThrow(
+        'Invalid runFlow: "file" must be a non-empty string',
+      );
+    });
+
+    it('rejects non-object vars', () => {
+      expect(() => parseRunFlow({ file: './x.yaml', vars: 'not-an-object' })).toThrow(
+        'Invalid runFlow: "vars" must be a map of name: value, got string',
+      );
+      expect(() => parseRunFlow({ file: './x.yaml', vars: [1, 2] })).toThrow(
+        'Invalid runFlow: "vars" must be a map of name: value, got an array',
+      );
+    });
+
+    it('rejects reserved variable name in vars', () => {
+      expect(() => parseRunFlow({ file: './x.yaml', vars: { env: '1' } })).toThrow(
+        'Invalid runFlow: Reserved variable name: "env"',
+      );
+      expect(() => parseRunFlow({ file: './x.yaml', vars: { 'env.X': '1' } })).toThrow(
+        'Invalid runFlow: Reserved variable name: "env.X"',
+      );
     });
   });
 });

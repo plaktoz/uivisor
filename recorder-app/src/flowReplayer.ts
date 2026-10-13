@@ -4,7 +4,9 @@ import yaml from 'js-yaml';
 import type { Page } from 'playwright';
 import type { Command, Selector, SessionedCommand, PlaywrightContext } from '@uivisor/core';
 import {
+  flattenVars,
   interpolateObject,
+  parseRunFlow,
   parseSelector,
   resolveContainerLocator,
   createScopedPage,
@@ -85,22 +87,8 @@ function parseCommand(record: Record<string, unknown>): Command {
     case 'assertUrl':
       return { type: 'assertUrl', path: String(val) };
 
-    case 'runFlow': {
-      if (typeof val === 'string') return { type: 'runFlow', path: val };
-      const obj = val as Record<string, unknown> | null;
-      if (obj === null || typeof obj !== 'object' || Array.isArray(obj) || typeof obj.file !== 'string') {
-        throw new Error(`runFlow: expected a file path or { file, vars }, got ${JSON.stringify(val)}`);
-      }
-      if (obj.vars === undefined || obj.vars === null) return { type: 'runFlow', path: obj.file };
-      if (typeof obj.vars !== 'object' || Array.isArray(obj.vars)) {
-        throw new Error(`runFlow: vars must be a map of name: value, got ${JSON.stringify(obj.vars)}`);
-      }
-      const vars: Record<string, string> = {};
-      for (const [k, v] of Object.entries(obj.vars)) {
-        vars[k] = String(v);
-      }
-      return { type: 'runFlow', path: obj.file, vars };
-    }
+    case 'runFlow':
+      return parseRunFlow(val);
 
     case 'scroll':
       return { type: 'scroll', direction: String(val) as 'up' | 'down' | 'left' | 'right' };
@@ -298,11 +286,12 @@ function loadFlowYaml(absPath: string): { appId: string; vars: Record<string, st
   const rawCommands = Array.isArray(raw.commands) ? raw.commands : [];
   const commands = rawCommands.map((r) => parseCommand(r));
 
-  const vars: Record<string, string> = {};
-  if (raw.vars && typeof raw.vars === 'object') {
-    for (const [k, v] of Object.entries(raw.vars)) {
-      vars[k] = String(v);
+  let vars: Record<string, string> = {};
+  if (raw.vars !== undefined && raw.vars !== null) {
+    if (typeof raw.vars !== 'object' || Array.isArray(raw.vars)) {
+      throw new Error(`Invalid vars: must be a plain object in ${absPath}`);
     }
+    vars = flattenVars(raw.vars as Record<string, unknown>, absPath);
   }
 
   return { appId, vars, commands };
