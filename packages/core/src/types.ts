@@ -52,7 +52,7 @@ export type Command =
   | { type: 'assertNotVisible';   selector: Selector }
   | { type: 'wait';               ms: number }
   | { type: 'assertUrl';          path: string }
-  | { type: 'runFlow';            path: string; vars?: Record<string, string> }
+  | { type: 'runFlow';            path: string; vars?: Readonly<Record<string, string>> }
   | { type: 'scroll';             direction: 'up' | 'down' | 'left' | 'right' }
   | { type: 'assertText';      selector: Selector; expected: string }
   | { type: 'assertValue';     selector: Selector; expected: string }
@@ -81,6 +81,8 @@ export type Command =
   | { type: 'setVar'; name: string; method: string; args: string[] }
   | { type: 'testVarSet'; name: string; expected?: string }
   | { type: 'unsetVar'; name: string };
+
+export type RunFlowCommand = Extract<Command, { type: 'runFlow' }>;
 
 export type SessionDef = { id: string; label?: string };
 

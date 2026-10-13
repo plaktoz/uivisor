@@ -320,40 +320,78 @@ describe('parseCommand', () => {
     });
   });
 
-  it('parses { runFlow: { file: path, vars: { k: v } } } → runFlow Command with vars', () => {
+  it('parses { runFlow: { file, vars } } → runFlow Command with vars', () => {
+    expect(parseCommand({
+      runFlow: { file: './sub-flow.yaml', vars: { userNric: 'S1234567A' } },
+    })).toEqual({
+      type: 'runFlow',
+      path: './sub-flow.yaml',
+      vars: { userNric: 'S1234567A' },
+    });
+  });
+
+  it('parses { runFlow: { file } } with no vars key', () => {
+    expect(parseCommand({ runFlow: { file: './sub-flow.yaml' } })).toEqual({
+      type: 'runFlow',
+      path: './sub-flow.yaml',
+    });
+  });
+
+  it('normalises an empty runFlow vars map to absent', () => {
+    expect(parseCommand({ runFlow: { file: './sub-flow.yaml', vars: {} } })).toEqual({
+      type: 'runFlow',
+      path: './sub-flow.yaml',
+    });
+  });
+
+  it('flattens nested runFlow vars to dotted keys and stringifies leaves like header vars', () => {
     expect(parseCommand({
       runFlow: {
         file: './sub-flow.yaml',
-        vars: {
-          userNric: 'S1234567A',
-          age: 42,
-        },
+        vars: { n: 3, b: true, z: null, user: { id: 'u1', age: 42 } },
       },
     })).toEqual({
       type: 'runFlow',
       path: './sub-flow.yaml',
-      vars: {
-        userNric: 'S1234567A',
-        age: '42',
-      },
+      vars: { n: '3', b: 'true', z: 'null', 'user.id': 'u1', 'user.age': '42' },
     });
   });
 
-  it('throws on invalid runFlow file type', () => {
-    expect(() => parseCommand({
-      runFlow: {
-        file: 123,
-      },
-    })).toThrow('runFlow file must be a string');
+  it('keeps ${...} in runFlow vars for dispatch-time interpolation', () => {
+    expect(parseCommand({
+      runFlow: { file: './sub-flow.yaml', vars: { userNric: '${adminNric}' } },
+    })).toEqual({
+      type: 'runFlow',
+      path: './sub-flow.yaml',
+      vars: { userNric: '${adminNric}' },
+    });
   });
 
-  it('throws on invalid runFlow vars type', () => {
-    expect(() => parseCommand({
-      runFlow: {
-        file: './sub-flow.yaml',
-        vars: 'not-an-object',
-      },
-    })).toThrow('runFlow vars must be an object');
+  it.each([
+    ['a number', 5],
+    ['null', null],
+    ['an array', ['./a.yaml']],
+    ['an empty string', ''],
+    ['a whitespace-only string', '   '],
+  ])('throws a runFlow parse error when the value is %s', (_label, value) => {
+    expect(() => parseCommand({ runFlow: value })).toThrow(/^Invalid runFlow/);
+  });
+
+  it.each([
+    ['file is missing', { vars: { a: '1' } }, /"file" must be a non-empty string/],
+    ['file is not a string', { file: 123 }, /"file" must be a non-empty string/],
+    ['file is empty', { file: '' }, /"file" must be a non-empty string/],
+    ['an unknown key is present', { file: './a.yaml', path: './b.yaml' }, /unknown key "path"/],
+    ['vars is a string', { file: './a.yaml', vars: 'x' }, /"vars" must be a map/],
+    ['vars is an array', { file: './a.yaml', vars: [1] }, /"vars" must be a map/],
+    ['vars is null', { file: './a.yaml', vars: null }, /"vars" must be a map/],
+    ['a vars leaf is an array', { file: './a.yaml', vars: { a: [1] } }, /arrays are not allowed/],
+    ['a vars name is env.*', { file: './a.yaml', vars: { 'env.X': '1' } }, /Reserved variable name: "env.X"/],
+    ['a vars name nests under env', { file: './a.yaml', vars: { env: { X: '1' } } }, /Reserved variable name: "env/],
+    ['a vars name is invalid', { file: './a.yaml', vars: { '1bad': 'x' } }, /Invalid variable name: "1bad"/],
+  ])('throws a runFlow parse error when %s', (_label, value, detail) => {
+    expect(() => parseCommand({ runFlow: value })).toThrow(/^Invalid runFlow/);
+    expect(() => parseCommand({ runFlow: value })).toThrow(detail);
   });
 
   // AC6: unknown command name
@@ -589,6 +627,15 @@ describe('loadAndParse', () => {
       'runFlow',
       'scroll',
     ]);
+  });
+
+  it('rejects a malformed runFlow object at load time', () => {
+    mockReadYamlFile.mockReturnValue({
+      appId: 'http://localhost',
+      commands: [{ runFlow: { file: 7 } }],
+    });
+
+    expect(() => loadAndParse('/flows/main.yaml')).toThrow(/Invalid runFlow: "file" must be a non-empty string/);
   });
 });
 

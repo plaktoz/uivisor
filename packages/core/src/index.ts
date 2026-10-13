@@ -1,5 +1,5 @@
 export type {
-  Selector, Command, SessionDef, SessionedCommand,
+  Selector, Command, RunFlowCommand, SessionDef, SessionedCommand,
   FlowFile, RunOptions, CommandResult, FlowResult,
   RunResult, RunContext, ProgressEvent, ProgressListener,
   VarMap, MethodRunner, WorkingScheduleEntry, FlowConfig,
