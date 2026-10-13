@@ -142,7 +142,7 @@ Built-in defaults within `loading` when it is set: `indicators: []`, `network` o
 
 With no `loading`/`sla` configured, existing flows behave as today except for two deliberate changes: string selectors now wait (§6.1), and `assertUrl`, `assertCount` and `within` now retry (§6, Q1). A flow that passes today still passes.
 
-**Nested flows (`runFlow`):** a child flow inherits every setting in this section from the top-level flow. If a child flow's header or config sets one of these keys, it is ignored while the file runs via `runFlow`, and the console prints one notice per file: `login-flow-v1.yaml: defaultTimeout ignored (inherited from my-flow.yaml)`. The same keys apply normally when that file runs as a top-level flow. Commands inside `within` inherit the settings that apply around them. Per-command sibling keys work everywhere, including inside child flows and `within`.
+**Nested flows (`runFlow`):** a child flow inherits every setting in this section from the top-level flow. If a child flow's header or config sets one of these keys, it is ignored while the file runs via `runFlow`, and the console prints one notice per file: `login-flow-v1.yaml: defaultTimeout ignored (inherited from my-flow.yaml)`. The notice only prints when the child's value differs from the one in effect, so a child that shares the caller's config stays quiet. A grandchild's notice names the top-level flow, where the setting comes from. The same keys apply normally when that file runs as a top-level flow. Commands inside `within` inherit the settings that apply around them. Per-command sibling keys work everywhere, including inside child flows and `within`.
 
 This differs on purpose from vars. Since #100, a child flow's `vars` (including its own `config:` vars) apply as defaults unless the caller set them, and `runFlow: { file, vars }` overrides them per call. Timeouts and `loading` stay inherit-only: a run has one timing policy, set by the top-level flow, its config and the CLI. A child that needs more time for one step uses a per-command `timeout:`.
 
@@ -184,8 +184,9 @@ This differs on purpose from vars. Since #100, a child flow's `vars` (including 
 3. No winner yet, or the check failed: retry every 100 ms until the deadline.
 4. At the deadline, throw `Element not found after <timeout>ms: <selector>` followed by the per-step match counts from the last attempt (the detail lines shown today). "More than one match" also retries, because a list that is still loading can briefly contain duplicates.
 5. The `xpath` object form, which also counts once today, uses the same loop.
+6. If resolution succeeds but the interaction (click, fill, check, …) runs out of the remaining budget, the error is `Element not actionable after <timeout>ms: <selector>`, so the message says which half failed.
 
-**Not-visible commands.** `assertNotVisible` and `waitFor: { notVisible }` pass as soon as the target is absent (zero matches on every step) or present but hidden. Absent counts as not visible. This fixes the string-selector failure described in §1.
+**Not-visible commands.** `assertNotVisible` and `waitFor: { notVisible }` pass as soon as the target is absent (zero matches on every step) or present but hidden. Absent counts as not visible. With duplicates, the first step that has any match decides: the command passes when every one of its matches is hidden. This fixes the string-selector failure described in §1.
 
 ### 6.2 Command traits live in one table
 
@@ -568,6 +569,7 @@ Example flows:
 | Q17 | What does `timeout:` do on a command with no timeout (`runFlow`, `wait`, …)? | **Decided:** parse error (§5.1). |
 | Q18 | Does `timeout:` on `within` apply to its `do:` commands? | **Decided:** no, container lookup only (§5.1). |
 | Q19 | `pressKey` in phase 1 and `waitForPageLoad` with two timeouts? | **Decided:** `pressKey` rejects `timeout:` until phase 2; `waitForPageLoad` accepts inner or sibling, both is a parse error (§5.1). |
+| Q20 | Notice noise, interaction-timeout wording, grandchild notice, hidden duplicates? | **Decided:** notice only when values differ; `Element not actionable after …` for interaction timeouts; grandchild notice names the top-level flow; hidden duplicates pass in not-visible mode (§5.2, §6.1). |
 
 ---
 
