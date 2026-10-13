@@ -19,9 +19,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-// Import overlay.ts for its side effects: HUD injection + keydown listener.
-// Must be imported before tests run so that document.body already has the HUD.
-import './overlay';
+// overlay.ts exports OVERLAY_SCRIPT, an IIFE string injected via page.addInitScript().
+// Evaluate it once in the jsdom global scope to get HUD injection + keydown listener.
+import { OVERLAY_SCRIPT } from './overlay';
+
+(0, eval)(OVERLAY_SCRIPT);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

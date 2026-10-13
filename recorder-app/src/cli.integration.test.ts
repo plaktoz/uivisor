@@ -416,9 +416,11 @@ describe('cli.ts main() integration', () => {
     captureCallback({ type: 'goto', url: 'http://captured.com' });
 
     // runFlow entry should appear before the captured goto
-    const calls = mocks.mockAppendCommand.mock.calls as Array<[string, { type: string }]>;
+    const calls = mocks.mockAppendCommand.mock.calls as Array<[string, { type: string; url?: string }]>;
     const runFlowIdx = calls.findIndex((c) => c[1].type === 'runFlow');
-    const captureIdx = calls.findIndex((c) => c[1].type === 'goto');
+    const captureIdx = calls.findIndex(
+      (c) => c[1].type === 'goto' && c[1].url === 'http://captured.com',
+    );
     expect(runFlowIdx).toBeGreaterThanOrEqual(0);
     expect(captureIdx).toBeGreaterThan(runFlowIdx);
   });
@@ -472,7 +474,7 @@ describe('cli.ts main() integration', () => {
   });
 
   // T43 — full e2e: main + two flows + capture → valid YAML structure
-  it('T43 — two flows + captured goto → appendCommand called with runFlow, runFlow, then goto', async () => {
+  it('T43 — two flows + captured goto → appendCommand called with initial goto, runFlow, runFlow, then captured goto', async () => {
     const dir = makeTmpDir();
     const flow1 = writeFlow(dir, 'setup.yaml', { appId: 'http://a.com', commands: [] });
     const flow2 = writeFlow(dir, 'login.yaml', { appId: 'http://a.com', commands: [] });
@@ -493,9 +495,10 @@ describe('cli.ts main() integration', () => {
 
     const calls = mocks.mockAppendCommand.mock.calls as Array<[string, { type: string }]>;
     const types = calls.map((c) => c[1].type);
-    expect(types[0]).toBe('runFlow');
+    expect(types[0]).toBe('goto');
     expect(types[1]).toBe('runFlow');
-    expect(types[2]).toBe('goto');
+    expect(types[2]).toBe('runFlow');
+    expect(types[3]).toBe('goto');
   });
 
   // T44 — .yml extension passes validation, replayFlows invoked
