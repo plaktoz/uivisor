@@ -1,4 +1,5 @@
 import type { Command } from '@uivisor/core';
+import { runFlowLabel } from './runFlowLabel.js';
 
 export function commandLabel(cmd: Command): string {
   switch (cmd.type) {
@@ -10,7 +11,7 @@ export function commandLabel(cmd: Command): string {
     case 'assertNotVisible': return `assertNotVisible: ${JSON.stringify(cmd.selector)}`;
     case 'assertUrl': return `assertUrl: ${cmd.path}`;
     case 'wait': return `wait: ${cmd.ms}ms`;
-    case 'runFlow': return `runFlow: ${cmd.path}`;
+    case 'runFlow': return runFlowLabel(cmd);
     case 'scroll': return `scroll: ${cmd.direction}`;
     case 'assertText': return `assertText: ${JSON.stringify(cmd.selector)} expected: ${cmd.expected}`;
     case 'assertValue': return `assertValue: ${JSON.stringify(cmd.selector)} expected: ${cmd.expected}`;

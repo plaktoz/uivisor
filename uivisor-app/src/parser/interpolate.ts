@@ -59,6 +59,13 @@ export function flattenVars(
   return result;
 }
 
+export class UnresolvedVariableError extends Error {
+  constructor(readonly variable: string) {
+    super(`Variable "${variable}" is not defined`);
+    this.name = 'UnresolvedVariableError';
+  }
+}
+
 /**
  * Resolve one interpolation expression (the content between ${ and }).
  * Reads from process.env for env.* names, otherwise from vars.
@@ -96,7 +103,7 @@ export function resolveRef(inner: string, vars: Record<string, string>, strict =
   // Variable is absent (not set at all)
   if (isAbsent || resolved === undefined) {
     if (defaultValue !== undefined) return defaultValue;
-    if (strict) throw new Error(`Variable "${name}" is not defined`);
+    if (strict) throw new UnresolvedVariableError(name);
     return '';
   }
 

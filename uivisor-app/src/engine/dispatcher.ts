@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
 import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
-import { interpolateObject } from '../parser/interpolate.js';
+import { interpolateObject, UnresolvedVariableError } from '../parser/interpolate.js';
 import {
   executeGoto,
   executeTapOn,
@@ -37,6 +37,7 @@ import {
   executeWithin,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
+import { runFlowLabel } from '../reporter/runFlowLabel.js';
 import { loadAndParse } from '../parser/index.js';
 
 type RunFlowFn = (file: FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>;
@@ -47,15 +48,12 @@ export function registerRunFlow(fn: RunFlowFn): void {
   _runFlowImpl = fn;
 }
 
-/** Walk a FlowResult tree and return the first failure message found */
-function extractFailureMessage(result: FlowResult): string | undefined {
-  for (const cr of result.commandResults) {
-    if (!cr.passed) {
-      if (cr.nestedResult) return extractFailureMessage(cr.nestedResult);
-      return cr.message;
-    }
-  }
-  return undefined;
+function firstFailureMessage(result: FlowResult): string {
+  return result.commandResults.find((r) => !r.passed)?.message ?? `${path.basename(result.filePath)} failed`;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -91,18 +89,10 @@ export async function dispatch(
   try {
     resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
   } catch (err: unknown) {
-    let message = err instanceof Error ? err.message : String(err);
-    if (message.includes('is not defined') || message.includes('Unclosed ${')) {
-      const stack = Array.from(ctx.callStack);
-      if (stack.length > 0) {
-        const currentFlow = stack[stack.length - 1];
-        if (stack.length >= 2) {
-          const parentFlow = stack[stack.length - 2];
-          message = `${message} (in child flow ${currentFlow}, called from ${parentFlow})`;
-        } else {
-          message = `${message} (in flow ${currentFlow})`;
-        }
-      }
+    let message = errorMessage(err);
+    if (err instanceof UnresolvedVariableError) {
+      message += ` in flow "${flowStem}"`;
+      if (cmd.type === 'runFlow') message += ` at ${runFlowLabel(cmd)}`;
     }
     ctx.onProgress?.({ kind: 'stepStart', command: cmd });
     const failed: CommandResult = { command: cmd, passed: false, message, durationMs: Date.now() - start };
@@ -152,15 +142,11 @@ async function executeResolved(
     try {
       file = loadAndParse(absPath);
     } catch (err: unknown) {
-      return {
-        command: resolvedCmd,
-        passed: false,
-        message: err instanceof Error ? err.message : String(err),
-        durationMs: Date.now() - start,
-      };
+      return { command: resolvedCmd, passed: false, message: errorMessage(err), durationMs: Date.now() - start };
     }
     ctx.onProgress?.({ kind: 'include', file });
 
+    const includedFrom = `, included from flow "${flowStem}" via ${runFlowLabel(resolvedCmd)}`;
     ctx.indentLevel++;
     try {
       const runFn = _runFlowImpl!;
@@ -173,26 +159,14 @@ async function executeResolved(
         command: resolvedCmd,
         passed: nestedResult.passed,
         nestedResult,
-        message: nestedResult.passed ? undefined : extractFailureMessage(nestedResult),
+        message: nestedResult.passed ? undefined : `${firstFailureMessage(nestedResult)}${includedFrom}`,
         durationMs: Date.now() - start,
       };
     } catch (err: unknown) {
-      let message = err instanceof Error ? err.message : String(err);
-      if (message.includes('is not defined') || message.includes('Unclosed ${')) {
-        const stack = Array.from(ctx.callStack);
-        // Include the child flow path being initialized if it wasn't added to callStack yet
-        const childPath = absPath;
-        if (stack.length > 0) {
-          const parentFlow = stack[stack.length - 1];
-          message = `${message} (in child flow ${childPath}, called from ${parentFlow})`;
-        } else {
-          message = `${message} (in flow ${childPath})`;
-        }
-      }
       return {
         command: resolvedCmd,
         passed: false,
-        message,
+        message: `${errorMessage(err)}${includedFrom}`,
         durationMs: Date.now() - start,
       };
     } finally {

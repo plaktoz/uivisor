@@ -352,48 +352,74 @@ describe('runFlow with vars: scoping', () => {
   });
 });
 
-describe('runFlow errors', () => {
-  it('returns a clear error when a variable is unresolved, naming both child flow and call site', async () => {
-    const pageA = makePage();
-    const ctx = makeCtx(pageA);
+describe('runFlow errors name the flow and the call site', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uivisor-runflow-errors-'));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 
-    const tmpDir = os.tmpdir();
-    const subFlowPath = path.join(tmpDir, `uivisor-sub-unresolved-${Date.now()}.yaml`);
-    fs.writeFileSync(
-      subFlowPath,
-      `appId: http://test\ncommands:\n  - goto: "http://test/\${unresolvedVar}"\n`,
-      'utf8',
+  function writeFile(name: string, body: string): void {
+    fs.writeFileSync(path.join(dir, name), body, 'utf8');
+  }
+
+  async function runMain(cmds: FlowFile['commands']) {
+    const ctx = makeCtx(makePage());
+    const main: FlowFile = { ...flow(cmds), filePath: path.join(dir, 'main.yaml') };
+    const result = await runFlow(main, ctx.sessions.get('alice')!, ctx);
+    expect(result.passed).toBe(false);
+    return result.commandResults.at(-1)!;
+  }
+
+  it('an unresolved variable at the top level names the flow', async () => {
+    const failed = await runMain([{ command: { type: 'goto', url: 'http://test/${otp}' } }]);
+    expect(failed.message).toBe('Variable "otp" is not defined in flow "main"');
+  });
+
+  it('an unresolved variable in a child names the child and the call site', async () => {
+    writeFile('child.yaml', 'appId: http://test\ncommands:\n  - goto: "http://test/${otp}"\n');
+
+    const failed = await runMain([{ command: { type: 'runFlow', path: './child.yaml' } }]);
+
+    expect(failed.message).toBe(
+      'Variable "otp" is not defined in flow "child", included from flow "main" via runFlow: ./child.yaml',
     );
+  });
 
-    const parentFlowPath = path.join(tmpDir, `uivisor-parent-unresolved-${Date.now()}.yaml`);
-    fs.writeFileSync(
-      parentFlowPath,
-      `appId: http://test\ncommands:\n  - runFlow: "${subFlowPath}"\n`,
-      'utf8',
+  it('an unresolved variable in the call-site vars names the caller and the runFlow, and the child never runs', async () => {
+    writeFile('child.yaml', 'appId: http://test\ncommands:\n  - goto: http://test\n');
+
+    const failed = await runMain([
+      { command: { type: 'runFlow', path: './child.yaml', vars: { u: '${adminNric}', t: '3' } } },
+    ]);
+
+    expect(failed.message).toBe(
+      'Variable "adminNric" is not defined in flow "main" at runFlow: ./child.yaml (u=${adminNric}, t=3)',
     );
+    expect(failed.nestedResult).toBeUndefined();
+  });
 
-    const testFlow: FlowFile = {
-      baseUrl: 'http://test',
-      filePath: parentFlowPath,
-      commands: [
-        { command: { type: 'runFlow', path: subFlowPath } },
-      ],
-      sessions: [],
-      tags: [],
-    };
+  it('a failure two levels deep carries one included-from clause per level, innermost first', async () => {
+    writeFile('otp.yaml', 'appId: http://test\ncommands:\n  - goto: "http://test/${otp}"\n');
+    writeFile('login.yaml', 'appId: http://test\ncommands:\n  - runFlow: ./otp.yaml\n');
 
-    try {
-      const result = await runFlow(testFlow, pageA, ctx);
-      expect(result.passed).toBe(false);
-      
-      const failedResult = result.commandResults.find(r => r.command.type === 'runFlow');
-      expect(failedResult).toBeDefined();
-      expect(failedResult?.message).toContain('Variable "unresolvedVar" is not defined');
-      expect(failedResult?.message).toContain(`in child flow ${subFlowPath}`);
-      expect(failedResult?.message).toContain(`called from ${parentFlowPath}`);
-    } finally {
-      fs.unlinkSync(subFlowPath);
-      fs.unlinkSync(parentFlowPath);
-    }
+    const failed = await runMain([{ command: { type: 'runFlow', path: './login.yaml', vars: { u: 'S1' } } }]);
+
+    expect(failed.message).toBe(
+      'Variable "otp" is not defined in flow "otp", included from flow "login" via runFlow: ./otp.yaml' +
+        ', included from flow "main" via runFlow: ./login.yaml (u=S1)',
+    );
+  });
+
+  it('any other failure in a child also names the call site', async () => {
+    writeFile('child.yaml', 'appId: http://test\ncommands:\n  - testVarSet: missing\n');
+
+    const failed = await runMain([{ command: { type: 'runFlow', path: './child.yaml' } }]);
+
+    expect(failed.message).toBe(
+      'testVarSet: variable "missing" is not set or is empty, included from flow "main" via runFlow: ./child.yaml',
+    );
   });
 });
