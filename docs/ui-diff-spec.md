@@ -79,7 +79,7 @@ flowchart TD
      - the **edge-mass centroid** (along the band's axis), and
      - the **anchor extents**: the first and last edge position along the band's axis (e.g. the right-most edge of a right-aligned toolbar).
    - Band drift = `max(|Δcentroid|, |Δfirst extent|, |Δlast extent|)`, in baseline pixels.
-   - A band that has edge mass in only one image is treated as maximum drift for that band (component appeared/disappeared). Such a one-sided band is attributed to the **perpendicular axis** and uses that axis' full length as its drift. It only counts when at least a minimum fraction of its edge pixels have **no counterpart within `maxDriftPixels`** in the other map; otherwise edges merely crossing a band boundary would be misreported as appearing/disappearing.
+   - A band that has edge mass in only one image is treated as maximum drift for that band (component appeared/disappeared). Such a one-sided band is attributed to the **perpendicular axis** and uses that axis' full length as its drift. It only counts when at least `gridSize` of its edge pixels have **no counterpart within `maxDriftPixels`** in the other map (the same minimum mass a band needs to count as structure at all); otherwise edges merely crossing a band boundary would be misreported as appearing/disappearing.
    - `D_a` = the maximum band drift over all bands and both axes.
    - Extents are used in addition to centroids so that right-aligned content with varying text length is judged by its anchored edge rather than its centre of mass.
 
