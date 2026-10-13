@@ -1,20 +1,89 @@
 appId: ${base}/integration
 config: config.yml
-# Main flow — tests: runFlow with child defaults, overrides, and double-calling
+# Tests: runFlow with vars — child defaults, call-site overrides, double call, scoping
+vars:
+  owner: Carol
 commands:
   - goto: ${base}/integration
 
-  # 1. Call with child defaults
+  # Child defaults apply when the caller passes nothing
   - runFlow: ./run-flow-override-child.yaml
+  # A child setVar of a name that arrived as a child default survives the return
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${lastTyped}
+  - assertValue:
+      testId: int-input-targeted
+      expected: Child Default Text
+  # The child's untouched default is gone after the return
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${textToType:gone}
+  - assertValue:
+      testId: int-input-targeted
+      expected: gone
 
-  # 2. Call with call-site override
+  # A call-site override wins over the child default and is gone after the return
   - runFlow:
       file: ./run-flow-override-child.yaml
       vars:
         textToType: Override Value 1
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${lastTyped} / ${textToType:gone}
+  - assertValue:
+      testId: int-input-targeted
+      expected: Override Value 1 / gone
 
-  # 3. Call with another call-site override (verifying double-call works)
+  # The same child called again with a different value
   - runFlow:
       file: ./run-flow-override-child.yaml
       vars:
         textToType: Override Value 2
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${lastTyped}
+  - assertValue:
+      testId: int-input-targeted
+      expected: Override Value 2
+
+  # Call-site values are interpolated against this flow's variables
+  - runFlow:
+      file: ./run-flow-override-child.yaml
+      vars:
+        textToType: Typed by ${owner}
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${lastTyped}
+  - assertValue:
+      testId: int-input-targeted
+      expected: Typed by Carol
+
+  # An override shadows a caller value, which comes back after the return
+  - setVar: textToType=Parent Value
+  - runFlow:
+      file: ./run-flow-override-child.yaml
+      vars:
+        textToType: Override Value 3
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${lastTyped} / ${textToType}
+  - assertValue:
+      testId: int-input-targeted
+      expected: Override Value 3 / Parent Value
+
+  # A caller value outranks the child default
+  - runFlow: ./run-flow-override-child.yaml
+  - inputText:
+      element:
+        testId: int-input-targeted
+      text: ${lastTyped}
+  - assertValue:
+      testId: int-input-targeted
+      expected: Parent Value
