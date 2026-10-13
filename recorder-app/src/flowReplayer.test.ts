@@ -746,6 +746,9 @@ describe('runFlow vars', () => {
     ['a number', 42],
     ['an object without file', { path: './greet.yaml' }],
     ['vars that are not a map', { file: './greet.yaml', vars: ['who'] }],
+    ['unknown key', { file: './greet.yaml', var: { who: 'x' } }],
+    ['empty file', { file: '' }],
+    ['reserved env var', { file: './greet.yaml', vars: { env: 'x' } }],
   ])('rejects runFlow given %s', async (_label, runFlow) => {
     const dir = makeTmpDir();
     writeGreetChild(dir);
@@ -756,8 +759,48 @@ describe('runFlow vars', () => {
     const page = makeMockPage();
     await expect(
       replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
-    ).rejects.toThrow(/^runFlow: (expected a file path or \{ file, vars \}|vars must be a map)/);
+    ).rejects.toThrow(/^Invalid runFlow:/);
     expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('flattens nested runFlow vars and passes them to child flow', async () => {
+    const dir = makeTmpDir();
+    writeFlow(dir, 'child.yaml', {
+      appId: 'http://example.com',
+      commands: [{ goto: 'http://example.com/${otp.a}' }],
+    });
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow: { file: './child.yaml', vars: { otp: { a: 1 } } } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/1']);
+  });
+
+  it('flattens nested header vars in flow YAML', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      vars: { otp: { a: 1 } },
+      commands: [{ goto: 'http://example.com/${otp.a}' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/1']);
+  });
+
+  it('rejects reserved env key in header vars', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      vars: { env: 'x' },
+      commands: [{ goto: 'http://example.com' }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow(/Reserved variable name: "env"/);
   });
 });
 

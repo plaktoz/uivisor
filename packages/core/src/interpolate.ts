@@ -1,3 +1,5 @@
+import type { RunFlowCommand } from './types.js';
+
 export class UnresolvedVariableError extends Error {
   constructor(readonly variable: string) {
     super(`Variable "${variable}" is not defined`);
@@ -111,4 +113,108 @@ export function interpolateObject(obj: unknown, vars: Record<string, string>, st
   }
   // number, boolean, null — pass through unchanged
   return obj;
+}
+
+const VAR_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
+
+/**
+ * Recursively flatten a nested YAML object to dotted keys.
+ * Validates assembled key names; coerces number/boolean/null leaves to string.
+ * Rejects array/object leaves, empty/invalid names, reserved names, and duplicates.
+ */
+export function flattenVars(
+  raw: Record<string, unknown>,
+  filePath?: string,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  function walk(obj: Record<string, unknown>, prefix: string): void {
+    for (const [key, value] of Object.entries(obj)) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+
+      // Validate the assembled key name
+      if (!VAR_NAME_RE.test(fullKey)) {
+        throw new Error(
+          `Invalid variable name: "${fullKey}"${filePath ? ' in ' + filePath : ''}`,
+        );
+      }
+
+      // Reject reserved names (env and env.*)
+      if (fullKey === 'env' || fullKey.startsWith('env.')) {
+        throw new Error(
+          `Reserved variable name: "${fullKey}"${filePath ? ' in ' + filePath : ''}`,
+        );
+      }
+
+      if (Array.isArray(value)) {
+        throw new Error(
+          `Invalid variable value: arrays are not allowed (at "${fullKey}")${filePath ? ' in ' + filePath : ''}`,
+        );
+      } else if (
+        value !== null &&
+        typeof value === 'object'
+      ) {
+        // Nested object — recurse
+        walk(value as Record<string, unknown>, fullKey);
+      } else {
+        // Leaf: string, number, boolean, or null
+        if (fullKey in result) {
+          throw new Error(
+            `Duplicate variable key: "${fullKey}"${filePath ? ' in ' + filePath : ''}`,
+          );
+        }
+        result[fullKey] = String(value);
+      }
+    }
+  }
+
+  walk(raw, '');
+  return result;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  return typeof value;
+}
+
+function requireFlowPath(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`Invalid runFlow: "file" must be a non-empty string`);
+  }
+  return value;
+}
+
+export function parseRunFlow(value: unknown): RunFlowCommand {
+  if (typeof value === 'string') {
+    return { type: 'runFlow', path: requireFlowPath(value) };
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Invalid runFlow: expected a file path or { file, vars }, got ${describeValue(value)}`);
+  }
+  const unknownKey = Object.keys(value).find((k) => k !== 'file' && k !== 'vars');
+  if (unknownKey !== undefined) {
+    throw new Error(`Invalid runFlow: unknown key "${unknownKey}" (allowed: file, vars)`);
+  }
+  const flowPath = requireFlowPath(value['file']);
+  if (!('vars' in value)) {
+    return { type: 'runFlow', path: flowPath };
+  }
+  const rawVars = value['vars'];
+  if (!isPlainObject(rawVars)) {
+    throw new Error(`Invalid runFlow: "vars" must be a map of name: value, got ${describeValue(rawVars)}`);
+  }
+  let vars: Record<string, string>;
+  try {
+    vars = flattenVars(rawVars);
+  } catch (err: unknown) {
+    throw new Error(`Invalid runFlow: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return Object.keys(vars).length > 0
+    ? { type: 'runFlow', path: flowPath, vars }
+    : { type: 'runFlow', path: flowPath };
 }

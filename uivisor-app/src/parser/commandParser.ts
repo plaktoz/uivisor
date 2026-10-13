@@ -1,5 +1,6 @@
-import { type Command, type RunFlowCommand, type SessionedCommand, parseSelector } from '@uivisor/core';
-import { flattenVars } from './interpolate.js';
+import { type Command, type RunFlowCommand, type SessionedCommand, parseSelector, parseRunFlow } from '@uivisor/core';
+
+export { parseRunFlow };
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
@@ -35,53 +36,6 @@ function splitMethodArgs(argsStr: string): string[] {
   const last = current.trim();
   if (last !== '') args.push(last);
   return args;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function describeValue(value: unknown): string {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'an array';
-  return typeof value;
-}
-
-function requireFlowPath(value: unknown): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`Invalid runFlow: "file" must be a non-empty string`);
-  }
-  return value;
-}
-
-export function parseRunFlow(value: unknown): RunFlowCommand {
-  if (typeof value === 'string') {
-    return { type: 'runFlow', path: requireFlowPath(value) };
-  }
-  if (!isPlainObject(value)) {
-    throw new Error(`Invalid runFlow: expected a file path or { file, vars }, got ${describeValue(value)}`);
-  }
-  const unknownKey = Object.keys(value).find((k) => k !== 'file' && k !== 'vars');
-  if (unknownKey !== undefined) {
-    throw new Error(`Invalid runFlow: unknown key "${unknownKey}" (allowed: file, vars)`);
-  }
-  const flowPath = requireFlowPath(value['file']);
-  if (!('vars' in value)) {
-    return { type: 'runFlow', path: flowPath };
-  }
-  const rawVars = value['vars'];
-  if (!isPlainObject(rawVars)) {
-    throw new Error(`Invalid runFlow: "vars" must be a map of name: value, got ${describeValue(rawVars)}`);
-  }
-  let vars: Record<string, string>;
-  try {
-    vars = flattenVars(rawVars);
-  } catch (err: unknown) {
-    throw new Error(`Invalid runFlow: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  return Object.keys(vars).length > 0
-    ? { type: 'runFlow', path: flowPath, vars }
-    : { type: 'runFlow', path: flowPath };
 }
 
 export function parseCommand(raw: unknown): Command {
