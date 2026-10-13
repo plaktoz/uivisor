@@ -71,7 +71,8 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
   let ticker: { stop(): void } | null = null;
   let hooked = false;
 
-  const view = (): Viewport => ({ columns: out.columns ?? 80, rows: out.rows ?? 24 });
+  // A pty nobody sized reports 0x0, which is as unknown as a pipe's undefined.
+  const view = (): Viewport => ({ columns: out.columns || 80, rows: out.rows || 24 });
 
   const paint = (): void => {
     if (screen.kind !== 'flow') return;

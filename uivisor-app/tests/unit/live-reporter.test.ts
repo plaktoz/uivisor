@@ -209,8 +209,11 @@ describe('live reporter', () => {
     expect(s.writes).toEqual([]);
   });
 
-  it('assumes 80x24 when the output is not a terminal', () => {
-    const s = setup({});
+  it.each([
+    ['is not a terminal', {}],
+    ['is a pty that reports 0x0', { columns: 0, rows: 0 }],
+  ])('assumes 80x24 when the output %s', (_, term) => {
+    const s = setup(term);
     s.reporter.startFlow({ ...flow, commands: [{ command: { type: 'goto', url: `http://test/${'x'.repeat(200)}` } }] });
     const lines = s.writes[1].split('\n');
     expect(lines[1]).toHaveLength(79);
