@@ -125,6 +125,8 @@ Sibling keys travel with the command all the way to execution. Today the runner 
 
 A `timeout:` sibling on a command whose timeout trait is `none` (§6.2: `wait`, `waitFor: <ms>`, `scroll`, `setViewport`, `screenshot`, `setVar`, `testVarSet`, `unsetVar`, `runFlow`) is a parse error: `timeout is not supported on runFlow`. A stray key would otherwise do nothing silently.
 
+`timeout:` on a container (`within`) bounds only the container lookup; commands in its `do:` block keep their own budgets, as steps inside a `runFlow` do. On `waitForPageLoad`, the timeout may be given inside its object or as a sibling key, but not both (parse error). In phase 1, `pressKey` has nothing to wait for, so its timeout trait is `none` and `timeout:` on it is a parse error; phase 2 switches it to `element` when the loading settle gives it a wait. The `pressKey` example in §5 is phase 2 syntax.
+
 ### 5.2 Precedence and built-in defaults
 
 From highest to lowest. The first one that's set wins.
@@ -564,6 +566,8 @@ Example flows:
 | Q15 | Should an SLA breach ever fail the run? | **Decided:** no. Warning on the action's line and in the end-of-run summary. `failOnBreach` and `--sla-strict` are dropped, and `sla` is a plain number (§9). |
 | Q16 | How do the pre-check, element wait and settle timeouts combine? | **Decided:** one budget per command, the command's timeout. `loading.timeout` is dropped (§6). |
 | Q17 | What does `timeout:` do on a command with no timeout (`runFlow`, `wait`, …)? | **Decided:** parse error (§5.1). |
+| Q18 | Does `timeout:` on `within` apply to its `do:` commands? | **Decided:** no, container lookup only (§5.1). |
+| Q19 | `pressKey` in phase 1 and `waitForPageLoad` with two timeouts? | **Decided:** `pressKey` rejects `timeout:` until phase 2; `waitForPageLoad` accepts inner or sibling, both is a parse error (§5.1). |
 
 ---
 
