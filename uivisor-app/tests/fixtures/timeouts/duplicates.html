@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timeouts Fixture: duplicates</title>
+</head>
+<body>
+
+  <!--
+    Query params:
+      mode        collapse | hidden | mixed | hide-later (required)
+      collapseAt  (ms, mode=collapse only) - when one of the two `row` elements is
+                  removed, collapsing the match count from 2 to 1. If omitted, the
+                  two `row` elements are never collapsed (AC12 passes `collapseAt`,
+                  AC17 omits it).
+      hideAt      (ms, default 800, mode=hide-later only) - when the first `dup`
+                  element (visible at load) becomes hidden.
+
+    Elements:
+      mode=collapse:   two data-testid="row" elements (AC12, AC17).
+      mode=hidden:     two data-testid="dup" elements, both hidden throughout (AC23a).
+      mode=mixed:      two data-testid="dup" elements, one visible throughout and
+                        one hidden throughout (AC23b).
+      mode=hide-later: two data-testid="dup" elements; the first is visible at load
+                        and becomes hidden at `hideAt` ms, the second is hidden
+                        throughout (AC23c).
+  -->
+
+  <div id="root"></div>
+
+  <script>
+    var params = new URLSearchParams(window.location.search);
+    function qp(name, def) {
+      var v = params.get(name);
+      if (v === null || v === '') return def;
+      return Number(v);
+    }
+
+    var mode = params.get('mode');
+    var root = document.getElementById('root');
+
+    function addEl(testId, hidden) {
+      var el = document.createElement('div');
+      el.setAttribute('data-testid', testId);
+      el.textContent = testId;
+      if (hidden) el.style.display = 'none';
+      root.appendChild(el);
+      return el;
+    }
+
+    if (mode === 'collapse') {
+      var rowA = addEl('row', false);
+      addEl('row', false);
+      if (params.has('collapseAt')) {
+        var collapseAt = qp('collapseAt', 800);
+        setTimeout(function () { rowA.remove(); }, collapseAt);
+      }
+    } else if (mode === 'hidden') {
+      addEl('dup', true);
+      addEl('dup', true);
+    } else if (mode === 'mixed') {
+      addEl('dup', false);
+      addEl('dup', true);
+    } else if (mode === 'hide-later') {
+      var dupA = addEl('dup', false);
+      addEl('dup', true);
+      var hideAt = qp('hideAt', 800);
+      setTimeout(function () { dupA.style.display = 'none'; }, hideAt);
+    }
+  </script>
+
+</body>
+</html>

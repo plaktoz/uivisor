@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timeouts Fixture: input-disable</title>
+</head>
+<body>
+
+  <!--
+    No query params.
+
+    Elements:
+      data-testid="int-input" - an enabled <input>; clicking it (tapOn) disables
+      it immediately, so a subsequent inputText never resolves to an actionable
+      element (AC32).
+  -->
+
+  <input id="int-input" data-testid="int-input" type="text">
+
+  <script>
+    document.getElementById('int-input').addEventListener('click', function () {
+      this.disabled = true;
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timeouts Fixture: spa-nav</title>
+</head>
+<body>
+
+  <!--
+    Query params:
+      navAt   (ms, default 800)  - when the page client-side navigates (pushState).
+      target  (path, default /target) - the path pushState navigates to.
+      slowMs  (ms, default 1700) - the `ms` value sent to the server's /slow route,
+                 fetched (relative to this page's origin) right after the navigation,
+                 keeping one network request in flight until navAt + slowMs.
+
+    No visible elements; this fixture only exercises navigation + network timing
+    for waitForPageLoad (AC37). The server hosting this page is expected to also
+    serve /slow?ms=N (responds after N ms), per the integration test harness.
+  -->
+
+  <script>
+    function qp(name, def) {
+      var v = new URLSearchParams(window.location.search).get(name);
+      if (v === null || v === '') return def;
+      return v;
+    }
+
+    var navAt = Number(qp('navAt', 800));
+    var target = qp('target', '/target');
+    var slowMs = Number(qp('slowMs', 1700));
+
+    setTimeout(function () {
+      history.pushState(null, '', target);
+      fetch('/slow?ms=' + slowMs).catch(function () { /* ignore */ });
+    }, navAt);
+  </script>
+
+</body>
+</html>
