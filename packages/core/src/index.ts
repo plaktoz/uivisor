@@ -7,6 +7,7 @@ export type {
 export type { PlaywrightContext } from './types.js';
 
 export { parseSelector } from './selectorParser.js';
+export { UnresolvedVariableError, resolveRef, interpolateValue, interpolateObject } from './interpolate.js';
 export { resolveSelector } from './selectorHeuristics.js';
 export { CAPTURE_SCRIPT } from './captureScript.js';
 

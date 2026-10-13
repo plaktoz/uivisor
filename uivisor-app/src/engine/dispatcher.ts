@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
 import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
-import { interpolateObject, UnresolvedVariableError } from '../parser/interpolate.js';
+import { interpolateObject, UnresolvedVariableError } from '@uivisor/core';
 import {
   executeGoto,
   executeTapOn,
