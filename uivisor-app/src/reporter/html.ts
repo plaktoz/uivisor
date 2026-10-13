@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { RunResult, FlowResult, CommandResult } from '@uivisor/core';
+import { runFlowLabel } from './runFlowLabel.js';
 
 function escapeHtml(s: string): string {
   return s
@@ -20,7 +21,7 @@ function cmdLabel(cmd: CommandResult['command']): string {
     case 'assertNotVisible': return `assertNotVisible: ${JSON.stringify(cmd.selector)}`;
     case 'assertUrl': return `assertUrl: ${cmd.path}`;
     case 'wait': return `wait: ${cmd.ms}ms`;
-    case 'runFlow': return `runFlow: ${cmd.path}`;
+    case 'runFlow': return runFlowLabel(cmd);
     case 'scroll': return `scroll: ${cmd.direction}`;
     case 'assertText': return `assertText: ${JSON.stringify(cmd.selector)} expected: ${cmd.expected}`;
     case 'assertValue': return `assertValue: ${JSON.stringify(cmd.selector)} expected: ${cmd.expected}`;

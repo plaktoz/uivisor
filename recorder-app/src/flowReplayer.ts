@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 import type { Page } from 'playwright';
 import type { Command, Selector, SessionedCommand, PlaywrightContext } from '@uivisor/core';
 import {
+  interpolateObject,
   parseSelector,
   resolveContainerLocator,
   createScopedPage,
@@ -81,8 +82,22 @@ function parseCommand(record: Record<string, unknown>): Command {
     case 'assertUrl':
       return { type: 'assertUrl', path: String(val) };
 
-    case 'runFlow':
-      return { type: 'runFlow', path: String(val) };
+    case 'runFlow': {
+      if (typeof val === 'string') return { type: 'runFlow', path: val };
+      const obj = val as Record<string, unknown> | null;
+      if (obj === null || typeof obj !== 'object' || Array.isArray(obj) || typeof obj.file !== 'string') {
+        throw new Error(`runFlow: expected a file path or { file, vars }, got ${JSON.stringify(val)}`);
+      }
+      if (obj.vars === undefined || obj.vars === null) return { type: 'runFlow', path: obj.file };
+      if (typeof obj.vars !== 'object' || Array.isArray(obj.vars)) {
+        throw new Error(`runFlow: vars must be a map of name: value, got ${JSON.stringify(obj.vars)}`);
+      }
+      const vars: Record<string, string> = {};
+      for (const [k, v] of Object.entries(obj.vars)) {
+        vars[k] = String(v);
+      }
+      return { type: 'runFlow', path: obj.file, vars };
+    }
 
     case 'scroll':
       return { type: 'scroll', direction: String(val) as 'up' | 'down' | 'left' | 'right' };
@@ -272,25 +287,6 @@ function loadFlowYaml(absPath: string): { appId: string; vars: Record<string, st
   return { appId, vars, commands };
 }
 
-/** Substitute ${name} references using the current var map. */
-function interpolateStr(value: string, varMap: Map<string, string>): string {
-  return value.replace(/\$\{([^}]+)\}/g, (_, name: string) => varMap.get(name) ?? '');
-}
-
-/** Recursively interpolate all string leaves in a command object. */
-function interpolateCmd<T>(obj: T, varMap: Map<string, string>): T {
-  if (typeof obj === 'string') return interpolateStr(obj, varMap) as unknown as T;
-  if (Array.isArray(obj)) return obj.map((item) => interpolateCmd(item, varMap)) as unknown as T;
-  if (obj !== null && typeof obj === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      result[k] = interpolateCmd(v, varMap);
-    }
-    return result as T;
-  }
-  return obj;
-}
-
 // ─── Playwright command dispatcher ───────────────────────────────────────────
 
 async function dispatchCommand(
@@ -301,8 +297,7 @@ async function dispatchCommand(
   callStack: Set<string>,
   varMap: Map<string, string>,
 ): Promise<void> {
-  // Interpolate ${var} references in all string values before dispatch
-  const c = interpolateCmd(cmd, varMap);
+  const c = interpolateObject(cmd, Object.fromEntries(varMap), true) as Command;
   switch (c.type) {
     case 'goto':
       await executeGoto(page, c.url);
@@ -438,7 +433,7 @@ async function dispatchCommand(
       callStack.add(nestedAbsPath);
       try {
         // Share replay context so lastTappedLocator persists across nested flows
-        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap);
+        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap, c.vars);
       } finally {
         callStack.delete(nestedAbsPath);
       }
@@ -515,13 +510,18 @@ async function replayFlowFile(
   ctx: PlaywrightContext,
   callStack: Set<string>,
   parentVarMap?: Map<string, string>,
+  callSiteVars?: Readonly<Record<string, string>>,
 ): Promise<void> {
   const { vars, commands } = loadFlowYaml(absPath);
   const total = commands.length;
   const fileName = path.basename(absPath);
 
-  // Seed a varMap from the file's vars block, inheriting any parent vars
-  const varMap: Map<string, string> = new Map([...(parentVarMap ?? []), ...Object.entries(vars)]);
+  // Precedence, lowest first. The file's vars block, the caller's variables, call-site runFlow vars.
+  const varMap: Map<string, string> = new Map([
+    ...Object.entries(vars),
+    ...(parentVarMap ?? []),
+    ...Object.entries(callSiteVars ?? {}),
+  ]);
 
   for (let i = 0; i < total; i++) {
     console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);
@@ -549,6 +549,7 @@ async function replayFlowFile(
  * - Replay commands are NOT written to the output file.
  * - Progress is logged to stdout: "[replay] <file>: <n>/<total> commands".
  * - Assertion failures reject with: "[replay] FAILED: <type> in <file>: <message>".
+ *   So does a reference to an undefined variable that has no `${name:default}`.
  *
  * @param flowPaths  Paths as supplied to --run-flow (resolved from process.cwd()).
  * @param page       Playwright Page instance shared with the recorder.
