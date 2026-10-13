@@ -42,13 +42,7 @@ export class ConsoleReporter {
   }
 
   endFlow(result: FlowResult): void {
-    const n = result.passedCommands;
-    const m = result.totalCommands;
-    if (result.passed) {
-      process.stdout.write(`PASSED — ${n}/${m} commands passed\n`);
-    } else {
-      process.stdout.write(`FAILED — ${n}/${m} commands passed\n`);
-    }
+    process.stdout.write(`${flowSummary(result)}\n`);
   }
 
   runEnd(result: RunResult): void {
@@ -56,4 +50,8 @@ export class ConsoleReporter {
       process.stdout.write(`\n${result.passedFlows} flows passed, ${result.failedFlows} flows failed\n`);
     }
   }
+}
+
+export function flowSummary(result: FlowResult): string {
+  return `${result.passed ? 'PASSED' : 'FAILED'} — ${result.passedCommands}/${result.totalCommands} commands passed`;
 }
