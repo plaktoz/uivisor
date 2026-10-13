@@ -1,0 +1,17 @@
+appId: ${base}/integration
+config: config.yml
+# Included by run-flow-override.yaml; also passes standalone with its own defaults
+vars:
+  textToType: Child Default Text
+  lastTyped: none
+commands:
+  - goto: ${base}/integration
+  - tapOn:
+      testId: int-input-shorthand
+  - clearText:
+      testId: int-input-shorthand
+  - inputText: ${textToType}
+  - assertValue:
+      testId: int-input-shorthand
+      expected: ${textToType}
+  - setVar: lastTyped=${textToType}

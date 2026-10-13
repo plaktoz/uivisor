@@ -17,6 +17,7 @@ const stubVarMap: VarMap = {
   set: () => {},
   unset: () => {},
   toRecord: () => ({}),
+  withScope: (_scope, run) => run(),
 };
 const stubMethodRunner: MethodRunner = {
   call: async () => { throw new Error('not impl'); },

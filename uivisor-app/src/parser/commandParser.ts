@@ -1,4 +1,5 @@
-import { type Command, type SessionedCommand, parseSelector } from '@uivisor/core';
+import { type Command, type RunFlowCommand, type SessionedCommand, parseSelector } from '@uivisor/core';
+import { flattenVars } from './interpolate.js';
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
@@ -34,6 +35,53 @@ function splitMethodArgs(argsStr: string): string[] {
   const last = current.trim();
   if (last !== '') args.push(last);
   return args;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  return typeof value;
+}
+
+function requireFlowPath(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`Invalid runFlow: "file" must be a non-empty string`);
+  }
+  return value;
+}
+
+export function parseRunFlow(value: unknown): RunFlowCommand {
+  if (typeof value === 'string') {
+    return { type: 'runFlow', path: requireFlowPath(value) };
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Invalid runFlow: expected a file path or { file, vars }, got ${describeValue(value)}`);
+  }
+  const unknownKey = Object.keys(value).find((k) => k !== 'file' && k !== 'vars');
+  if (unknownKey !== undefined) {
+    throw new Error(`Invalid runFlow: unknown key "${unknownKey}" (allowed: file, vars)`);
+  }
+  const flowPath = requireFlowPath(value['file']);
+  if (!('vars' in value)) {
+    return { type: 'runFlow', path: flowPath };
+  }
+  const rawVars = value['vars'];
+  if (!isPlainObject(rawVars)) {
+    throw new Error(`Invalid runFlow: "vars" must be a map of name: value, got ${describeValue(rawVars)}`);
+  }
+  let vars: Record<string, string>;
+  try {
+    vars = flattenVars(rawVars);
+  } catch (err: unknown) {
+    throw new Error(`Invalid runFlow: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return Object.keys(vars).length > 0
+    ? { type: 'runFlow', path: flowPath, vars }
+    : { type: 'runFlow', path: flowPath };
 }
 
 export function parseCommand(raw: unknown): Command {
@@ -74,6 +122,9 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'assertUrl', path: value as string };
 
     case 'wait': {
+      if (typeof value === 'string' && value.includes('${')) {
+        return { type: 'wait', ms: value as unknown as number };
+      }
       const ms = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
       if (typeof ms !== 'number' || !Number.isInteger(ms)) {
         throw new Error(`Type error: wait value must be an integer, got ${String(value)}`);
@@ -82,7 +133,7 @@ export function parseCommand(raw: unknown): Command {
     }
 
     case 'runFlow':
-      return { type: 'runFlow', path: value as string };
+      return parseRunFlow(value);
 
     case 'scroll': {
       if (!SCROLL_DIRECTIONS.has(value as string)) {
@@ -104,11 +155,14 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'assertValue', selector: parseSelector(selectorRaw), expected };
     }
     case 'assertCount': {
-      const v = value as { css: string; expected: number };
+      const v = value as { css: string; expected: unknown };
+      if (typeof v.expected === 'string' && v.expected.includes('${')) {
+        return { type: 'assertCount', css: v.css, expected: v.expected as unknown as number };
+      }
       if (!Number.isInteger(v.expected)) {
         throw new Error(`assertCount expected must be an integer, got ${String(v.expected)}`);
       }
-      return { type: 'assertCount', css: v.css, expected: v.expected };
+      return { type: 'assertCount', css: v.css, expected: v.expected as number };
     }
     case 'assertEnabled':
       return { type: 'assertEnabled', selector: parseSelector(value) };
@@ -160,17 +214,24 @@ export function parseCommand(raw: unknown): Command {
         }
         return { type: 'setViewport', width: preset.width, height: preset.height };
       }
-      const v = value as { width: number; height: number };
-      if (!Number.isInteger(v.width) || !Number.isInteger(v.height) || v.width <= 0 || v.height <= 0) {
-        throw new Error('setViewport width and height must be positive integers');
+      const v = value as { width: unknown; height: unknown };
+      const wIsRef = typeof v.width === 'string' && (v.width as string).includes('${');
+      const hIsRef = typeof v.height === 'string' && (v.height as string).includes('${');
+      if (!wIsRef && !hIsRef) {
+        if (!Number.isInteger(v.width) || !Number.isInteger(v.height) || (v.width as number) <= 0 || (v.height as number) <= 0) {
+          throw new Error('setViewport width and height must be positive integers');
+        }
       }
-      return { type: 'setViewport', width: v.width, height: v.height };
+      return { type: 'setViewport', width: v.width as number, height: v.height as number };
     }
 
     case 'screenshot':
       return { type: 'screenshot', path: value as string };
 
     case 'waitFor': {
+      if (typeof value === 'string' && value.includes('${')) {
+        return { type: 'waitFor', ms: value as unknown as number };
+      }
       const ms = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
       if (typeof ms !== 'number' || !Number.isInteger(ms) || ms <= 0) {
         throw new Error(`waitFor ms must be a positive integer, got ${String(value)}`);
@@ -186,10 +247,13 @@ export function parseCommand(raw: unknown): Command {
       const rawTimeout = obj['timeout'];
       let timeout: number | undefined;
       if (rawTimeout !== null && rawTimeout !== undefined) {
-        if (typeof rawTimeout !== 'number' || !Number.isInteger(rawTimeout) || rawTimeout < 0) {
+        if (typeof rawTimeout === 'string' && rawTimeout.includes('${')) {
+          timeout = rawTimeout as unknown as number;
+        } else if (typeof rawTimeout !== 'number' || !Number.isInteger(rawTimeout) || rawTimeout < 0) {
           throw new Error(`waitForPageLoad: timeout must be 0 (no timeout) or a positive integer, got ${rawTimeout}`);
+        } else {
+          timeout = rawTimeout;
         }
-        timeout = rawTimeout;
       }
       return { type: 'waitForPageLoad', ...(path !== undefined && { path }), ...(timeout !== undefined && { timeout }) };
     }
