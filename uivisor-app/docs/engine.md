@@ -87,7 +87,7 @@ Late-binding injection point. Called by `engine/index.ts` at startup to register
 
 Resets the module-level screenshot counter to 0. Called by `cli/runner.ts` before each flow.
 
-**Internal imports:** all `execute*` functions from `driver/commands`, `reporter/screenshot` (`captureScreenshot`), `reporter/runFlowLabel` (`runFlowLabel`), `parser/index` (`loadAndParse`), `parser/interpolate` (`interpolateObject`, `UnresolvedVariableError`)
+**Internal imports:** all `execute*` functions from `driver/commands`, `reporter/screenshot` (`captureScreenshot`), `reporter/runFlowLabel` (`runFlowLabel`), `parser/index` (`loadAndParse`). `interpolateObject` and `UnresolvedVariableError` come from `@uivisor/core`.
 
 ---
 
