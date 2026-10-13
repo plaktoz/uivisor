@@ -4,6 +4,7 @@ import {
   interpolateValue,
   interpolateObject,
   UnresolvedVariableError,
+  validateVars,
   flattenVars,
   parseRunFlow,
 } from './interpolate.js';
@@ -226,6 +227,28 @@ describe('variable interpolation', () => {
 
     it('still uses the default, and an empty value, without throwing', () => {
       expect(interpolateObject('${missing:dflt}|${empty}', { empty: '' }, true)).toBe('dflt|');
+    });
+  });
+
+  describe('validateVars', () => {
+    it('accepts a plain object, including an empty one', () => {
+      expect(() => validateVars({ a: '1', db: { host: 'x' } })).not.toThrow();
+      expect(() => validateVars({})).not.toThrow();
+    });
+
+    it.each([
+      ['null', null],
+      ['an array', ['a']],
+      ['a string', 'x'],
+      ['a number', 1],
+    ])('rejects %s', (_label, raw) => {
+      expect(() => validateVars(raw)).toThrow(/^Invalid vars: must be a plain object$/);
+    });
+
+    it('names the file when one is given', () => {
+      expect(() => validateVars(null, '/flows/a.yaml')).toThrow(
+        /^Invalid vars: must be a plain object in \/flows\/a\.yaml$/,
+      );
     });
   });
 

@@ -1,10 +1,10 @@
 import * as path from 'path';
 import type { FlowFile } from '@uivisor/core';
 import { readYamlFile } from './reader.js';
-import { validateHeader, validateCommandList, validateSessions, validateVars } from './validator.js';
+import { validateHeader, validateCommandList, validateSessions } from './validator.js';
 import { parseSessionedCommand } from './commandParser.js';
-import { interpolateValue, interpolateObject } from '@uivisor/core';
-import { flattenVars, loadConfigFile } from './interpolate.js';
+import { validateVars, flattenVars, interpolateValue, interpolateObject } from '@uivisor/core';
+import { loadConfigFile } from './interpolate.js';
 
 export function loadAndParse(filePath: string): FlowFile {
   const raw = readYamlFile(filePath);

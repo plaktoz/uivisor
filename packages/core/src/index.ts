@@ -12,6 +12,7 @@ export {
   resolveRef,
   interpolateValue,
   interpolateObject,
+  validateVars,
   flattenVars,
   parseRunFlow,
 } from './interpolate.js';

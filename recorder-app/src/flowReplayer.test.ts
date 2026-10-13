@@ -746,9 +746,6 @@ describe('runFlow vars', () => {
     ['a number', 42],
     ['an object without file', { path: './greet.yaml' }],
     ['vars that are not a map', { file: './greet.yaml', vars: ['who'] }],
-    ['unknown key', { file: './greet.yaml', var: { who: 'x' } }],
-    ['empty file', { file: '' }],
-    ['reserved env var', { file: './greet.yaml', vars: { env: 'x' } }],
   ])('rejects runFlow given %s', async (_label, runFlow) => {
     const dir = makeTmpDir();
     writeGreetChild(dir);
@@ -760,6 +757,25 @@ describe('runFlow vars', () => {
     await expect(
       replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
     ).rejects.toThrow(/^Invalid runFlow:/);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an unknown key', { file: './greet.yaml', var: { who: 'x' } }, 'Invalid runFlow: unknown key "var" (allowed: file, vars)'],
+    ['an empty file', { file: '' }, 'Invalid runFlow: "file" must be a non-empty string'],
+    ['a var named env', { file: './greet.yaml', vars: { env: 'x' } }, 'Invalid runFlow: Reserved variable name: "env"'],
+    ['a var under env.', { file: './greet.yaml', vars: { 'env.X': 'x' } }, 'Invalid runFlow: Reserved variable name: "env.X"'],
+  ])('rejects runFlow with %s, as uivisor-app does', async (_label, runFlow, message) => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow(new Error(message));
     expect(page.goto).not.toHaveBeenCalled();
   });
 
@@ -790,17 +806,51 @@ describe('runFlow vars', () => {
     expect(gotoUrls(page)).toEqual(['http://example.com/1']);
   });
 
-  it('rejects reserved env key in header vars', async () => {
+  it('flattens nested header vars to dotted names like db.host', async () => {
     const dir = makeTmpDir();
     const flowPath = writeFlow(dir, 'flow.yaml', {
       appId: 'http://example.com',
-      vars: { env: 'x' },
+      vars: { db: { host: 'localhost', port: 5432 } },
+      commands: [{ goto: 'http://${db.host}:${db.port}/' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://localhost:5432/']);
+  });
+
+  it.each([
+    ['env', { env: 'x' }],
+    ['env.X', { 'env.X': 'x' }],
+  ])('rejects a header var named %s and names the flow file', async (name, vars) => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      vars,
       commands: [{ goto: 'http://example.com' }],
     });
     const page = makeMockPage();
     await expect(
       replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml'),
-    ).rejects.toThrow(/Reserved variable name: "env"/);
+    ).rejects.toThrow(new Error(`Reserved variable name: "${name}" in ${flowPath}`));
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['null', null],
+    ['a list', ['a']],
+    ['a string', 'x'],
+  ])('rejects header vars that are %s and names the flow file', async (_label, vars) => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      vars,
+      commands: [{ goto: 'http://example.com' }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow(new Error(`Invalid vars: must be a plain object in ${flowPath}`));
+    expect(page.goto).not.toHaveBeenCalled();
   });
 });
 

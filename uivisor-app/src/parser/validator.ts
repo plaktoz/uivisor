@@ -47,12 +47,6 @@ export function validateCommandList(rawCommands: unknown): void {
   }
 }
 
-export function validateVars(raw: unknown, filePath?: string): void {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error(`Invalid vars: must be a plain object${filePath ? ' in ' + filePath : ''}`);
-  }
-}
-
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
 export function validateSessions(raw: unknown, filePath?: string): SessionDef[] {

@@ -8,6 +8,7 @@ import {
   interpolateObject,
   parseRunFlow,
   parseSelector,
+  validateVars,
   resolveContainerLocator,
   createScopedPage,
   executeGoto,
@@ -287,11 +288,9 @@ function loadFlowYaml(absPath: string): { appId: string; vars: Record<string, st
   const commands = rawCommands.map((r) => parseCommand(r));
 
   let vars: Record<string, string> = {};
-  if (raw.vars !== undefined && raw.vars !== null) {
-    if (typeof raw.vars !== 'object' || Array.isArray(raw.vars)) {
-      throw new Error(`Invalid vars: must be a plain object in ${absPath}`);
-    }
-    vars = flattenVars(raw.vars as Record<string, unknown>, absPath);
+  if (raw.vars !== undefined) {
+    validateVars(raw.vars, absPath);
+    vars = flattenVars(raw.vars, absPath);
   }
 
   return { appId, vars, commands };

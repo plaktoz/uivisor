@@ -1,7 +1,5 @@
 import { type Command, type RunFlowCommand, type SessionedCommand, parseSelector, parseRunFlow } from '@uivisor/core';
 
-export { parseRunFlow };
-
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
 // ─── setVar parsing helpers ───────────────────────────────────────────────────
