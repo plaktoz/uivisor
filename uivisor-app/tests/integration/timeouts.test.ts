@@ -9,9 +9,10 @@
  *
  * Setup:
  *   - A local HTTP server serves tests/fixtures/timeouts/*.html, plus
- *     /hang (never responds), /reload-hang (hangs from the 2nd request for a
- *     given id), /slow?ms=N (responds after N ms), /quick (responds at once),
- *     and a generic 200 page for any other path.
+ *     /hang (never responds), /reload-hang (responds to the 1st request for a
+ *     given id, then never responds to the 2nd+), /slow?ms=N (responds after
+ *     N ms), /quick (responds at once), and a generic 200 page for any other
+ *     path.
  *   - A headless Chromium browser is launched once for the suite.
  *   - Temporary YAML (and config) files are written to os.tmpdir().
  *
@@ -58,7 +59,6 @@ beforeAll(async () => {
 
     if (pathname === '/reload-hang') {
       const id = url.searchParams.get('id') ?? 'default';
-      const delayMs = Number(url.searchParams.get('ms') ?? '0');
       const n = (reloadHangCounts.get(id) ?? 0) + 1;
       reloadHangCounts.set(id, n);
       if (n === 1) {
@@ -66,13 +66,9 @@ beforeAll(async () => {
         res.end('<html><body>reload-hang-ok</body></html>');
         return;
       }
-      // 2nd+ request: respond only after `delayMs` — long enough to exceed the
-      // test's navigationTimeout, but finite, so the request settles instead of
-      // leaving the page genuinely stuck mid-navigation forever.
-      setTimeout(() => {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<html><body>reload-hang-settled</body></html>');
-      }, delayMs);
+      // 2nd+ request: never respond, like /hang. The reload's own
+      // navigationTimeout aborts the pending request client-side (F1 fix
+      // verified this doesn't stall the dispatcher's failure-screenshot path).
       return;
     }
 
@@ -610,28 +606,30 @@ describe('AC32 (revised): inputText shorthand uses defaultTimeout and reports ac
 });
 
 describe('AC33: navigation commands use navigationTimeout', () => {
-  it('AC33(a): goto a slow-to-respond URL fails after navigationTimeout', async () => {
-    // /slow responds just after navigationTimeout — long enough that goto's own
-    // deadline (not the response) decides the outcome, but short enough that the
-    // underlying navigation settles quickly afterward (avoiding an unrelated,
-    // orthogonal stall in the dispatcher's on-failure screenshot capture, which
-    // waits on page stability and would otherwise block for a long time if the
-    // page were left genuinely stuck mid-navigation).
+  it('AC33(a): goto a route that never responds fails after navigationTimeout', async () => {
+    // /hang accepts the request and never answers — the never-responding route
+    // the spec (AC33) describes. goto's own deadline decides the outcome; the
+    // dispatcher's on-failure screenshot capture is now itself bounded (F1 fix,
+    // src/reporter/screenshot.ts SCREENSHOT_TIMEOUT_MS), so a page genuinely
+    // stuck mid-navigation no longer stalls the step.
     const run: TimeoutSettings = { defaultTimeout: 5000, navigationTimeout: 1500 };
     const ctx = freshCtx(run);
-    const result = await dispatch(page, { command: { type: 'goto', url: `${baseUrl}/slow?ms=1700` } }, ctx);
+    const result = await dispatch(page, { command: { type: 'goto', url: `${baseUrl}/hang` } }, ctx);
     expect(result.passed).toBe(false);
-    expectElapsed(result.durationMs, 1500);
+    expectElapsed(result.durationMs, 1500, 2500);
     expect(result.message).toContain('1500ms');
   });
 
-  it('AC33(b): reload on a slow-to-respond URL fails after navigationTimeout', async () => {
-    await page.goto(`${baseUrl}/reload-hang?id=ac33b&ms=1700`);
+  it('AC33(b): reload while the reload request hangs fails after navigationTimeout', async () => {
+    // First request to /reload-hang settles normally (the initial goto); the
+    // reload below is the 2nd request for this id, which the server never
+    // answers — a genuine, never-responding reload.
+    await page.goto(`${baseUrl}/reload-hang?id=ac33b`);
     const run: TimeoutSettings = { defaultTimeout: 5000, navigationTimeout: 1500 };
     const ctx = freshCtx(run);
     const result = await dispatch(page, { command: { type: 'reload' } }, ctx);
     expect(result.passed).toBe(false);
-    expectElapsed(result.durationMs, 1500);
+    expectElapsed(result.durationMs, 1500, 2500);
     expect(result.message).toContain('1500ms');
   });
 });

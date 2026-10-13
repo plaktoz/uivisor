@@ -466,6 +466,9 @@ export async function dispatch(
     }
     return { command: c, passed: true, screenshotPath: capturedScreenshotPath, durationMs: Date.now() - start };
   } catch (err: unknown) {
+    // Measure the failure's duration at the point it was caught, before the
+    // (potentially slow — e.g. a page stuck mid-navigation) screenshot capture.
+    const durationMs = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
     let expected: string | undefined;
     let got: string | undefined;
@@ -495,7 +498,7 @@ export async function dispatch(
       expected,
       got,
       screenshotPath,
-      durationMs: Date.now() - start,
+      durationMs,
     };
   }
 }

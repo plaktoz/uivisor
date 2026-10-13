@@ -10,11 +10,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import type { Page } from 'playwright';
 import { ConsoleReporter } from '../../src/reporter/console';
 import { generateHtmlReport } from '../../src/reporter/html';
 import { generateMarkdownReport } from '../../src/reporter/markdown';
-import { captureScreenshot } from '../../src/reporter/screenshot';
+import { captureScreenshot, SCREENSHOT_TIMEOUT_MS } from '../../src/reporter/screenshot';
 import type { Command, CommandResult, FlowResult, RunResult } from '@uivisor/core';
 
 // ─── Test-data factories ──────────────────────────────────────────────────────
@@ -244,6 +247,27 @@ describe('captureScreenshot', () => {
 
     await captureScreenshot(mockPage, 'flow', 1);
     expect(mockPage.screenshot).toHaveBeenCalledOnce();
+  });
+
+  // F1 fix: page.screenshot() must be bounded, or a page stuck mid-navigation
+  // makes the (non-fatal, but awaited) screenshot attempt fall back to
+  // Playwright's own 30s default and dominate the step's wall time.
+  it('F1: page.screenshot() is called with a bounded timeout', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uiv-screenshot-'));
+    try {
+      const mockPage = {
+        screenshot: vi.fn().mockResolvedValue(PNG_MAGIC),
+      } as unknown as Page;
+
+      await captureScreenshot(mockPage, 'flow', 1, dir);
+
+      expect(mockPage.screenshot).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: SCREENSHOT_TIMEOUT_MS }),
+      );
+      expect(SCREENSHOT_TIMEOUT_MS).toBeLessThanOrEqual(5000);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
