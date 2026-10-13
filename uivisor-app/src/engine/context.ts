@@ -1,4 +1,4 @@
-import type { RunContext, VarMap, MethodRunner } from '@uivisor/core';
+import type { RunContext, VarMap, MethodRunner, ProgressListener } from '@uivisor/core';
 import { createVarMap } from './varMap.js';
 
 /** No-op MethodRunner used as a placeholder when no methodRunner is provided. */
@@ -14,6 +14,7 @@ export function createContext(
   defaultSessionId: string,
   varMap: VarMap = createVarMap({}),
   methodRunner: MethodRunner = noopMethodRunner,
+  onProgress?: ProgressListener,
 ): RunContext {
   return {
     lastTappedLocator: null,
@@ -24,5 +25,6 @@ export function createContext(
     defaultSessionId,
     varMap,
     methodRunner,
+    onProgress,
   };
 }

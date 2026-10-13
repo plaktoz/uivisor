@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
 import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
-import { interpolateObject } from '../parser/interpolate.js';
+import { interpolateObject, UnresolvedVariableError } from '@uivisor/core';
 import {
   executeGoto,
   executeTapOn,
@@ -37,6 +37,7 @@ import {
   executeWithin,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
+import { runFlowLabel } from '../reporter/runFlowLabel.js';
 import { loadAndParse } from '../parser/index.js';
 
 type RunFlowFn = (file: FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>;
@@ -47,15 +48,24 @@ export function registerRunFlow(fn: RunFlowFn): void {
   _runFlowImpl = fn;
 }
 
-/** Walk a FlowResult tree and return the first failure message found */
-function extractFailureMessage(result: FlowResult): string | undefined {
-  for (const cr of result.commandResults) {
-    if (!cr.passed) {
-      if (cr.nestedResult) return extractFailureMessage(cr.nestedResult);
-      return cr.message;
-    }
+function firstFailureMessage(result: FlowResult): string {
+  return result.commandResults.find((r) => !r.passed)?.message ?? `${path.basename(result.filePath)} failed`;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Coerce a value that may be a string (post-interpolation) to a number.
+ * Throws if the resulting value is not a finite integer.
+ */
+function toInt(value: number | string, label: string): number {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isInteger(n)) {
+    throw new Error(`${label} must be an integer, got "${value}"`);
   }
-  return undefined;
+  return n;
 }
 
 let _screenshotCounter = 0;
@@ -79,10 +89,31 @@ export async function dispatch(
   try {
     resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { command: cmd, passed: false, message, durationMs: Date.now() - start };
+    let message = errorMessage(err);
+    if (err instanceof UnresolvedVariableError) {
+      message += ` in flow "${flowStem}"`;
+      if (cmd.type === 'runFlow') message += ` at ${runFlowLabel(cmd)}`;
+    }
+    ctx.onProgress?.({ kind: 'stepStart', command: cmd });
+    const failed: CommandResult = { command: cmd, passed: false, message, durationMs: Date.now() - start };
+    ctx.onProgress?.({ kind: 'stepEnd', result: failed });
+    return failed;
   }
 
+  ctx.onProgress?.({ kind: 'stepStart', command: resolvedCmd });
+  const result = await executeResolved(page, resolvedCmd, ctx, flowStem, flowDir, start);
+  ctx.onProgress?.({ kind: 'stepEnd', result });
+  return result;
+}
+
+async function executeResolved(
+  page: Page,
+  resolvedCmd: Command,
+  ctx: RunContext,
+  flowStem: string,
+  flowDir: string,
+  start: number,
+): Promise<CommandResult> {
   // Handle runFlow specially
   if (resolvedCmd.type === 'runFlow') {
     const absPath = path.resolve(flowDir, resolvedCmd.path);
@@ -107,34 +138,39 @@ export async function dispatch(
       };
     }
 
+    let file: FlowFile;
     try {
-      const file = loadAndParse(absPath);
-      ctx.callStack.add(absPath);
-      ctx.indentLevel++;
+      file = loadAndParse(absPath);
+    } catch (err: unknown) {
+      return { command: resolvedCmd, passed: false, message: errorMessage(err), durationMs: Date.now() - start };
+    }
+    ctx.onProgress?.({ kind: 'include', file });
 
+    const includedFrom = `, included from flow "${flowStem}" via ${runFlowLabel(resolvedCmd)}`;
+    ctx.indentLevel++;
+    try {
       const runFn = _runFlowImpl!;
-      const nestedResult = await runFn(file, page, ctx);
-
-      ctx.indentLevel--;
-      ctx.callStack.delete(absPath);
+      const nestedResult = await ctx.varMap.withScope(
+        { overrides: resolvedCmd.vars ?? {}, defaults: file.vars ?? {} },
+        () => runFn(file, page, ctx),
+      );
 
       return {
         command: resolvedCmd,
         passed: nestedResult.passed,
         nestedResult,
-        message: nestedResult.passed ? undefined : extractFailureMessage(nestedResult),
+        message: nestedResult.passed ? undefined : `${firstFailureMessage(nestedResult)}${includedFrom}`,
         durationMs: Date.now() - start,
       };
     } catch (err: unknown) {
-      ctx.indentLevel--;
-      ctx.callStack.delete(absPath);
-      const message = err instanceof Error ? err.message : String(err);
       return {
         command: resolvedCmd,
         passed: false,
-        message,
+        message: `${errorMessage(err)}${includedFrom}`,
         durationMs: Date.now() - start,
       };
+    } finally {
+      ctx.indentLevel--;
     }
   }
 
@@ -167,7 +203,7 @@ export async function dispatch(
         await executeAssertUrl(page, c.path);
         break;
       case 'wait':
-        await executeWait(c.ms);
+        await executeWait(toInt(c.ms as unknown as number | string, 'wait ms'));
         break;
       case 'scroll':
         await executeScroll(page, c.direction);
@@ -179,7 +215,7 @@ export async function dispatch(
         await executeAssertValue(page, c.selector, c.expected);
         break;
       case 'assertCount':
-        await executeAssertCount(page, c.css, c.expected);
+        await executeAssertCount(page, c.css, toInt(c.expected as unknown as number | string, 'assertCount expected'));
         break;
       case 'assertEnabled':
         await executeAssertEnabled(page, c.selector);
@@ -224,17 +260,25 @@ export async function dispatch(
         await executeGoForward(page);
         break;
       case 'setViewport':
-        await executeSetViewport(page, c.width, c.height);
+        await executeSetViewport(
+          page,
+          toInt(c.width as unknown as number | string, 'setViewport width'),
+          toInt(c.height as unknown as number | string, 'setViewport height'),
+        );
         break;
       case 'screenshot':
         capturedScreenshotPath = await executeScreenshot(page, c.path, ctx.runDir);
         break;
       case 'waitFor':
-        await executeWaitFor(c.ms);
+        await executeWaitFor(toInt(c.ms as unknown as number | string, 'waitFor ms'));
         break;
 
       case 'waitForPageLoad':
-        await executeWaitForPageLoad(page, c.path, c.timeout);
+        await executeWaitForPageLoad(
+          page,
+          c.path,
+          c.timeout !== undefined ? toInt(c.timeout as unknown as number | string, 'waitForPageLoad timeout') : undefined,
+        );
         break;
 
       case 'within': {

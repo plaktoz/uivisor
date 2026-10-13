@@ -45,7 +45,7 @@ No internal imports.
 
 ## interpolate.ts
 
-Variable flattening and `${...}` interpolation.
+Variable flattening and config loading. The `${...}` interpolation functions live in `@uivisor/core` (`packages/core/src/interpolate.ts`), which recorder-app also uses. They are described under [Interpolation](#interpolation-uivisorcore).
 
 ### `flattenVars(raw, filePath?): Record<string, string>`
 
@@ -57,23 +57,25 @@ Recursively walks a nested YAML object, joining keys with `.` to form dotted pat
 - Duplicate keys throw.
 - Number/boolean/null leaves are coerced to strings.
 
-### `resolveRef(inner, vars): string`
-
-Resolves a single interpolation expression of the form `name:default`. Reads from `process.env` for `env.*` names; otherwise from the vars map. Returns the default if the resolved value is undefined or empty string.
-
-### `interpolateValue(value, vars): string`
-
-Forward-scan over a string, replacing all `${...}` expressions via `resolveRef`. Throws on unclosed `${`.
-
-### `interpolateObject(obj, vars): unknown`
-
-Deep-walks any value (string, array, object, primitive) and calls `interpolateValue` on string leaves. Never mutates input.
-
 ### `loadConfigFile(configPath, flowFilePath): Record<string, string>`
 
 Resolves the config path relative to the flow file's directory, reads and parses it as YAML, flattens it, then resolves `${env.*}` expressions in all values (using empty vars — only env vars are available at config load time).
 
-**Internal imports:** `parser/reader` (`readYamlFile`)
+**Internal imports:** `parser/reader` (`readYamlFile`). `interpolateValue` comes from `@uivisor/core`.
+
+### Interpolation (`@uivisor/core`)
+
+#### `resolveRef(inner, vars, strict = false): string`
+
+Resolves a single interpolation expression of the form `name:default`. Reads from `process.env` for `env.*` names; otherwise from the vars map. Returns the default if the resolved value is undefined or empty string. With `strict`, an absent variable with no default throws `UnresolvedVariableError` (`Variable "name" is not defined`); otherwise it resolves to `''`.
+
+#### `interpolateValue(value, vars, strict = false): string`
+
+Forward-scan over a string, replacing all `${...}` expressions via `resolveRef`. Throws on unclosed `${`.
+
+#### `interpolateObject(obj, vars, strict = false): unknown`
+
+Deep-walks any value (string, array, object, primitive) and calls `interpolateValue` on string leaves. Never mutates input.
 
 ---
 

@@ -1,3 +1,5 @@
+import type { ConsoleFlag } from '../reporter/run-reporter.js';
+
 export interface CompactArgs {
   file: string;
   output?: string;
@@ -42,6 +44,7 @@ export interface ParsedArgs {
   headed: boolean;
   slowMo: number;
   reporter: 'html' | 'md' | null;
+  console: ConsoleFlag;
   tags: string[];
   outputDir?: string;
 }
@@ -54,6 +57,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let headed = false;
   let slowMo = 0;
   let reporter: 'html' | 'md' | null = null;
+  let consoleFlag: ConsoleFlag = 'auto';
   const tags: string[] = [];
   let outputDir: string | undefined;
 
@@ -78,6 +82,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     } else if (arg === '--reporter' && i + 1 < args.length) {
       const val = args[i + 1];
       if (val === 'html' || val === 'md') reporter = val;
+      else if (val === 'plain' || val === 'live') consoleFlag = val;
       i += 2;
     } else if (arg === '--tag' && i + 1 < args.length) {
       tags.push(args[i + 1] as string);
@@ -91,9 +96,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   if (!target) {
-    process.stdout.write('Usage: uivisor test <target> [--headed] [--slow-mo <ms>] [--reporter html|md] [--tag <name>] [--output-dir <path>]\n');
+    process.stdout.write('Usage: uivisor test <target> [--headed] [--slow-mo <ms>] [--reporter html|md|plain|live (repeatable)] [--tag <name>] [--output-dir <path>]\n');
     process.exit(1);
   }
 
-  return { target, headed, slowMo, reporter, tags, outputDir };
+  return { target, headed, slowMo, reporter, console: consoleFlag, tags, outputDir };
 }
