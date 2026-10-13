@@ -81,8 +81,22 @@ function parseCommand(record: Record<string, unknown>): Command {
     case 'assertUrl':
       return { type: 'assertUrl', path: String(val) };
 
-    case 'runFlow':
-      return { type: 'runFlow', path: String(val) };
+    case 'runFlow': {
+      if (typeof val === 'string') return { type: 'runFlow', path: val };
+      const obj = val as Record<string, unknown> | null;
+      if (obj === null || typeof obj !== 'object' || Array.isArray(obj) || typeof obj.file !== 'string') {
+        throw new Error(`runFlow: expected a file path or { file, vars }, got ${JSON.stringify(val)}`);
+      }
+      if (obj.vars === undefined || obj.vars === null) return { type: 'runFlow', path: obj.file };
+      if (typeof obj.vars !== 'object' || Array.isArray(obj.vars)) {
+        throw new Error(`runFlow: vars must be a map of name: value, got ${JSON.stringify(obj.vars)}`);
+      }
+      const vars: Record<string, string> = {};
+      for (const [k, v] of Object.entries(obj.vars)) {
+        vars[k] = String(v);
+      }
+      return { type: 'runFlow', path: obj.file, vars };
+    }
 
     case 'scroll':
       return { type: 'scroll', direction: String(val) as 'up' | 'down' | 'left' | 'right' };
@@ -438,7 +452,7 @@ async function dispatchCommand(
       callStack.add(nestedAbsPath);
       try {
         // Share replay context so lastTappedLocator persists across nested flows
-        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap);
+        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap, c.vars);
       } finally {
         callStack.delete(nestedAbsPath);
       }
@@ -515,13 +529,18 @@ async function replayFlowFile(
   ctx: PlaywrightContext,
   callStack: Set<string>,
   parentVarMap?: Map<string, string>,
+  callSiteVars?: Readonly<Record<string, string>>,
 ): Promise<void> {
   const { vars, commands } = loadFlowYaml(absPath);
   const total = commands.length;
   const fileName = path.basename(absPath);
 
-  // Seed a varMap from the file's vars block, inheriting any parent vars
-  const varMap: Map<string, string> = new Map([...(parentVarMap ?? []), ...Object.entries(vars)]);
+  // Precedence, lowest first. The file's vars block, the caller's variables, call-site runFlow vars.
+  const varMap: Map<string, string> = new Map([
+    ...Object.entries(vars),
+    ...(parentVarMap ?? []),
+    ...Object.entries(callSiteVars ?? {}),
+  ]);
 
   for (let i = 0; i < total; i++) {
     console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);

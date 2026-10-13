@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import yaml from 'js-yaml';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { replayFlows } from './flowReplayer.js';
+import { startSession, appendCommand } from './yamlWriter.js';
 import type { Page } from 'playwright';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -512,5 +513,137 @@ describe('waitForPageLoad', () => {
     });
     await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml')).catch(() => {});
     expect((page as unknown as ReturnType<typeof makeMockPage>)._loc.click).not.toHaveBeenCalled();
+  });
+});
+
+// ─── runFlow vars ─────────────────────────────────────────────────────────────
+
+describe('runFlow vars', () => {
+  function gotoUrls(page: ReturnType<typeof makeMockPage>): string[] {
+    return (page.goto as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+  }
+
+  function writeGreetChild(dir: string): void {
+    writeFlow(dir, 'greet.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Child' },
+      commands: [{ goto: 'http://example.com/${who}' }],
+    });
+  }
+
+  it('child vars fill in when the caller has no value', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow: './greet.yaml' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Child']);
+  });
+
+  it('parent vars override the child vars default', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Parent' },
+      commands: [{ runFlow: './greet.yaml' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Parent']);
+  });
+
+  it('call-site vars override both the parent and the child', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Parent' },
+      commands: [{ runFlow: { file: './greet.yaml', vars: { who: 'Call' } } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Call']);
+  });
+
+  it('call-site values are interpolated against the caller, not the child', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { name: 'Ada' },
+      commands: [{ runFlow: { file: './greet.yaml', vars: { name: 'Bob', who: 'Dr-${name}' } } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Dr-Ada']);
+  });
+
+  it('call-site values are not visible to the caller after the call', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Parent' },
+      commands: [
+        { runFlow: { file: './greet.yaml', vars: { who: 'Call', extra: 'X' } } },
+        { goto: 'http://example.com/after/${who}/${extra}' },
+      ],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Call', 'http://example.com/after/Parent/']);
+  });
+
+  it('the same child called twice sees each call\'s vars', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [
+        { runFlow: { file: './greet.yaml', vars: { who: 'A' } } },
+        { runFlow: { file: './greet.yaml', vars: { who: 'B' } } },
+        { runFlow: './greet.yaml' },
+      ],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual([
+      'http://example.com/A',
+      'http://example.com/B',
+      'http://example.com/Child',
+    ]);
+  });
+
+  it('call-site vars written by yamlWriter replay into the child', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = path.join(dir, 'parent.yaml');
+    startSession(parentPath, 'http://example.com');
+    appendCommand(parentPath, { type: 'runFlow', path: './greet.yaml', vars: { who: 'Recorded' } });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Recorded']);
+  });
+
+  it.each([
+    ['a number', 42],
+    ['an object without file', { path: './greet.yaml' }],
+    ['vars that are not a map', { file: './greet.yaml', vars: ['who'] }],
+  ])('rejects runFlow given %s', async (_label, runFlow) => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow(/^runFlow: (expected a file path or \{ file, vars \}|vars must be a map)/);
+    expect(page.goto).not.toHaveBeenCalled();
   });
 });
