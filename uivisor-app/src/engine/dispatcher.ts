@@ -85,9 +85,14 @@ export async function dispatch(
 
   // ── Lazy interpolation: resolve ${...} in command at dispatch time ──────────
   // This is strict mode: an absent variable with no default is an error.
+  // A `within` block's `do:` steps are left untouched: each is interpolated when it
+  // is dispatched, so a setVar earlier in the block is visible to later steps.
   let resolvedCmd: Command;
   try {
-    resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
+    resolvedCmd =
+      cmd.type === 'within'
+        ? { ...(interpolateObject({ ...cmd, do: [] }, ctx.varMap.toRecord(), true) as typeof cmd), do: cmd.do }
+        : (interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command);
   } catch (err: unknown) {
     let message = errorMessage(err);
     if (err instanceof UnresolvedVariableError) {

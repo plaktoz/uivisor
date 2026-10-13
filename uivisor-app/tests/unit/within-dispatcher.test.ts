@@ -411,3 +411,52 @@ describe('executeWithin — negative nth rejected (issue #44 defence-in-depth)',
     expect(dispatchFn).not.toHaveBeenCalled();
   });
 });
+
+// ─── issue #108: setVar inside a do: block is visible to later steps ─────────
+
+describe('dispatcher — within do: steps interpolate lazily (issue #108)', () => {
+  it('a setVar step is visible to later steps in the same block', async () => {
+    const page = makePage(1);
+    const cmd: Command = {
+      type: 'within',
+      selector: 'text=Alice',
+      do: [
+        { command: { type: 'setVar', name: 'x', value: 'hello' } },
+        { command: { type: 'goto', url: 'http://test/${x}' } },
+      ],
+    };
+
+    const result = await dispatch(page, cmd, makeCtx());
+
+    expect(result.passed).toBe(true);
+    expect(result.nestedResult!.commandResults).toHaveLength(2);
+    expect(page.goto).toHaveBeenCalledWith('http://test/hello', expect.anything());
+  });
+
+  it('still interpolates the within command\'s own fields up front', async () => {
+    const result = await dispatch(
+      makePage(1),
+      { type: 'within', selector: '${missing}', do: [] },
+      makeCtx(),
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Variable "missing" is not defined/);
+  });
+
+  it('a step referencing a variable that is never set still fails', async () => {
+    const result = await dispatch(
+      makePage(1),
+      {
+        type: 'within',
+        selector: 'text=Alice',
+        do: [{ command: { type: 'goto', url: 'http://test/${nope}' } }],
+      },
+      makeCtx(),
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.message).toMatch(/Variable "nope" is not defined/);
+  });
+});
+

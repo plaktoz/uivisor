@@ -318,7 +318,12 @@ async function dispatchCommand(
   callStack: Set<string>,
   varMap: Map<string, string>,
 ): Promise<void> {
-  const c = interpolateObject(cmd, Object.fromEntries(varMap), true) as Command;
+  // A `within` block's `do:` steps are interpolated when each is dispatched, so a
+  // setVar earlier in the block is visible to later steps.
+  const c =
+    cmd.type === 'within'
+      ? { ...(interpolateObject({ ...cmd, do: [] }, Object.fromEntries(varMap), true) as typeof cmd), do: cmd.do }
+      : (interpolateObject(cmd, Object.fromEntries(varMap), true) as Command);
   switch (c.type) {
     case 'goto':
       await executeGoto(page, c.url);
