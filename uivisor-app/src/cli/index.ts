@@ -58,9 +58,12 @@ if (process.argv[2] === 'compact') {
 
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
-  const { target, headed, slowMo, reporter, tags, outputDir } = parsed;
+  const { target, headed, slowMo, reporter, tags, outputDir, timeout, navigationTimeout } = parsed;
   const runDir = makeRunDir(outputDir);
-  const options = { headed, slowMo, reporter, runDir, tags };
+  const options = {
+    headed, slowMo, reporter, runDir, tags,
+    timeouts: { defaultTimeout: timeout, navigationTimeout },
+  };
 
   let rawTargets: string[];
   try {

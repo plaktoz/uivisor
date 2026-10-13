@@ -377,3 +377,109 @@ describe('resolveTarget', () => {
     expect(result).toHaveLength(1);
   });
 });
+
+// ─── --timeout / --navigation-timeout (AC55, T8) ───────────────────────────────
+
+describe('parseArgs: --timeout / --navigation-timeout', () => {
+  function argv(...args: string[]): string[] {
+    return ['/usr/bin/node', '/usr/local/bin/uivisor', ...args];
+  }
+
+  it('AC55 (a): --timeout 7000 --navigation-timeout 40000 are both parsed onto the result', () => {
+    const result = parseArgs(argv('test', 'f.yaml', '--timeout', '7000', '--navigation-timeout', '40000'));
+    expect(result.timeout).toBe(7000);
+    expect(result.navigationTimeout).toBe(40000);
+  });
+
+  it('AC55 (a, absence): neither flag given leaves both fields absent (undefined), not a default value', () => {
+    const result = parseArgs(argv('test', 'f.yaml'));
+    expect(result.timeout).toBeUndefined();
+    expect(result.navigationTimeout).toBeUndefined();
+  });
+
+  it('AC55 (b): --timeout 0 writes the exact error and exits 1', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    parseArgs(argv('test', 'f.yaml', '--timeout', '0'));
+
+    expect(writeSpy).toHaveBeenCalledWith('Error: --timeout must be a positive integer, got "0"\n');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it('AC55 (c): --timeout abc writes the exact error and exits 1', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    parseArgs(argv('test', 'f.yaml', '--timeout', 'abc'));
+
+    expect(writeSpy).toHaveBeenCalledWith('Error: --timeout must be a positive integer, got "abc"\n');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it('AC55 (d): --navigation-timeout -1 writes the exact error (navigation flag name) and exits 1', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    parseArgs(argv('test', 'f.yaml', '--navigation-timeout', '-1'));
+
+    expect(writeSpy).toHaveBeenCalledWith('Error: --navigation-timeout must be a positive integer, got "-1"\n');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it('AC55 (e): --timeout as the last argument with no value writes the error with an empty-string raw value and exits 1', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    parseArgs(argv('test', 'f.yaml', '--timeout'));
+
+    expect(writeSpy).toHaveBeenCalledWith('Error: --timeout must be a positive integer, got ""\n');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it('AC55: the usage/help output includes "[--timeout <ms>] [--navigation-timeout <ms>]"', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    parseArgs(argv('test'));
+
+    expect(writeSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[--timeout <ms>] [--navigation-timeout <ms>]'),
+    );
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  // Arbiter ruling 4: greedy-consume (no lookahead for another flag) and given-twice (last wins).
+
+  it('arbiter ruling: --timeout immediately followed by another flag greedily consumes it as the raw value', () => {
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    parseArgs(argv('test', 'f.yaml', '--timeout', '--headed'));
+
+    expect(writeSpy).toHaveBeenCalledWith('Error: --timeout must be a positive integer, got "--headed"\n');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it('arbiter ruling: --timeout given twice — the last occurrence wins', () => {
+    const result = parseArgs(argv('test', 'f.yaml', '--timeout', '1000', '--timeout', '2000'));
+    expect(result.timeout).toBe(2000);
+  });
+});

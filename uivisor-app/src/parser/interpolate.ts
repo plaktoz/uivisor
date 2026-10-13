@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { readYamlFile } from './reader.js';
-import type { FlowConfig, WorkingScheduleEntry } from '@uivisor/core';
+import type { FlowConfig, TimeoutSettings, WorkingScheduleEntry } from '@uivisor/core';
+import { validateTimeoutKeys } from './validator.js';
 
 const VAR_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 
@@ -168,11 +169,15 @@ export function interpolateObject(obj: unknown, vars: Record<string, string>, st
 }
 
 /** Keys in config.yml that are NOT simple variables but flow-config data. */
-const FLOW_CONFIG_KEYS = new Set(['workingSchedule', 'holidays', 'functions']);
+const FLOW_CONFIG_KEYS = new Set([
+  'workingSchedule', 'holidays', 'functions',
+  'defaultTimeout', 'navigationTimeout',
+]);
 
 export interface LoadConfigFileResult {
   vars: Record<string, string>;
   flowConfig: FlowConfig;
+  timeouts: Partial<TimeoutSettings>;
 }
 
 /**
@@ -225,6 +230,17 @@ export function loadConfigFile(
     }
   }
 
+  // Extract and validate defaultTimeout/navigationTimeout (S10). String values go through
+  // env-only interpolation first (${env.*} only — no runtime vars at this layer, AC57b).
+  const timeoutsRaw: Record<string, unknown> = {};
+  for (const key of ['defaultTimeout', 'navigationTimeout'] as const) {
+    if (key in rawObj) {
+      const v = rawObj[key];
+      timeoutsRaw[key] = typeof v === 'string' ? interpolateValue(v, {}) : v;
+    }
+  }
+  const timeouts = validateTimeoutKeys(timeoutsRaw, configPath);
+
   // Strip flow-config keys before passing to flattenVars
   const varsOnly: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(rawObj)) {
@@ -241,5 +257,5 @@ export function loadConfigFile(
     vars[key] = interpolateValue(value, {});
   }
 
-  return { vars, flowConfig };
+  return { vars, flowConfig, timeouts };
 }
