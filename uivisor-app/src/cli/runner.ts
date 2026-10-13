@@ -8,6 +8,7 @@ import { createContext } from '../engine/context.js';
 import { createVarMap } from '../engine/varMap.js';
 import { createMethodRunner } from '../engine/methodRunner.js';
 import { ConsoleReporter } from '../reporter/console.js';
+import { resolveRunTimeouts } from '../engine/timeouts.js';
 
 export async function runAll(
   targets: string[],
@@ -43,7 +44,8 @@ export async function runAll(
           file.flowConfig?.workingSchedule,
           file.flowConfig?.holidays,
         );
-        const ctx = createContext(options.runDir, sessions, defaultSessionId, varMap, methodRunner);
+        const runTimeouts = resolveRunTimeouts(options.timeouts ?? {}, file);
+        const ctx = createContext(options.runDir, sessions, defaultSessionId, varMap, methodRunner, runTimeouts);
         reporter.startFlow(file.filePath, ctx.indentLevel);
         const firstPage = sessions.get(defaultSessionId)!;
         const result = await runFlow(file, firstPage, ctx);

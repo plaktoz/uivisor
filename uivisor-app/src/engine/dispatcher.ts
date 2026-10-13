@@ -2,8 +2,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
 import type { Command, CommandResult, RunContext, FlowFile, FlowResult, SessionedCommand } from '@uivisor/core';
+import { createDeadline, DEFAULT_TIMEOUTS } from '@uivisor/core';
 import { interpolateObject, interpolateValue } from '../parser/interpolate.js';
 import { parsePositiveInt } from '../utils/positiveInt.js';
+import { stepTimeoutMs, timeoutNotice } from './timeouts.js';
 import {
   executeGoto,
   executeTapOn,
@@ -92,14 +94,21 @@ export async function dispatch(
   // The sibling `timeout` (if any) is resolved in the same try block, so an
   // undefined var or an invalid resolved value shares the flow-context logic below.
   let resolvedCmd: Command;
+  let own: number | undefined;
   try {
     resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
 
-    if (step.timeout !== undefined && typeof step.timeout !== 'number') {
+    if (step.timeout === undefined) {
+      own = undefined;
+    } else if (typeof step.timeout === 'number') {
+      own = step.timeout;
+    } else {
       const resolved = interpolateValue(step.timeout, ctx.varMap.toRecord(), true);
-      if (parsePositiveInt(resolved) === undefined) {
+      const parsed = parsePositiveInt(resolved);
+      if (parsed === undefined) {
         throw new Error(`timeout must be a positive integer, got "${resolved}"`);
       }
+      own = parsed;
     }
   } catch (err: unknown) {
     let message = err instanceof Error ? err.message : String(err);
@@ -117,6 +126,10 @@ export async function dispatch(
     }
     return { command: cmd, passed: false, message, durationMs: Date.now() - start };
   }
+
+  // The run's effective timeout policy (S7, T9/T11) — fixed once per top-level
+  // flow, inherited unchanged by every child flow.
+  const run = ctx.timeouts ?? DEFAULT_TIMEOUTS;
 
   // Handle runFlow specially
   if (resolvedCmd.type === 'runFlow') {
@@ -148,6 +161,19 @@ export async function dispatch(
 
     try {
       const file = loadAndParse(absPath);
+
+      // ── Notice (T11): print once per child file per top-level run when the
+      // child's own header/config timeout value is overridden by inheritance.
+      // Skipped when callStack is empty (direct-dispatch tests, no top-level run). ──
+      const topLevelPath = Array.from(ctx.callStack)[0];
+      if (topLevelPath !== undefined) {
+        const line = timeoutNotice(file, run, topLevelPath);
+        ctx.timeoutNotices ??= new Set();
+        if (line !== null && !ctx.timeoutNotices.has(absPath)) {
+          ctx.timeoutNotices.add(absPath);
+          process.stdout.write(line + '\n');
+        }
+      }
 
       // ── Variable scoping and defaults merging ──
       const overrides = resolvedCmd.vars ?? {};
@@ -244,30 +270,40 @@ export async function dispatch(
   // Use the interpolated command for all subsequent processing
   const c = resolvedCmd;
 
+  // ── Budget (T11): one deadline per step, from the sibling/inner value already
+  // resolved above, the command's timeout trait, and the run's effective timeouts.
+  // Trait 'none' → no deadline. ──
+  const inner =
+    c.type === 'waitForPageLoad' && c.timeout !== undefined
+      ? toInt(c.timeout as unknown as number | string, 'waitForPageLoad timeout')
+      : undefined;
+  const ms = stepTimeoutMs(c.type, own ?? inner, run); // Q19: own and inner are never both set
+  const deadline = ms === undefined ? undefined : createDeadline(ms);
+
   let capturedScreenshotPath: string | undefined;
 
   try {
     switch (c.type) {
       case 'goto':
-        await executeGoto(page, c.url);
+        await executeGoto(page, c.url, deadline);
         break;
       case 'tapOn':
-        await executeTapOn(page, c.selector, ctx);
+        await executeTapOn(page, c.selector, ctx, deadline);
         break;
       case 'inputText':
-        await executeInputText(ctx, c.text);
+        await executeInputText(ctx, c.text, deadline);
         break;
       case 'inputTextTargeted':
-        await executeInputTextTargeted(page, c.element, c.text);
+        await executeInputTextTargeted(page, c.element, c.text, deadline);
         break;
       case 'assertVisible':
-        await executeAssertVisible(page, c.selector);
+        await executeAssertVisible(page, c.selector, deadline);
         break;
       case 'assertNotVisible':
-        await executeAssertNotVisible(page, c.selector);
+        await executeAssertNotVisible(page, c.selector, deadline);
         break;
       case 'assertUrl':
-        await executeAssertUrl(page, c.path);
+        await executeAssertUrl(page, c.path, deadline);
         break;
       case 'wait':
         await executeWait(toInt(c.ms as unknown as number | string, 'wait ms'));
@@ -276,55 +312,55 @@ export async function dispatch(
         await executeScroll(page, c.direction);
         break;
       case 'assertText':
-        await executeAssertText(page, c.selector, c.expected);
+        await executeAssertText(page, c.selector, c.expected, deadline);
         break;
       case 'assertValue':
-        await executeAssertValue(page, c.selector, c.expected);
+        await executeAssertValue(page, c.selector, c.expected, deadline);
         break;
       case 'assertCount':
-        await executeAssertCount(page, c.css, toInt(c.expected as unknown as number | string, 'assertCount expected'));
+        await executeAssertCount(page, c.css, toInt(c.expected as unknown as number | string, 'assertCount expected'), deadline);
         break;
       case 'assertEnabled':
-        await executeAssertEnabled(page, c.selector);
+        await executeAssertEnabled(page, c.selector, deadline);
         break;
       case 'assertDisabled':
-        await executeAssertDisabled(page, c.selector);
+        await executeAssertDisabled(page, c.selector, deadline);
         break;
       case 'assertChecked':
-        await executeAssertChecked(page, c.selector);
+        await executeAssertChecked(page, c.selector, deadline);
         break;
       case 'assertUnchecked':
-        await executeAssertUnchecked(page, c.selector);
+        await executeAssertUnchecked(page, c.selector, deadline);
         break;
       case 'pressKey':
         await executePressKey(page, c.key);
         break;
       case 'selectOption':
-        await executeSelectOption(page, c.selector, c.value);
+        await executeSelectOption(page, c.selector, c.value, deadline);
         break;
       case 'check':
-        await executeCheck(page, c.selector);
+        await executeCheck(page, c.selector, deadline);
         break;
       case 'uncheck':
-        await executeUncheck(page, c.selector);
+        await executeUncheck(page, c.selector, deadline);
         break;
       case 'hover':
-        await executeHover(page, c.selector);
+        await executeHover(page, c.selector, deadline);
         break;
       case 'doubleClick':
-        await executeDoubleClick(page, c.selector);
+        await executeDoubleClick(page, c.selector, deadline);
         break;
       case 'clearText':
-        await executeClearText(page, c.selector);
+        await executeClearText(page, c.selector, deadline);
         break;
       case 'reload':
-        await executeReload(page);
+        await executeReload(page, deadline);
         break;
       case 'goBack':
-        await executeGoBack(page);
+        await executeGoBack(page, deadline);
         break;
       case 'goForward':
-        await executeGoForward(page);
+        await executeGoForward(page, deadline);
         break;
       case 'setViewport':
         await executeSetViewport(
@@ -345,12 +381,17 @@ export async function dispatch(
           page,
           c.path,
           c.timeout !== undefined ? toInt(c.timeout as unknown as number | string, 'waitForPageLoad timeout') : undefined,
+          deadline,
         );
         break;
 
       case 'within': {
-        const nestedResults = await executeWithin(page, c, ctx, (p, nextStep, cx) =>
-          dispatch(p, nextStep, cx, flowStem, flowDir),
+        const nestedResults = await executeWithin(
+          page,
+          c,
+          ctx,
+          (p, nextStep, cx) => dispatch(p, nextStep, cx, flowStem, flowDir),
+          deadline,
         );
         const allPassed = nestedResults.every((r) => r.passed);
         const nestedResult = {

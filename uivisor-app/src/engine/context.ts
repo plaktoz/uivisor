@@ -1,4 +1,5 @@
-import type { RunContext, VarMap, MethodRunner } from '@uivisor/core';
+import type { RunContext, VarMap, MethodRunner, TimeoutSettings } from '@uivisor/core';
+import { DEFAULT_TIMEOUTS } from '@uivisor/core';
 import { createVarMap } from './varMap.js';
 
 /** No-op MethodRunner used as a placeholder when no methodRunner is provided. */
@@ -14,6 +15,7 @@ export function createContext(
   defaultSessionId: string,
   varMap: VarMap = createVarMap({}),
   methodRunner: MethodRunner = noopMethodRunner,
+  timeouts: TimeoutSettings = DEFAULT_TIMEOUTS,
 ): RunContext {
   return {
     lastTappedLocator: null,
@@ -24,5 +26,7 @@ export function createContext(
     defaultSessionId,
     varMap,
     methodRunner,
+    timeouts,
+    timeoutNotices: new Set(),
   };
 }
