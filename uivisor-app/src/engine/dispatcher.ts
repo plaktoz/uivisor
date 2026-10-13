@@ -104,9 +104,26 @@ export async function dispatch(
         }
       }
     }
-    return { command: cmd, passed: false, message, durationMs: Date.now() - start };
+    ctx.onProgress?.({ kind: 'stepStart', command: cmd });
+    const failed: CommandResult = { command: cmd, passed: false, message, durationMs: Date.now() - start };
+    ctx.onProgress?.({ kind: 'stepEnd', result: failed });
+    return failed;
   }
 
+  ctx.onProgress?.({ kind: 'stepStart', command: resolvedCmd });
+  const result = await executeResolved(page, resolvedCmd, ctx, flowStem, flowDir, start);
+  ctx.onProgress?.({ kind: 'stepEnd', result });
+  return result;
+}
+
+async function executeResolved(
+  page: Page,
+  resolvedCmd: Command,
+  ctx: RunContext,
+  flowStem: string,
+  flowDir: string,
+  start: number,
+): Promise<CommandResult> {
   // Handle runFlow specially
   if (resolvedCmd.type === 'runFlow') {
     const absPath = path.resolve(flowDir, resolvedCmd.path);
@@ -137,6 +154,7 @@ export async function dispatch(
 
     try {
       const file = loadAndParse(absPath);
+      ctx.onProgress?.({ kind: 'include', file });
 
       // ── Variable scoping and defaults merging ──
       const overrides = resolvedCmd.vars ?? {};
