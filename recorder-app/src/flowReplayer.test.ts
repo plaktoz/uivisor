@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import yaml from 'js-yaml';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { replayFlows } from './flowReplayer.js';
+import { startSession, appendCommand } from './yamlWriter.js';
 import type { Page } from 'playwright';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -622,5 +623,192 @@ describe('variable scoping across runFlow', () => {
     const page = makeMockPage();
     await replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml'));
     expect(page.goto).toHaveBeenCalledWith('http://caller.test', { waitUntil: 'load' });
+  });
+});
+
+// ─── runFlow vars ─────────────────────────────────────────────────────────────
+
+describe('runFlow vars', () => {
+  function gotoUrls(page: ReturnType<typeof makeMockPage>): string[] {
+    return (page.goto as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+  }
+
+  function writeGreetChild(dir: string): void {
+    writeFlow(dir, 'greet.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Child' },
+      commands: [{ goto: 'http://example.com/${who}' }],
+    });
+  }
+
+  it('child vars fill in when the caller has no value', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow: './greet.yaml' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Child']);
+  });
+
+  it('parent vars override the child vars default', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Parent' },
+      commands: [{ runFlow: './greet.yaml' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Parent']);
+  });
+
+  it('call-site vars override both the parent and the child', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Parent' },
+      commands: [{ runFlow: { file: './greet.yaml', vars: { who: 'Call' } } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Call']);
+  });
+
+  it('call-site values are interpolated against the caller, not the child', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { name: 'Ada' },
+      commands: [{ runFlow: { file: './greet.yaml', vars: { name: 'Bob', who: 'Dr-${name}' } } }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Dr-Ada']);
+  });
+
+  it('call-site values are not visible to the caller after the call', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      vars: { who: 'Parent' },
+      commands: [
+        { runFlow: { file: './greet.yaml', vars: { who: 'Call', extra: 'X' } } },
+        { goto: 'http://example.com/after/${who}' },
+        { goto: 'http://example.com/after/${extra}' },
+      ],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow('[replay] FAILED: goto in parent.yaml: Variable "extra" is not defined');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Call', 'http://example.com/after/Parent']);
+  });
+
+  it('the same child called twice sees each call\'s vars', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [
+        { runFlow: { file: './greet.yaml', vars: { who: 'A' } } },
+        { runFlow: { file: './greet.yaml', vars: { who: 'B' } } },
+        { runFlow: './greet.yaml' },
+      ],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual([
+      'http://example.com/A',
+      'http://example.com/B',
+      'http://example.com/Child',
+    ]);
+  });
+
+  it('call-site vars written by yamlWriter replay into the child', async () => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = path.join(dir, 'parent.yaml');
+    startSession(parentPath, 'http://example.com');
+    appendCommand(parentPath, { type: 'runFlow', path: './greet.yaml', vars: { who: 'Recorded' } });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Recorded']);
+  });
+
+  it.each([
+    ['a number', 42],
+    ['an object without file', { path: './greet.yaml' }],
+    ['vars that are not a map', { file: './greet.yaml', vars: ['who'] }],
+  ])('rejects runFlow given %s', async (_label, runFlow) => {
+    const dir = makeTmpDir();
+    writeGreetChild(dir);
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow(/^runFlow: (expected a file path or \{ file, vars \}|vars must be a map)/);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Variable interpolation ───────────────────────────────────────────────────
+
+describe('variable interpolation', () => {
+  function gotoUrls(page: ReturnType<typeof makeMockPage>): string[] {
+    return (page.goto as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+  }
+
+  function replayCommands(commands: unknown[], vars?: Record<string, string>) {
+    const flowPath = writeFlow(makeTmpDir(), 'flow.yaml', { appId: 'http://example.com', vars, commands });
+    const page = makeMockPage();
+    return { page, result: replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml') };
+  }
+
+  it('rejects on an undefined variable, naming the file, and dispatches nothing', async () => {
+    const { page, result } = replayCommands([{ goto: 'http://example.com/${x}' }]);
+    await expect(result).rejects.toThrow('[replay] FAILED: goto in flow.yaml: Variable "x" is not defined');
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('uses the ${name:default} fallback when the variable is missing', async () => {
+    const { page, result } = replayCommands([{ goto: 'http://example.com/${x:fallback}' }]);
+    await result;
+    expect(gotoUrls(page)).toEqual(['http://example.com/fallback']);
+  });
+
+  it('reads ${env.NAME} from process.env', async () => {
+    vi.stubEnv('UIVISOR_REPLAY_TEST_SEGMENT', 'from-env');
+    try {
+      const { page, result } = replayCommands([
+        { goto: 'http://example.com/${env.UIVISOR_REPLAY_TEST_SEGMENT}' },
+      ]);
+      await result;
+      expect(gotoUrls(page)).toEqual(['http://example.com/from-env']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('rejects when a variable removed by unsetVar is referenced', async () => {
+    const { page, result } = replayCommands(
+      [
+        { goto: 'http://example.com/${x}' },
+        { unsetVar: 'x' },
+        { goto: 'http://example.com/again/${x}' },
+      ],
+      { x: 'one' },
+    );
+    await expect(result).rejects.toThrow('[replay] FAILED: goto in flow.yaml: Variable "x" is not defined');
+    expect(gotoUrls(page)).toEqual(['http://example.com/one']);
   });
 });

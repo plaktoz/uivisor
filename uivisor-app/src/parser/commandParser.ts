@@ -1,4 +1,5 @@
-import { type Command, type SessionedCommand, parseSelector } from '@uivisor/core';
+import { type Command, type RunFlowCommand, type SessionedCommand, parseSelector } from '@uivisor/core';
+import { flattenVars } from './interpolate.js';
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
@@ -34,6 +35,53 @@ function splitMethodArgs(argsStr: string): string[] {
   const last = current.trim();
   if (last !== '') args.push(last);
   return args;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  return typeof value;
+}
+
+function requireFlowPath(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`Invalid runFlow: "file" must be a non-empty string`);
+  }
+  return value;
+}
+
+export function parseRunFlow(value: unknown): RunFlowCommand {
+  if (typeof value === 'string') {
+    return { type: 'runFlow', path: requireFlowPath(value) };
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Invalid runFlow: expected a file path or { file, vars }, got ${describeValue(value)}`);
+  }
+  const unknownKey = Object.keys(value).find((k) => k !== 'file' && k !== 'vars');
+  if (unknownKey !== undefined) {
+    throw new Error(`Invalid runFlow: unknown key "${unknownKey}" (allowed: file, vars)`);
+  }
+  const flowPath = requireFlowPath(value['file']);
+  if (!('vars' in value)) {
+    return { type: 'runFlow', path: flowPath };
+  }
+  const rawVars = value['vars'];
+  if (!isPlainObject(rawVars)) {
+    throw new Error(`Invalid runFlow: "vars" must be a map of name: value, got ${describeValue(rawVars)}`);
+  }
+  let vars: Record<string, string>;
+  try {
+    vars = flattenVars(rawVars);
+  } catch (err: unknown) {
+    throw new Error(`Invalid runFlow: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return Object.keys(vars).length > 0
+    ? { type: 'runFlow', path: flowPath, vars }
+    : { type: 'runFlow', path: flowPath };
 }
 
 export function parseCommand(raw: unknown): Command {
@@ -84,33 +132,8 @@ export function parseCommand(raw: unknown): Command {
       return { type: 'wait', ms };
     }
 
-    case 'runFlow': {
-      if (typeof value === 'string') {
-        return { type: 'runFlow', path: value };
-      }
-      if (typeof value === 'object' && value !== null) {
-        const objVal = value as { file?: unknown; vars?: unknown };
-        if (typeof objVal.file !== 'string') {
-          throw new Error(`Type error: runFlow file must be a string, got ${String(objVal.file)}`);
-        }
-        const cmd: { type: 'runFlow'; path: string; vars?: Record<string, string> } = {
-          type: 'runFlow',
-          path: objVal.file,
-        };
-        if (objVal.vars !== undefined) {
-          if (typeof objVal.vars !== 'object' || objVal.vars === null || Array.isArray(objVal.vars)) {
-            throw new Error(`Type error: runFlow vars must be an object, got ${String(objVal.vars)}`);
-          }
-          const varsRecord: Record<string, string> = {};
-          for (const [k, v] of Object.entries(objVal.vars)) {
-            varsRecord[k] = String(v);
-          }
-          cmd.vars = varsRecord;
-        }
-        return cmd;
-      }
-      throw new Error(`Type error: runFlow must be a string or an object, got ${String(value)}`);
-    }
+    case 'runFlow':
+      return parseRunFlow(value);
 
     case 'scroll': {
       if (!SCROLL_DIRECTIONS.has(value as string)) {

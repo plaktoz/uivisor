@@ -14,15 +14,22 @@ export type Selector =
   | { css: string }
   | { xpath: string };
 
+/** Values that enter the variable namespace for the duration of one included-flow call. */
+export interface VarScope {
+  /** Call-site `runFlow.vars`, already interpolated. Shadow every other layer; set/unset of these names die with the scope. */
+  readonly overrides: Readonly<Record<string, string>>;
+  /** The child's own `vars:`/`config:`. Fill-in only: admitted iff not visible when the scope opens; removed when it closes. */
+  readonly defaults: Readonly<Record<string, string>>;
+}
+
 /** Global key-value variable map for runtime variable management. */
 export interface VarMap {
   get(name: string): string | undefined;   // undefined if absent — does NOT throw
   set(name: string, value: string): void;
   unset(name: string): void;               // always no-op if absent
-  toRecord(): Record<string, string>;      // runtime entries override base
-  hasRuntime(name: string): boolean;       // check if overridden in runtime map
-  isUnset(name: string): boolean;          // check if explicitly unset
-  delete(name: string): void;              // delete from runtime override and unset flags
+  toRecord(): Record<string, string>;      // toRecord()[k] === get(k) for every k
+  /** Run `run` with `scope` open; the scope closes on every exit path. Scopes nest strictly. */
+  withScope<T>(scope: VarScope, run: () => Promise<T>): Promise<T>;
 }
 
 /** Runner for built-in and user-defined method calls in setVar. */
@@ -52,7 +59,7 @@ export type Command =
   | { type: 'assertNotVisible';   selector: Selector }
   | { type: 'wait';               ms: number }
   | { type: 'assertUrl';          path: string }
-  | { type: 'runFlow';            path: string; vars?: Record<string, string> }
+  | { type: 'runFlow';            path: string; vars?: Readonly<Record<string, string>> }
   | { type: 'scroll';             direction: 'up' | 'down' | 'left' | 'right' }
   | { type: 'assertText';      selector: Selector; expected: string }
   | { type: 'assertValue';     selector: Selector; expected: string }
@@ -81,6 +88,8 @@ export type Command =
   | { type: 'setVar'; name: string; method: string; args: string[] }
   | { type: 'testVarSet'; name: string; expected?: string }
   | { type: 'unsetVar'; name: string };
+
+export type RunFlowCommand = Extract<Command, { type: 'runFlow' }>;
 
 export type SessionDef = { id: string; label?: string };
 

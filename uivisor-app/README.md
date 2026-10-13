@@ -185,6 +185,69 @@ vars:
   apiKey: ${env.API_KEY}
 ```
 
+### Variables in included flows
+
+A flow included with [`runFlow`](#runflow) keeps its own `vars:` and `config:` as defaults, so it runs the same way standalone or included. The caller declares only what it changes:
+
+```yaml
+# flows/shared/login.yaml (runs standalone with its defaults)
+appId: ${base}/login
+config: ../config.yml
+vars:
+  userNric: S0000000Z
+  waitForLandingPageInMills: 3000
+commands:
+  - inputText:
+      element:
+        testId: nric
+      text: ${userNric}
+  - wait: ${waitForLandingPageInMills}
+```
+
+```yaml
+# flows/main.yaml
+appId: ${base}
+config: config.yml
+vars:
+  adminNric: S9999999X
+commands:
+  - runFlow: ./shared/login.yaml          # uses the child's defaults
+  - runFlow:
+      file: ./shared/login.yaml
+      vars:
+        userNric: ${adminNric}             # override one value for this call
+```
+
+Inside the included flow, a name resolves in this order:
+
+1. The call site's `runFlow.vars:` (highest).
+2. Values already in the variable map: the top-level flow's `vars:` and `config:`, earlier `setVar` calls, and the defaults of any enclosing included flow.
+3. The included flow's own `config:`, then its `vars:` (fill-in only).
+
+`${...}` in `runFlow.vars:` values is resolved against the calling flow's variables before the child starts. Child defaults are used as written, exactly as when the file runs on its own.
+
+Scoping rules:
+
+- Call-site `vars:` last for one call. When the child returns, the caller's previous value, or its absence, comes back. Calling the same flow twice with different `vars:` works.
+- Child defaults that were not already in the map are removed when the child returns.
+- `setVar` inside the child writes to the shared map and survives the return. The exception is a name passed in the call site's `vars:`: that write ends with the call.
+- `unsetVar` of a call-site var hides it for the rest of the call, and the caller's value comes back on return. `unsetVar` of any other name behaves as it does in the top-level flow and survives the return.
+- When a flow includes another flow, the outer flow's defaults win over the inner flow's defaults for the same name.
+
+An undefined variable fails the step with the flow that used it and every call site that led there:
+
+```
+Variable "otp" is not defined in flow "otp", included from flow "login" via runFlow: ./otp.yaml, included from flow "main" via runFlow: ./login.yaml (userNric=S1234567A)
+```
+
+An undefined variable in the call site's own `vars:` names the calling flow and the step:
+
+```
+Variable "adminNric" is not defined in flow "main" at runFlow: ./shared/login.yaml (userNric=${adminNric})
+```
+
+Any other failure inside an included flow gets the same `, included from flow ...` suffix.
+
 ---
 
 ## Selectors
@@ -626,6 +689,20 @@ Runs a nested flow file inline. The path is resolved relative to the calling flo
 - runFlow: ./shared/login.yaml
 - runFlow: ../helpers/setup.yaml
 ```
+
+The object form passes variables to the included flow for this call only:
+
+```yaml
+- runFlow:
+    file: ./shared/login.yaml
+    vars:
+      userNric: S1234567A
+      password: ${adminPassword}   # interpolated against the calling flow's variables
+```
+
+`file` is required and must be a non-empty string. `vars` is optional and follows the same rules as a top-level `vars:` block: nested keys become dotted names, values are coerced to strings, and `env.*` names are reserved. Any other key is a parse error. The included flow's own `vars:` and `config:` act as defaults. See [Variables in included flows](#variables-in-included-flows) for the resolution order and scoping rules.
+
+Reports label the step with the resolved call-site values, for example `runFlow: ./shared/login.yaml (userNric=S1234567A, password=hunter2)`, so two calls to the same flow can be told apart. Every value passed in `vars:` appears in console output and reports, secrets included.
 
 #### `within`
 

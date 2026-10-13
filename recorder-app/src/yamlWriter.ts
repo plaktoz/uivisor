@@ -37,7 +37,9 @@ export function commandToRecord(cmd: Command): Record<string, unknown> {
       return { assertUrl: cmd.path };
 
     case 'runFlow':
-      return { runFlow: cmd.path };
+      return cmd.vars && Object.keys(cmd.vars).length > 0
+        ? { runFlow: { file: cmd.path, vars: cmd.vars } }
+        : { runFlow: cmd.path };
 
     case 'scroll':
       return { scroll: cmd.direction };
