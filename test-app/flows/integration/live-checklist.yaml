@@ -1,0 +1,28 @@
+appId: ${base}/integration
+config: config.yml
+# Tests: live console checklist — runFlow children expand when the include starts,
+# nested within children are listed up front, ${var} labels resolve when a step starts.
+# Run with --reporter live (or on a TTY) and --reporter plain; both must pass.
+commands:
+  - setVar: target=int-tap-btn
+  - runFlow: ./shared-int-setup.yaml
+  # Long enough for the spinner and running timer to repaint a few times
+  - wait: 600
+  - tapOn:
+      testId: ${target}
+  - assertVisible:
+      testId: int-tap-result
+  - goto: ${base}/integration-within
+  - within:
+      data-testid: int-within-outer
+      do:
+        - assertText:
+            testId: int-within-deep-target
+            expected: Deep target
+        - within:
+            data-testid: int-within-inner
+            do:
+              - assertText:
+                  testId: int-within-deep-target
+                  expected: Deep target
+  - assertUrl: /integration-within
