@@ -590,12 +590,15 @@ describe('runFlow vars', () => {
       vars: { who: 'Parent' },
       commands: [
         { runFlow: { file: './greet.yaml', vars: { who: 'Call', extra: 'X' } } },
-        { goto: 'http://example.com/after/${who}/${extra}' },
+        { goto: 'http://example.com/after/${who}' },
+        { goto: 'http://example.com/after/${extra}' },
       ],
     });
     const page = makeMockPage();
-    await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
-    expect(gotoUrls(page)).toEqual(['http://example.com/Call', 'http://example.com/after/Parent/']);
+    await expect(
+      replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
+    ).rejects.toThrow('[replay] FAILED: goto in parent.yaml: Variable "extra" is not defined');
+    expect(gotoUrls(page)).toEqual(['http://example.com/Call', 'http://example.com/after/Parent']);
   });
 
   it('the same child called twice sees each call\'s vars', async () => {
@@ -645,5 +648,57 @@ describe('runFlow vars', () => {
       replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml'),
     ).rejects.toThrow(/^runFlow: (expected a file path or \{ file, vars \}|vars must be a map)/);
     expect(page.goto).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Variable interpolation ───────────────────────────────────────────────────
+
+describe('variable interpolation', () => {
+  function gotoUrls(page: ReturnType<typeof makeMockPage>): string[] {
+    return (page.goto as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+  }
+
+  function replayCommands(commands: unknown[], vars?: Record<string, string>) {
+    const flowPath = writeFlow(makeTmpDir(), 'flow.yaml', { appId: 'http://example.com', vars, commands });
+    const page = makeMockPage();
+    return { page, result: replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml') };
+  }
+
+  it('rejects on an undefined variable, naming the file, and dispatches nothing', async () => {
+    const { page, result } = replayCommands([{ goto: 'http://example.com/${x}' }]);
+    await expect(result).rejects.toThrow('[replay] FAILED: goto in flow.yaml: Variable "x" is not defined');
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('uses the ${name:default} fallback when the variable is missing', async () => {
+    const { page, result } = replayCommands([{ goto: 'http://example.com/${x:fallback}' }]);
+    await result;
+    expect(gotoUrls(page)).toEqual(['http://example.com/fallback']);
+  });
+
+  it('reads ${env.NAME} from process.env', async () => {
+    vi.stubEnv('UIVISOR_REPLAY_TEST_SEGMENT', 'from-env');
+    try {
+      const { page, result } = replayCommands([
+        { goto: 'http://example.com/${env.UIVISOR_REPLAY_TEST_SEGMENT}' },
+      ]);
+      await result;
+      expect(gotoUrls(page)).toEqual(['http://example.com/from-env']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('rejects when a variable removed by unsetVar is referenced', async () => {
+    const { page, result } = replayCommands(
+      [
+        { goto: 'http://example.com/${x}' },
+        { unsetVar: 'x' },
+        { goto: 'http://example.com/again/${x}' },
+      ],
+      { x: 'one' },
+    );
+    await expect(result).rejects.toThrow('[replay] FAILED: goto in flow.yaml: Variable "x" is not defined');
+    expect(gotoUrls(page)).toEqual(['http://example.com/one']);
   });
 });
