@@ -1,7 +1,7 @@
 export type {
   Selector, Command, SessionDef, SessionedCommand,
   FlowFile, RunOptions, CommandResult, FlowResult,
-  RunResult, RunContext,
+  RunResult, RunContext, ProgressEvent, ProgressListener,
   VarMap, MethodRunner, WorkingScheduleEntry, FlowConfig,
 } from './types.js';
 export type { PlaywrightContext } from './types.js';

@@ -140,4 +140,23 @@ export interface RunContext extends PlaywrightContext {
   defaultSessionId: string;
   varMap: VarMap;
   methodRunner: MethodRunner;
+  onProgress?: ProgressListener;
 }
+
+/**
+ * What the engine reports while a flow runs, from the single place every command passes
+ * through (dispatch). Events are well-bracketed and sequential: every stepStart is followed by
+ * exactly one stepEnd, and the events between them belong to that step's children (within `do:`
+ * items, or the included flow's commands). Within one container, steps start in plan order and
+ * stop after the first failure. `include` arrives only while a runFlow step is open, before its
+ * first child. Steps carry no ids, so a listener locates them by this bracket structure.
+ */
+export type ProgressEvent =
+  /** `command` is interpolated, or raw when interpolation itself failed. */
+  | { kind: 'stepStart'; command: Command }
+  | { kind: 'stepEnd'; result: CommandResult }
+  /** `file.commands` are raw (uninterpolated). */
+  | { kind: 'include'; file: FlowFile };
+
+/** Must not throw: it runs inside the engine. */
+export type ProgressListener = (event: ProgressEvent) => void;

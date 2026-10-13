@@ -5,6 +5,8 @@ import * as yaml from 'js-yaml';
 import { parseArgs, parseCompactArgs } from './args.js';
 import { resolveTarget } from './resolver.js';
 import { runAll } from './runner.js';
+import { createPlainReporter, resolveConsoleMode } from '../reporter/run-reporter.js';
+import { createLiveReporter } from '../reporter/live.js';
 import { loadAndParse } from '../parser/index.js';
 import { filterFlows } from './filter.js';
 import { generateHtmlReport } from '../reporter/html.js';
@@ -93,7 +95,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const result = await runAll(included, options);
+  const consoleMode = resolveConsoleMode(parsed.console, process.stdout, process.env);
+  const result = await runAll(included, options, consoleMode === 'live' ? createLiveReporter() : createPlainReporter());
 
   if (reporter === 'html') {
     const html = generateHtmlReport(result);
