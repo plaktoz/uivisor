@@ -90,14 +90,14 @@ describe('goto', () => {
   // AC7: navigates and marks ✓ after page load
   it('AC7: navigates to a reachable URL and returns passed: true', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'goto', url: baseUrl }, ctx);
+    const result = await dispatch(page, { command: { type: 'goto', url: baseUrl } }, ctx);
     expect(result.passed).toBe(true);
     expect(result.command.type).toBe('goto');
   });
 
   it('AC7: sets durationMs > 0 after navigation', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'goto', url: baseUrl }, ctx);
+    const result = await dispatch(page, { command: { type: 'goto', url: baseUrl } }, ctx);
     expect(result.durationMs).toBeGreaterThan(0);
   });
 
@@ -105,8 +105,7 @@ describe('goto', () => {
   it('AC8: marks command failed with "Navigation failed" for unreachable URL', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'goto', url: 'http://127.0.0.1:1' },
+      page, { command: { type: 'goto', url: 'http://127.0.0.1:1' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -120,7 +119,7 @@ describe('tapOn', () => {
   // AC9: text match → click + ✓
   it('AC9: clicking an element by text returns passed: true', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'tapOn', selector: 'Sign In' }, ctx);
+    const result = await dispatch(page, { command: { type: 'tapOn', selector: 'Sign In' } }, ctx);
     expect(result.passed).toBe(true);
   });
 
@@ -128,8 +127,7 @@ describe('tapOn', () => {
   it('AC10: returns passed: false with "Element not found" when text does not exist', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'tapOn', selector: 'ButtonThatDoesNotExistXYZ' },
+      page, { command: { type: 'tapOn', selector: 'ButtonThatDoesNotExistXYZ' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -141,8 +139,7 @@ describe('tapOn', () => {
   it('AC11: clicking by role+name ARIA returns passed: true', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'tapOn', selector: { role: 'button', name: 'Submit' } },
+      page, { command: { type: 'tapOn', selector: { role: 'button', name: 'Submit' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -152,7 +149,7 @@ describe('tapOn', () => {
   it('tapOn sets lastTappedLocator on RunContext after a successful click', async () => {
     const ctx = freshCtx();
     expect(ctx.lastTappedLocator).toBeNull();
-    await dispatch(page, { type: 'tapOn', selector: 'Sign In' }, ctx);
+    await dispatch(page, { command: { type: 'tapOn', selector: 'Sign In' } }, ctx);
     expect(ctx.lastTappedLocator).not.toBeNull();
   });
 });
@@ -164,8 +161,8 @@ describe('inputText shorthand', () => {
   it('AC12: types text into the email input after tapping it', async () => {
     const ctx = freshCtx();
     // First tap the email input (by its label)
-    await dispatch(page, { type: 'tapOn', selector: { label: 'Email' } }, ctx);
-    const result = await dispatch(page, { type: 'inputText', text: 'user@example.com' }, ctx);
+    await dispatch(page, { command: { type: 'tapOn', selector: { label: 'Email' } } }, ctx);
+    const result = await dispatch(page, { command: { type: 'inputText', text: 'user@example.com' } }, ctx);
     expect(result.passed).toBe(true);
 
     // Confirm the value is in the input
@@ -176,7 +173,7 @@ describe('inputText shorthand', () => {
   // AC13: inputText shorthand before any tapOn → error
   it('AC13: throws or fails when inputText shorthand is used before any tapOn', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'inputText', text: 'hello' }, ctx);
+    const result = await dispatch(page, { command: { type: 'inputText', text: 'hello' } }, ctx);
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/inputText shorthand used before any tapOn/i);
   });
@@ -189,12 +186,11 @@ describe('inputText targeted', () => {
   it('AC14: focuses, clears, and types into the matched element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      {
+      page, { command: {
         type: 'inputTextTargeted',
         element: { label: 'Email' },
         text: 'typed@example.com',
-      },
+      } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -209,8 +205,7 @@ describe('inputText targeted', () => {
     await page.locator('#email-input').fill('old@value.com');
 
     await dispatch(
-      page,
-      { type: 'inputTextTargeted', element: { label: 'Email' }, text: 'new@value.com' },
+      page, { command: { type: 'inputTextTargeted', element: { label: 'Email' }, text: 'new@value.com' } },
       ctx,
     );
 
@@ -222,8 +217,7 @@ describe('inputText targeted', () => {
   it('AC15: returns passed: false when targeted element does not exist', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'inputTextTargeted', element: 'NonExistentLabel', text: 'text' },
+      page, { command: { type: 'inputTextTargeted', element: 'NonExistentLabel', text: 'text' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -237,8 +231,7 @@ describe('assertVisible', () => {
   it('AC16: returns passed: true for a visible element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'assertVisible', selector: 'Welcome, user' },
+      page, { command: { type: 'assertVisible', selector: 'Welcome, user' } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -248,8 +241,7 @@ describe('assertVisible', () => {
   it('AC17: returns passed: false with expected/got for a missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'assertVisible', selector: 'This text does not exist on the page' },
+      page, { command: { type: 'assertVisible', selector: 'This text does not exist on the page' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -274,8 +266,7 @@ describe('assertNotVisible', () => {
     // The fixture has #error-message hidden by default
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'assertNotVisible', selector: 'Error message' },
+      page, { command: { type: 'assertNotVisible', selector: 'Error message' } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -289,8 +280,7 @@ describe('assertNotVisible', () => {
 
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'assertNotVisible', selector: 'Error message' },
+      page, { command: { type: 'assertNotVisible', selector: 'Error message' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -306,7 +296,7 @@ describe('wait', () => {
   it('AC20: pauses for approximately the specified milliseconds', async () => {
     const ctx = freshCtx();
     const start = Date.now();
-    const result = await dispatch(page, { type: 'wait', ms: 500 }, ctx);
+    const result = await dispatch(page, { command: { type: 'wait', ms: 500 } }, ctx);
     const elapsed = Date.now() - start;
     expect(result.passed).toBe(true);
     expect(elapsed).toBeGreaterThanOrEqual(400);
@@ -321,7 +311,7 @@ describe('scroll', () => {
   it('AC22: scroll down increases page scrollY', async () => {
     const ctx = freshCtx();
     const before = await page.evaluate(() => window.scrollY);
-    const result = await dispatch(page, { type: 'scroll', direction: 'down' }, ctx);
+    const result = await dispatch(page, { command: { type: 'scroll', direction: 'down' } }, ctx);
     const after = await page.evaluate(() => window.scrollY);
     expect(result.passed).toBe(true);
     expect(after).toBeGreaterThan(before);
@@ -333,7 +323,7 @@ describe('scroll', () => {
     // Scroll down first
     await page.evaluate(() => window.scrollBy(0, 500));
     const before = await page.evaluate(() => window.scrollY);
-    const result = await dispatch(page, { type: 'scroll', direction: 'up' }, ctx);
+    const result = await dispatch(page, { command: { type: 'scroll', direction: 'up' } }, ctx);
     const after = await page.evaluate(() => window.scrollY);
     expect(result.passed).toBe(true);
     expect(after).toBeLessThan(before);
@@ -342,13 +332,13 @@ describe('scroll', () => {
   // AC23: scroll left and right
   it('AC23: scroll right returns passed: true', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'scroll', direction: 'right' }, ctx);
+    const result = await dispatch(page, { command: { type: 'scroll', direction: 'right' } }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('AC23: scroll left returns passed: true', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'scroll', direction: 'left' }, ctx);
+    const result = await dispatch(page, { command: { type: 'scroll', direction: 'left' } }, ctx);
     expect(result.passed).toBe(true);
   });
 });
@@ -366,7 +356,7 @@ describe('runFlow', () => {
       const ctx = freshCtx();
       ctx.callStack.add('/parent-flow.yaml');
 
-      const result = await dispatch(page, { type: 'runFlow', path: subFlowPath }, ctx);
+      const result = await dispatch(page, { command: { type: 'runFlow', path: subFlowPath } }, ctx);
       expect(result.passed).toBe(true);
       expect(result.nestedResult).toBeDefined();
       expect(result.nestedResult?.passed).toBe(true);
@@ -379,8 +369,7 @@ describe('runFlow', () => {
   it('AC26: returns failed result with "Flow file not found" for a missing file', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'runFlow', path: '/absolutely/nonexistent/flow.yaml' },
+      page, { command: { type: 'runFlow', path: '/absolutely/nonexistent/flow.yaml' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -401,7 +390,7 @@ describe('runFlow', () => {
 
     try {
       const ctx = freshCtx();
-      const result = await dispatch(page, { type: 'runFlow', path: fileA }, ctx);
+      const result = await dispatch(page, { command: { type: 'runFlow', path: fileA } }, ctx);
       expect(result.passed).toBe(false);
       expect(result.message).toMatch(/circular.*flow|circular.*reference/i);
     } finally {
@@ -420,7 +409,7 @@ describe('runFlow', () => {
       const ctx = freshCtx();
       ctx.callStack.add('/parent.yaml');
 
-      const result = await dispatch(page, { type: 'runFlow', path: subFlowPath }, ctx);
+      const result = await dispatch(page, { command: { type: 'runFlow', path: subFlowPath } }, ctx);
       expect(result.passed).toBe(false);
       expect(result.nestedResult?.passed).toBe(false);
     } finally {
@@ -501,14 +490,14 @@ describe('assertUrl', () => {
   it('exact match: returns passed: true when path matches exactly', async () => {
     const ctx = freshCtx();
     await page.goto(baseUrl + '/tasks');
-    const result = await dispatch(page, { type: 'assertUrl', path: '/tasks' }, ctx);
+    const result = await dispatch(page, { command: { type: 'assertUrl', path: '/tasks' } }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('exact match: returns passed: false with expected/got when path does not match', async () => {
     const ctx = freshCtx();
     // page is on baseUrl (path = '/')
-    const result = await dispatch(page, { type: 'assertUrl', path: '/tasks' }, ctx);
+    const result = await dispatch(page, { command: { type: 'assertUrl', path: '/tasks' } }, ctx);
     expect(result.passed).toBe(false);
     expect(result.expected).toBe('/tasks');
     expect(result.got).toBe('/');
@@ -517,21 +506,21 @@ describe('assertUrl', () => {
   it('wildcard: returns passed: true when path matches glob pattern with query string', async () => {
     const ctx = freshCtx();
     await page.goto(baseUrl + '/singpass/authorized?callback=abc');
-    const result = await dispatch(page, { type: 'assertUrl', path: '/singpass/authorized*' }, ctx);
+    const result = await dispatch(page, { command: { type: 'assertUrl', path: '/singpass/authorized*' } }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('wildcard: returns passed: true when path matches glob pattern exactly (no trailing chars)', async () => {
     const ctx = freshCtx();
     await page.goto(baseUrl + '/singpass/authorized');
-    const result = await dispatch(page, { type: 'assertUrl', path: '/singpass/authorized*' }, ctx);
+    const result = await dispatch(page, { command: { type: 'assertUrl', path: '/singpass/authorized*' } }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('wildcard: returns passed: false with expected/got when path does not match glob pattern', async () => {
     const ctx = freshCtx();
     // page is on baseUrl (path = '/')
-    const result = await dispatch(page, { type: 'assertUrl', path: '/singpass/authorized*' }, ctx);
+    const result = await dispatch(page, { command: { type: 'assertUrl', path: '/singpass/authorized*' } }, ctx);
     expect(result.passed).toBe(false);
     expect(result.expected).toBe('/singpass/authorized*');
     expect(result.got).toBe('/');
@@ -543,21 +532,20 @@ describe('assertUrl', () => {
 describe('selectors in real browser via tapOn', () => {
   it('string shorthand resolves to an element and can be clicked', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'tapOn', selector: 'Sign In' }, ctx);
+    const result = await dispatch(page, { command: { type: 'tapOn', selector: 'Sign In' } }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('{ text } explicit selector resolves to an element', async () => {
     const ctx = freshCtx();
-    const result = await dispatch(page, { type: 'tapOn', selector: { text: 'Sign In' } }, ctx);
+    const result = await dispatch(page, { command: { type: 'tapOn', selector: { text: 'Sign In' } } }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('{ role, name } ARIA selector resolves to the submit button', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'tapOn', selector: { role: 'button', name: 'Submit' } },
+      page, { command: { type: 'tapOn', selector: { role: 'button', name: 'Submit' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -566,8 +554,7 @@ describe('selectors in real browser via tapOn', () => {
   it('{ label } selector resolves to the email input', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'tapOn', selector: { label: 'Email' } },
+      page, { command: { type: 'tapOn', selector: { label: 'Email' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -576,8 +563,7 @@ describe('selectors in real browser via tapOn', () => {
   it('{ placeholder } selector resolves to the email input', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'tapOn', selector: { placeholder: 'Enter email' } },
+      page, { command: { type: 'tapOn', selector: { placeholder: 'Enter email' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -586,8 +572,7 @@ describe('selectors in real browser via tapOn', () => {
   it('{ testId } selector resolves to the submit button', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      { type: 'tapOn', selector: { testId: 'submit-btn' } },
+      page, { command: { type: 'tapOn', selector: { testId: 'submit-btn' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -601,7 +586,7 @@ describe('pressKey', () => {
   it('AC1: pressKey Tab returns passed: true', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'pressKey', key: 'Tab' }, ctx);
+    const result = await dispatch(page, { command: { type: 'pressKey', key: 'Tab' } }, ctx);
     expect(result.passed).toBe(true);
     expect(result.command.type).toBe('pressKey');
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
@@ -613,7 +598,7 @@ describe('pressKey', () => {
     // Focus the email input first
     await page.locator('#email-input').focus();
     // @ts-expect-error — type does not exist yet; red phase
-    await dispatch(page, { type: 'pressKey', key: 'a' }, ctx);
+    await dispatch(page, { command: { type: 'pressKey', key: 'a' } }, ctx);
     const value = await page.locator('#email-input').inputValue();
     expect(value).toContain('a');
   });
@@ -623,7 +608,7 @@ describe('pressKey', () => {
     const ctx = freshCtx();
     // No tapOn — no focused element
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'pressKey', key: 'Escape' }, ctx);
+    const result = await dispatch(page, { command: { type: 'pressKey', key: 'Escape' } }, ctx);
     expect(result.passed).toBe(true);
   });
 });
@@ -635,9 +620,8 @@ describe('selectOption', () => {
   it('AC4: selects option "sg" in country-select and verifies the selected value', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'selectOption', selector: { testId: 'country-select' }, value: 'sg' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'selectOption', selector: { testId: 'country-select' }, value: 'sg' } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -649,9 +633,8 @@ describe('selectOption', () => {
   it('AC5: returns passed: false with "Element not found" for missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'selectOption', selector: 'NonExistentSelectXYZ', value: 'sg' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'selectOption', selector: 'NonExistentSelectXYZ', value: 'sg' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -662,9 +645,8 @@ describe('selectOption', () => {
   it('AC6: returns passed: false with "Option not found" when option value is absent', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'selectOption', selector: { testId: 'country-select' }, value: 'xx-invalid' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'selectOption', selector: { testId: 'country-select' }, value: 'xx-invalid' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -679,9 +661,8 @@ describe('check', () => {
   it('AC7: checks an unchecked checkbox and verifies it is now checked', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'check', selector: { testId: 'check-box' } },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'check', selector: { testId: 'check-box' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -692,9 +673,8 @@ describe('check', () => {
   it('AC8: returns passed: false with "Element not found" for missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'check', selector: 'NonExistentCheckboxXYZ' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'check', selector: 'NonExistentCheckboxXYZ' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -709,9 +689,8 @@ describe('uncheck', () => {
   it('AC9: unchecks a pre-checked checkbox and verifies it is now unchecked', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'uncheck', selector: { testId: 'uncheck-box' } },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'uncheck', selector: { testId: 'uncheck-box' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -722,9 +701,8 @@ describe('uncheck', () => {
   it('AC10: returns passed: false with "Element not found" for missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'uncheck', selector: 'NonExistentCheckboxXYZ' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'uncheck', selector: 'NonExistentCheckboxXYZ' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -739,9 +717,8 @@ describe('hover', () => {
   it('AC11: hovers over the submit button and returns passed: true', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'hover', selector: { testId: 'submit-btn' } },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'hover', selector: { testId: 'submit-btn' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -751,9 +728,8 @@ describe('hover', () => {
   it('AC12: returns passed: false with "Element not found" for missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'hover', selector: 'NonExistentElementXYZ' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'hover', selector: 'NonExistentElementXYZ' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -768,9 +744,8 @@ describe('doubleClick', () => {
   it('AC13: double-clicks the submit button and returns passed: true', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'doubleClick', selector: { testId: 'submit-btn' } },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'doubleClick', selector: { testId: 'submit-btn' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -780,9 +755,8 @@ describe('doubleClick', () => {
   it('AC14: returns passed: false with "Element not found" for missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'doubleClick', selector: 'NonExistentElementXYZ' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'doubleClick', selector: 'NonExistentElementXYZ' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -797,9 +771,8 @@ describe('clearText', () => {
   it('AC15: clears the prefilled-text input and verifies value is empty', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'clearText', selector: { testId: 'prefilled-text' } },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'clearText', selector: { testId: 'prefilled-text' } } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -810,9 +783,8 @@ describe('clearText', () => {
   it('AC16: returns passed: false with "Element not found" for missing element', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      // @ts-expect-error — type does not exist yet; red phase
-      { type: 'clearText', selector: 'NonExistentInputXYZ' },
+      page, { command: // @ts-expect-error — type does not exist yet; red phase
+      { type: 'clearText', selector: 'NonExistentInputXYZ' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -826,7 +798,7 @@ describe('reload', () => {
   it('AC1: reload returns passed: true with correct command type and durationMs > 0', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'reload' }, ctx);
+    const result = await dispatch(page, { command: { type: 'reload' } }, ctx);
     expect(result.passed).toBe(true);
     expect(result.command.type).toBe('reload');
     expect(result.durationMs).toBeGreaterThan(0);
@@ -835,8 +807,8 @@ describe('reload', () => {
   it('AC2: heading is still visible after reload', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    await dispatch(page, { type: 'reload' }, ctx);
-    const visible = await dispatch(page, { type: 'assertVisible', selector: 'Welcome, user' }, freshCtx());
+    await dispatch(page, { command: { type: 'reload' } }, ctx);
+    const visible = await dispatch(page, { command: { type: 'assertVisible', selector: 'Welcome, user' } }, freshCtx());
     expect(visible.passed).toBe(true);
   }, 15_000);
 });
@@ -848,7 +820,7 @@ describe('goBack', () => {
     await page.goto(baseUrl + '#section2');
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'goBack' }, ctx);
+    const result = await dispatch(page, { command: { type: 'goBack' } }, ctx);
     expect(result.passed).toBe(true);
     expect(page.url()).not.toContain('#section2');
   }, 15_000);
@@ -858,7 +830,7 @@ describe('goBack', () => {
     await freshPage.goto(baseUrl);
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(freshPage, { type: 'goBack' }, ctx);
+    const result = await dispatch(freshPage, { command: { type: 'goBack' } }, ctx);
     await freshPage.close();
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/No previous page in history/i);
@@ -873,7 +845,7 @@ describe('goForward', () => {
     await page.goBack();
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'goForward' }, ctx);
+    const result = await dispatch(page, { command: { type: 'goForward' } }, ctx);
     expect(result.passed).toBe(true);
     expect(page.url()).toContain('#section2');
   }, 15_000);
@@ -883,7 +855,7 @@ describe('goForward', () => {
     await freshPage.goto(baseUrl);
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(freshPage, { type: 'goForward' }, ctx);
+    const result = await dispatch(freshPage, { command: { type: 'goForward' } }, ctx);
     await freshPage.close();
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/No next page in history/i);
@@ -896,7 +868,7 @@ describe('setViewport', () => {
   it('AC7: setViewport 390x844 sets viewport to exact dimensions', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'setViewport', width: 390, height: 844 }, ctx);
+    const result = await dispatch(page, { command: { type: 'setViewport', width: 390, height: 844 } }, ctx);
     expect(result.passed).toBe(true);
     expect(page.viewportSize()).toEqual({ width: 390, height: 844 });
   });
@@ -904,7 +876,7 @@ describe('setViewport', () => {
   it('AC8: setViewport 1920x1080 sets viewport to explicit dimensions', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'setViewport', width: 1920, height: 1080 }, ctx);
+    const result = await dispatch(page, { command: { type: 'setViewport', width: 1920, height: 1080 } }, ctx);
     expect(result.passed).toBe(true);
     expect(page.viewportSize()).toEqual({ width: 1920, height: 1080 });
   });
@@ -918,7 +890,7 @@ describe('screenshot', () => {
     ctx.runDir = os.tmpdir();
     const filename = `webt-test-shot-${Date.now()}.png`;
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'screenshot', path: filename }, ctx);
+    const result = await dispatch(page, { command: { type: 'screenshot', path: filename } }, ctx);
     expect(result.passed).toBe(true);
     expect(result.screenshotPath).toBeDefined();
     expect(fs.existsSync(result.screenshotPath!)).toBe(true);
@@ -930,7 +902,7 @@ describe('screenshot', () => {
     const subdir = `webt-test-subdir-${Date.now()}`;
     ctx.runDir = os.tmpdir();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'screenshot', path: `${subdir}/shot.png` }, ctx);
+    const result = await dispatch(page, { command: { type: 'screenshot', path: `${subdir}/shot.png` } }, ctx);
     expect(result.passed).toBe(true);
     expect(fs.existsSync(result.screenshotPath!)).toBe(true);
     fs.rmSync(path.join(os.tmpdir(), subdir), { recursive: true });
@@ -943,7 +915,7 @@ describe('waitFor', () => {
   it('AC11: waitFor 100ms returns passed: true and durationMs >= 100', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'waitFor', ms: 100 }, ctx);
+    const result = await dispatch(page, { command: { type: 'waitFor', ms: 100 } }, ctx);
     expect(result.passed).toBe(true);
     expect(result.durationMs).toBeGreaterThanOrEqual(100);
   });
@@ -951,7 +923,7 @@ describe('waitFor', () => {
   it('AC12: waitFor 500ms returns passed: true and durationMs >= 500', async () => {
     const ctx = freshCtx();
     // @ts-expect-error — type does not exist yet; red phase
-    const result = await dispatch(page, { type: 'waitFor', ms: 500 }, ctx);
+    const result = await dispatch(page, { command: { type: 'waitFor', ms: 500 } }, ctx);
     expect(result.passed).toBe(true);
     expect(result.durationMs).toBeGreaterThanOrEqual(500);
   }, 10_000);
@@ -963,12 +935,11 @@ describe('within — xpath container', () => {
   it('finds container by xpath and asserts visible text inside it', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      {
+      page, { command: {
         type: 'within',
         selector: 'xpath=//section[@data-card="alpha"]',
         do: [{ command: { type: 'assertVisible', selector: 'Card Alpha' } }],
-      },
+      } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -977,12 +948,11 @@ describe('within — xpath container', () => {
   it('scopes correctly — text from sibling card is not found inside xpath container', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      {
+      page, { command: {
         type: 'within',
         selector: 'xpath=//section[@data-card="alpha"]',
         do: [{ command: { type: 'assertVisible', selector: 'Card Beta' } }],
-      },
+      } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -991,12 +961,11 @@ describe('within — xpath container', () => {
   it('returns passed: false with "No container found" when xpath matches nothing', async () => {
     const ctx = freshCtx();
     const result = await dispatch(
-      page,
-      {
+      page, { command: {
         type: 'within',
         selector: 'xpath=//section[@data-card="does-not-exist"]',
         do: [{ command: { type: 'assertVisible', selector: 'Card Alpha' } }],
-      },
+      } },
       ctx,
     );
     expect(result.passed).toBe(false);

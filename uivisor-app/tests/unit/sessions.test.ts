@@ -280,8 +280,7 @@ describe('AC-12: circular flow reference via dispatch', () => {
 
     try {
       const result = await dispatch(
-        mockPage,
-        { type: 'runFlow', path: tmpFile },
+        mockPage, { command: { type: 'runFlow', path: tmpFile } },
         ctx,
         'parent',
         path.dirname(tmpFile),

@@ -1,8 +1,9 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
-import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
-import { interpolateObject } from '../parser/interpolate.js';
+import type { Command, CommandResult, RunContext, FlowFile, FlowResult, SessionedCommand } from '@uivisor/core';
+import { interpolateObject, interpolateValue } from '../parser/interpolate.js';
+import { parsePositiveInt } from '../utils/positiveInt.js';
 import {
   executeGoto,
   executeTapOn,
@@ -78,18 +79,28 @@ export function resetScreenshotCounter(): void {
 
 export async function dispatch(
   page: Page,
-  cmd: Command,
+  step: SessionedCommand,
   ctx: RunContext,
   flowStem = 'flow',
   flowDir = process.cwd(),
 ): Promise<CommandResult> {
   const start = Date.now();
+  const cmd = step.command;
 
   // ── Lazy interpolation: resolve ${...} in command at dispatch time ──────────
   // This is strict mode: an absent variable with no default is an error.
+  // The sibling `timeout` (if any) is resolved in the same try block, so an
+  // undefined var or an invalid resolved value shares the flow-context logic below.
   let resolvedCmd: Command;
   try {
     resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
+
+    if (step.timeout !== undefined && typeof step.timeout !== 'number') {
+      const resolved = interpolateValue(step.timeout, ctx.varMap.toRecord(), true);
+      if (parsePositiveInt(resolved) === undefined) {
+        throw new Error(`timeout must be a positive integer, got "${resolved}"`);
+      }
+    }
   } catch (err: unknown) {
     let message = err instanceof Error ? err.message : String(err);
     if (message.includes('is not defined') || message.includes('Unclosed ${')) {
@@ -338,8 +349,10 @@ export async function dispatch(
         break;
 
       case 'within': {
+        // T10 will have executeWithin hand whole steps to this callback; until then,
+        // wrap the inner Command as a bare step (no sibling timeout on `within`'s do: items yet).
         const nestedResults = await executeWithin(page, c, ctx, (p, nc, cx) =>
-          dispatch(p, nc, cx, flowStem, flowDir),
+          dispatch(p, { command: nc }, cx, flowStem, flowDir),
         );
         const allPassed = nestedResults.every((r) => r.passed);
         const nestedResult = {

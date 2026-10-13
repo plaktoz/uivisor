@@ -158,7 +158,7 @@ describe('dispatcher — within command dispatch', () => {
       do: [{ command: { type: 'goto', url: 'http://test/inner' } }],
     };
 
-    const result = await dispatch(page, cmd, makeCtx());
+    const result = await dispatch(page, { command: cmd }, makeCtx());
 
     expect(result.passed).toBe(true);
     expect(result.nestedResult).toBeDefined();
@@ -192,7 +192,7 @@ describe('dispatcher — within command dispatch', () => {
       do: [],
     };
 
-    const result = await dispatch(page, cmd, makeCtx());
+    const result = await dispatch(page, { command: cmd }, makeCtx());
 
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/within.*No container found.*text=NoSuchRow/i);

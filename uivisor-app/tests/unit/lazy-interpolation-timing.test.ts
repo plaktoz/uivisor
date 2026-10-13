@@ -93,8 +93,7 @@ describe('lazy interpolation: ${...} is resolved at dispatch time', () => {
 
     // Simulate a command that has a raw ${...} literal (as stored after lazy parse)
     const result = await dispatch(
-      page,
-      { type: 'goto', url: '${baseUrl}/dashboard' },
+      page, { command: { type: 'goto', url: '${baseUrl}/dashboard' } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -109,8 +108,7 @@ describe('lazy interpolation: ${...} is resolved at dispatch time', () => {
     const ctx = makeCtx({});
 
     const result = await dispatch(
-      page,
-      { type: 'goto', url: '${missingVar}/path' },
+      page, { command: { type: 'goto', url: '${missingVar}/path' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -122,8 +120,7 @@ describe('lazy interpolation: ${...} is resolved at dispatch time', () => {
     const ctx = makeCtx({ prefix: 'USER' });
 
     const result = await dispatch(
-      page,
-      { type: 'setVar', name: 'label', value: '${prefix}_123' },
+      page, { command: { type: 'setVar', name: 'label', value: '${prefix}_123' } },
       ctx,
     );
     expect(result.passed).toBe(true);
@@ -135,12 +132,11 @@ describe('lazy interpolation: ${...} is resolved at dispatch time', () => {
     const ctx = makeCtx({});
 
     // Step 1: set a var
-    await dispatch(page, { type: 'setVar', name: 'userId', value: 'abc123' }, ctx);
+    await dispatch(page, { command: { type: 'setVar', name: 'userId', value: 'abc123' } }, ctx);
 
     // Step 2: use it in goto
     const result = await dispatch(
-      page,
-      { type: 'goto', url: 'http://example.com/${userId}' },
+      page, { command: { type: 'goto', url: 'http://example.com/${userId}' } },
       ctx,
     );
     expect(result.passed).toBe(true);
