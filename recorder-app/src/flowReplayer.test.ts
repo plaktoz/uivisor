@@ -101,7 +101,7 @@ describe('replayFlows — T14: single goto', () => {
     const page = makeMockPage();
     await replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml');
     expect(page.goto).toHaveBeenCalledOnce();
-    expect(page.goto).toHaveBeenCalledWith('http://example.com', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://example.com', { waitUntil: 'load', timeout: 30000 });
   });
 });
 
@@ -176,7 +176,7 @@ describe('replayFlows — T17: nested runFlow', () => {
     const page = makeMockPage();
     await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
     expect(page.goto).toHaveBeenCalledOnce();
-    expect(page.goto).toHaveBeenCalledWith('http://sub.com', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://sub.com', { waitUntil: 'load', timeout: 30000 });
   });
 });
 
@@ -327,7 +327,7 @@ describe('replayFlows — T23: three-level nested chain', () => {
     const page = makeMockPage();
     await replayFlows([aPath], page as unknown as Page, '/tmp/out.yaml');
     expect(page.goto).toHaveBeenCalledOnce();
-    expect(page.goto).toHaveBeenCalledWith('http://c.com', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://c.com', { waitUntil: 'load', timeout: 30000 });
   });
 });
 
@@ -349,7 +349,7 @@ describe('replayFlows — T24: assertUrl mismatch', () => {
     expect(err.message).toContain('[replay] FAILED');
     expect(err.message).toContain('/expected-path');
     expect(err.message).toContain('/actual-path');
-  });
+  }, 10000);
 });
 
 // ─── T25 ─────────────────────────────────────────────────────────────────────

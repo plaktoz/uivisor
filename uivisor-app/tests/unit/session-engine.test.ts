@@ -109,7 +109,7 @@ describe('AC-3: per-command session routing', () => {
       ctx,
     );
 
-    expect(pageA.goto).toHaveBeenCalledWith('http://test/a', { waitUntil: 'load' });
+    expect(pageA.goto).toHaveBeenCalledWith('http://test/a', { waitUntil: 'load', timeout: 30000 });
     expect(pageB.goto).not.toHaveBeenCalled();
   });
 
@@ -128,9 +128,9 @@ describe('AC-3: per-command session routing', () => {
     );
 
     expect(pageA.goto).toHaveBeenCalledOnce();
-    expect(pageA.goto).toHaveBeenCalledWith('http://test/a', { waitUntil: 'load' });
+    expect(pageA.goto).toHaveBeenCalledWith('http://test/a', { waitUntil: 'load', timeout: 30000 });
     expect(pageB.goto).toHaveBeenCalledOnce();
-    expect(pageB.goto).toHaveBeenCalledWith('http://test/b', { waitUntil: 'load' });
+    expect(pageB.goto).toHaveBeenCalledWith('http://test/b', { waitUntil: 'load', timeout: 30000 });
   });
 
   it('untagged assertVisible with defaultSessionId=alice → alice getByText called, bob not', async () => {
@@ -163,7 +163,7 @@ describe('AC-4: default session routing', () => {
       ctx,
     );
 
-    expect(pageA.goto).toHaveBeenCalledWith('http://test/default', { waitUntil: 'load' });
+    expect(pageA.goto).toHaveBeenCalledWith('http://test/default', { waitUntil: 'load', timeout: 30000 });
     expect(pageB.goto).not.toHaveBeenCalled();
   });
 
@@ -182,10 +182,10 @@ describe('AC-4: default session routing', () => {
       ctx,
     );
 
-    expect(pageA.goto).toHaveBeenCalledWith('http://test/alice', { waitUntil: 'load' });
+    expect(pageA.goto).toHaveBeenCalledWith('http://test/alice', { waitUntil: 'load', timeout: 30000 });
     // bob should only have been called for its explicit command
     expect(pageB.goto).toHaveBeenCalledOnce();
-    expect(pageB.goto).toHaveBeenCalledWith('http://test/bob', { waitUntil: 'load' });
+    expect(pageB.goto).toHaveBeenCalledWith('http://test/bob', { waitUntil: 'load', timeout: 30000 });
     // defaultSessionId must remain 'alice' after the bob command
     expect(ctx.defaultSessionId).toBe('alice');
   });
@@ -213,7 +213,7 @@ describe('AC-5: runFlow with session: restores defaultSessionId', () => {
       );
 
       // Sub-flow ran on bob's page
-      expect(pageB.goto).toHaveBeenCalledWith('http://test/bob-sub', { waitUntil: 'load' });
+      expect(pageB.goto).toHaveBeenCalledWith('http://test/bob-sub', { waitUntil: 'load', timeout: 30000 });
       // defaultSessionId restored to alice
       expect(ctx.defaultSessionId).toBe('alice');
     } finally {

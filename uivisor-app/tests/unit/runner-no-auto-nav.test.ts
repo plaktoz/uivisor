@@ -170,14 +170,14 @@ describe('TC-2: FlowFile with goto command', () => {
 
     // Simulate the engine processing the goto command — calls page.goto once
     vi.mocked(engineModule.runFlow).mockImplementation(async (_flowFile, page) => {
-      await (page as Page).goto(gotoUrl, { waitUntil: 'load' });
+      await (page as Page).goto(gotoUrl, { waitUntil: 'load', timeout: 30000 });
       return { ...EMPTY_FLOW_RESULT, totalCommands: 1, passedCommands: 1 };
     });
 
     await runAll(['/flow.yaml'], BASE_OPTIONS);
 
     expect(mockPage.goto).toHaveBeenCalledOnce();
-    expect(mockPage.goto).toHaveBeenCalledWith(gotoUrl, { waitUntil: 'load' });
+    expect(mockPage.goto).toHaveBeenCalledWith(gotoUrl, { waitUntil: 'load', timeout: 30000 });
   });
 });
 

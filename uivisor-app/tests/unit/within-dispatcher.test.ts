@@ -7,10 +7,20 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Page, Locator } from 'playwright';
-import type { RunContext, Command } from '@uivisor/core';
+import type { RunContext, Command, Clock } from '@uivisor/core';
+import { createDeadline } from '@uivisor/core';
 import { executeWithin, WithinDispatch } from '../../src/driver/commands';
 import { dispatch } from '../../src/engine/dispatcher';
 import { createVarMap } from '../../src/engine/varMap';
+
+/** Deterministic clock: `sleep` advances time instantly (no real-time wait). */
+function makeFakeClock(): Clock {
+  let t = 0;
+  return {
+    now: () => t,
+    sleep: async (ms: number) => { t += ms; },
+  };
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -90,8 +100,9 @@ describe('executeWithin — container not found (TC-045)', () => {
       do: [],
     };
 
-    await expect(executeWithin(page, cmd, makeCtx(), dispatch)).rejects.toThrow(
-      "within: No container found for selector 'text=NoSuchRow'"
+    const d = createDeadline(50, makeFakeClock());
+    await expect(executeWithin(page, cmd, makeCtx(), dispatch, d)).rejects.toThrow(
+      "within: No container found after 50ms for selector 'text=NoSuchRow'"
     );
     // Inner dispatch must NOT run when container not found
     expect(dispatch).not.toHaveBeenCalled();
@@ -120,7 +131,8 @@ describe('executeWithin — nth out of range (TC-047)', () => {
       do: [],
     };
 
-    await expect(executeWithin(page, cmd, makeCtx(), dispatchFn)).rejects.toThrow(
+    const d = createDeadline(50, makeFakeClock());
+    await expect(executeWithin(page, cmd, makeCtx(), dispatchFn, d)).rejects.toThrow(
       "within: nth=5 requested but only 2 containers matched selector 'text=Row'"
     );
     expect(dispatchFn).not.toHaveBeenCalled();
@@ -258,8 +270,9 @@ describe('executeWithin — xpath container selector (AC11)', () => {
       do: [],
     };
 
+    const d = createDeadline(50, makeFakeClock());
     await expect(
-      executeWithin(page, cmd, makeCtx(), innerDispatch)
+      executeWithin(page, cmd, makeCtx(), innerDispatch, d)
     ).rejects.toThrow(
       /No container found.*xpath=\/\/div\[@class="missing"\]/
     );
@@ -366,8 +379,9 @@ describe('executeWithin — xpath container selector (AC11)', () => {
       do: [],
     };
 
+    const d = createDeadline(50, makeFakeClock());
     await expect(
-      executeWithin(page, cmd, makeCtx(), innerDispatch)
+      executeWithin(page, cmd, makeCtx(), innerDispatch, d)
     ).rejects.toThrow(/nth=3.*only 1.*containers/i);
 
     expect(innerDispatch).not.toHaveBeenCalled();

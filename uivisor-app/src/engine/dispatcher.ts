@@ -349,10 +349,8 @@ export async function dispatch(
         break;
 
       case 'within': {
-        // T10 will have executeWithin hand whole steps to this callback; until then,
-        // wrap the inner Command as a bare step (no sibling timeout on `within`'s do: items yet).
-        const nestedResults = await executeWithin(page, c, ctx, (p, nc, cx) =>
-          dispatch(p, { command: nc }, cx, flowStem, flowDir),
+        const nestedResults = await executeWithin(page, c, ctx, (p, nextStep, cx) =>
+          dispatch(p, nextStep, cx, flowStem, flowDir),
         );
         const allPassed = nestedResults.every((r) => r.passed);
         const nestedResult = {
