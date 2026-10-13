@@ -148,59 +148,26 @@ async function executeResolved(
       };
     }
 
-    const preCallStates = new Map<string, { hasRuntime: boolean; runtimeValue?: string; isUnset: boolean }>();
-    let callStackAdded = false;
-    let indentLevelIncreased = false;
-
+    let file: FlowFile;
     try {
-      const file = loadAndParse(absPath);
-      ctx.onProgress?.({ kind: 'include', file });
+      file = loadAndParse(absPath);
+    } catch (err: unknown) {
+      return {
+        command: resolvedCmd,
+        passed: false,
+        message: err instanceof Error ? err.message : String(err),
+        durationMs: Date.now() - start,
+      };
+    }
+    ctx.onProgress?.({ kind: 'include', file });
 
-      // ── Variable scoping and defaults merging ──
-      const overrides = resolvedCmd.vars ?? {};
-      const defaults = file.vars ?? {};
-
-      // Identify scoped keys:
-      // 1. Any key in overrides is a scoped override.
-      // 2. Any key in defaults that is NOT already in the varMap is a scoped default.
-      const scopedKeys = new Set<string>();
-      for (const key of Object.keys(overrides)) {
-        scopedKeys.add(key);
-      }
-      for (const key of Object.keys(defaults)) {
-        if (ctx.varMap.get(key) === undefined) {
-          scopedKeys.add(key);
-        }
-      }
-
-      // Capture pre-call state of scoped keys
-      for (const key of scopedKeys) {
-        preCallStates.set(key, {
-          hasRuntime: ctx.varMap.hasRuntime(key),
-          runtimeValue: ctx.varMap.hasRuntime(key) ? ctx.varMap.get(key) : undefined,
-          isUnset: ctx.varMap.isUnset(key),
-        });
-      }
-
-      // Apply child defaults first (fill-in only for keys that are undefined)
-      for (const [key, value] of Object.entries(defaults)) {
-        if (ctx.varMap.get(key) === undefined) {
-          ctx.varMap.set(key, value);
-        }
-      }
-
-      // Apply call-site overrides (highest precedence)
-      for (const [key, value] of Object.entries(overrides)) {
-        ctx.varMap.set(key, value);
-      }
-
-      ctx.callStack.add(absPath);
-      callStackAdded = true;
-      ctx.indentLevel++;
-      indentLevelIncreased = true;
-
+    ctx.indentLevel++;
+    try {
       const runFn = _runFlowImpl!;
-      const nestedResult = await runFn(file, page, ctx);
+      const nestedResult = await ctx.varMap.withScope(
+        { overrides: resolvedCmd.vars ?? {}, defaults: file.vars ?? {} },
+        () => runFn(file, page, ctx),
+      );
 
       return {
         command: resolvedCmd,
@@ -229,22 +196,7 @@ async function executeResolved(
         durationMs: Date.now() - start,
       };
     } finally {
-      if (indentLevelIncreased) {
-        ctx.indentLevel--;
-      }
-      if (callStackAdded) {
-        ctx.callStack.delete(absPath);
-      }
-      // Restore pre-call state of scoped keys
-      for (const [key, state] of preCallStates.entries()) {
-        if (state.hasRuntime) {
-          ctx.varMap.set(key, state.runtimeValue!);
-        } else if (state.isUnset) {
-          ctx.varMap.unset(key);
-        } else {
-          ctx.varMap.delete(key);
-        }
-      }
+      ctx.indentLevel--;
     }
   }
 
