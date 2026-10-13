@@ -42,6 +42,9 @@ import {
 
 // ─── YAML command parser ──────────────────────────────────────────────────────
 
+/** Matches a method call on the right-hand side of a setVar shorthand: name(args...) */
+const METHOD_CALL_RE = /^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$/s;
+
 function parseCommand(record: Record<string, unknown>): Command {
   const key = Object.keys(record)[0];
   if (!key) throw new Error('Empty command record');
@@ -201,6 +204,23 @@ function parseCommand(record: Record<string, unknown>): Command {
     }
 
     case 'setVar': {
+      if (typeof val === 'string') {
+        // Shorthand: "name=value" or "name=method(args)" — split on the first '='
+        const eqIdx = val.indexOf('=');
+        if (eqIdx === -1) {
+          throw new Error(`setVar: expected "name=value" or "name=method(args)", got: ${val}`);
+        }
+        const name = val.slice(0, eqIdx);
+        const rhs = val.slice(eqIdx + 1);
+        if (name.trim() === '') throw new Error('setVar: variable name must not be empty');
+        const methodMatch = METHOD_CALL_RE.exec(rhs);
+        if (methodMatch) {
+          const argsStr = methodMatch[2];
+          const args = argsStr.trim() === '' ? [] : argsStr.split(',').map((a) => a.trim());
+          return { type: 'setVar', name, method: methodMatch[1], args };
+        }
+        return { type: 'setVar', name, value: rhs };
+      }
       const obj = val as Record<string, unknown>;
       if ('method' in obj) {
         return {
@@ -214,6 +234,7 @@ function parseCommand(record: Record<string, unknown>): Command {
     }
 
     case 'testVarSet': {
+      if (typeof val === 'string') return { type: 'testVarSet', name: val };
       const obj = val as Record<string, unknown>;
       return {
         type: 'testVarSet',
@@ -516,21 +537,35 @@ async function replayFlowFile(
   const total = commands.length;
   const fileName = path.basename(absPath);
 
-  // Precedence, lowest first. The file's vars block, the caller's variables, call-site runFlow vars.
-  const varMap: Map<string, string> = new Map([
-    ...Object.entries(vars),
-    ...(parentVarMap ?? []),
-    ...Object.entries(callSiteVars ?? {}),
-  ]);
+  // A nested flow shares the caller's varMap, so its setVar/unsetVar survive the return.
+  // Only the file's `vars:` defaults (fill-in for unset keys) and the call-site runFlow vars
+  // are scoped to this call: their prior state is restored afterwards.
+  const varMap: Map<string, string> = parentVarMap ?? new Map();
+  const scoped = new Map<string, string | undefined>();
+  for (const key of Object.keys(callSiteVars ?? {})) scoped.set(key, varMap.get(key));
+  for (const key of Object.keys(vars)) {
+    if (!varMap.has(key) && !scoped.has(key)) scoped.set(key, undefined);
+  }
+  for (const [key, value] of Object.entries(vars)) {
+    if (!varMap.has(key)) varMap.set(key, value);
+  }
+  for (const [key, value] of Object.entries(callSiteVars ?? {})) varMap.set(key, value);
 
-  for (let i = 0; i < total; i++) {
-    console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);
-    const cmd = commands[i];
-    try {
-      await dispatchCommand(page, cmd, ctx, absPath, callStack, varMap);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`[replay] FAILED: ${cmd.type} in ${fileName}: ${message}`);
+  try {
+    for (let i = 0; i < total; i++) {
+      console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);
+      const cmd = commands[i];
+      try {
+        await dispatchCommand(page, cmd, ctx, absPath, callStack, varMap);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`[replay] FAILED: ${cmd.type} in ${fileName}: ${message}`);
+      }
+    }
+  } finally {
+    for (const [key, prior] of scoped) {
+      if (prior === undefined) varMap.delete(key);
+      else varMap.set(key, prior);
     }
   }
 }
