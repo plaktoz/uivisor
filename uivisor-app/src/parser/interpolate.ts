@@ -3,8 +3,6 @@ import { readYamlFile } from './reader.js';
 import { flattenVars, interpolateValue } from '@uivisor/core';
 import type { FlowConfig, WorkingScheduleEntry } from '@uivisor/core';
 
-export { flattenVars };
-
 /** Keys in config.yml that are NOT simple variables but flow-config data. */
 const FLOW_CONFIG_KEYS = new Set(['workingSchedule', 'holidays', 'functions']);
 

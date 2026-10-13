@@ -45,23 +45,13 @@ No internal imports.
 
 ## interpolate.ts
 
-Variable flattening and config loading. The `${...}` interpolation functions live in `@uivisor/core` (`packages/core/src/interpolate.ts`), which recorder-app also uses. They are described under [Interpolation](#interpolation-uivisorcore).
-
-### `flattenVars(raw, filePath?): Record<string, string>`
-
-Recursively walks a nested YAML object, joining keys with `.` to form dotted paths (e.g. `db.host`). Rules:
-- Names must match `/^[a-zA-Z_][a-zA-Z0-9_.]*$/`.
-- `env` and `env.*` are reserved — throws if used.
-- Array values are rejected.
-- Empty or invalid names throw.
-- Duplicate keys throw.
-- Number/boolean/null leaves are coerced to strings.
+Config loading. The `${...}` interpolation functions, `flattenVars`, and `parseRunFlow` live in `@uivisor/core` (`packages/core/src/interpolate.ts`), which recorder-app also uses. They are described under [Interpolation](#interpolation-uivisorcore).
 
 ### `loadConfigFile(configPath, flowFilePath): Record<string, string>`
 
 Resolves the config path relative to the flow file's directory, reads and parses it as YAML, flattens it, then resolves `${env.*}` expressions in all values (using empty vars — only env vars are available at config load time).
 
-**Internal imports:** `parser/reader` (`readYamlFile`). `interpolateValue` comes from `@uivisor/core`.
+**Internal imports:** `parser/reader` (`readYamlFile`). `flattenVars` and `interpolateValue` come from `@uivisor/core`.
 
 ### Interpolation (`@uivisor/core`)
 
@@ -77,6 +67,20 @@ Forward-scan over a string, replacing all `${...}` expressions via `resolveRef`.
 
 Deep-walks any value (string, array, object, primitive) and calls `interpolateValue` on string leaves. Never mutates input.
 
+#### `flattenVars(raw, filePath?): Record<string, string>`
+
+Recursively walks a nested YAML object, joining keys with `.` to form dotted paths (e.g. `db.host`). Rules:
+- Names must match `/^[a-zA-Z_][a-zA-Z0-9_.]*$/`.
+- `env` and `env.*` are reserved — throws if used.
+- Array values are rejected.
+- Empty or invalid names throw.
+- Duplicate keys throw.
+- Number/boolean/null leaves are coerced to strings.
+
+#### `parseRunFlow(value): RunFlowCommand`
+
+Parses the value of a `runFlow:` command, either a path string or `{ file, vars }`. `file` must be a non-empty string, any other key throws, and `vars` must be a map that is run through `flattenVars`. Every error starts with `Invalid runFlow:`.
+
 ---
 
 ## commandParser.ts
@@ -89,12 +93,13 @@ Takes a raw YAML object (one top-level key = command name) and returns a typed `
 - `scroll` direction must be in `{up, down, left, right}`.
 - `setViewport` resolves named presets (`mobile` 390×844, `tablet` 768×1024, `desktop` 1280×800) or validates explicit positive integer dimensions.
 - `within` recursively parses the `do` array via `parseSessionedCommand`.
+- `runFlow` delegates to `parseRunFlow` from `@uivisor/core`.
 
 ### `parseSessionedCommand(raw: unknown): SessionedCommand`
 
 Strips the optional `session` string field before delegating to `parseCommand`, then re-attaches it. This is the function called by `parser/index.ts` for each command in the YAML `commands` list.
 
-**External imports only:** `@uivisor/core` (`parseSelector`)
+**External imports only:** `@uivisor/core` (`parseSelector`, `parseRunFlow`)
 
 ---
 
@@ -133,4 +138,4 @@ Full YAML-to-`FlowFile` pipeline in three passes.
 }
 ```
 
-**Internal imports:** `parser/reader`, `parser/validator`, `parser/commandParser`, `parser/interpolate`
+**Internal imports:** `parser/reader`, `parser/validator`, `parser/commandParser`, `parser/interpolate`. `flattenVars`, `interpolateValue`, and `interpolateObject` come from `@uivisor/core`.
