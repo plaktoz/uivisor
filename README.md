@@ -128,7 +128,7 @@ See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full reference co
 
 ### Console (default)
 
-Steps print as they run with pass/fail icons and timings. Failed steps print the error and a screenshot path.
+On a terminal, each flow is a live checklist that updates in place: pending `○`, running spinner with a timer, `✓`/`✗` with durations, and `–` for steps skipped after a failure. Piped or CI output stays append-only plain text. Force either with `--reporter live` or `--reporter plain`. Failed steps print the error and a screenshot path.
 
 ### HTML report (`--reporter html`)
 

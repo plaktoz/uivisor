@@ -625,3 +625,21 @@ describe('waitForPageLoad commandToRecord', () => {
   // C-23
   it('timeout-only → object with timeout key', () => expect(commandToRecord({ type: 'waitForPageLoad', timeout: 0 } as any)).toEqual({ waitForPageLoad: { timeout: 0 } }));
 });
+
+describe('runFlow vars', () => {
+  it('runFlow with vars round-trips as { file, vars }', () => {
+    const dir = makeTmpDir();
+    const outPath = path.join(dir, 'out.yaml');
+    startSession(outPath, 'myApp');
+    appendCommand(outPath, { type: 'runFlow', path: './login.yaml', vars: { user: 'ada', pin: '0042' } });
+    const parsed = yaml.load(fs.readFileSync(outPath, 'utf8')) as { commands: Record<string, unknown>[] };
+    expect(parsed.commands).toEqual([
+      { runFlow: { file: './login.yaml', vars: { user: 'ada', pin: '0042' } } },
+    ]);
+  });
+
+  it('runFlow without vars, or with empty vars, stays a plain path', () => {
+    expect(commandToRecord({ type: 'runFlow', path: './login.yaml' })).toEqual({ runFlow: './login.yaml' });
+    expect(commandToRecord({ type: 'runFlow', path: './login.yaml', vars: {} })).toEqual({ runFlow: './login.yaml' });
+  });
+});
