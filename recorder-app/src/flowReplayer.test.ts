@@ -514,3 +514,113 @@ describe('waitForPageLoad', () => {
     expect((page as unknown as ReturnType<typeof makeMockPage>)._loc.click).not.toHaveBeenCalled();
   });
 });
+
+// ─── setVar shorthand & variable scoping (#107) ──────────────────────────────
+
+describe('setVar / testVarSet shorthand', () => {
+  it('setVar: name=value shorthand sets the variable for later interpolation', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: 'target=http://x.test/a=b' }, { goto: '${target}' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.goto).toHaveBeenCalledWith('http://x.test/a=b', { waitUntil: 'load' });
+  });
+
+  it('setVar object form still works', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: { name: 'target', value: 'http://y.test' } }, { goto: '${target}' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.goto).toHaveBeenCalledWith('http://y.test', { waitUntil: 'load' });
+  });
+
+  it('setVar shorthand without "=" fails with a clear message', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: 'noEquals' }],
+    });
+    await expect(
+      replayFlows([flowPath], makeMockPage() as unknown as Page, path.join(dir, 'out.yaml')),
+    ).rejects.toThrow(/setVar: expected "name=value"/);
+  });
+
+  it('setVar shorthand with a method call is rejected as unsupported at dispatch', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: "ts=today('YYYYMMDD')" }],
+    });
+    await expect(
+      replayFlows([flowPath], makeMockPage() as unknown as Page, path.join(dir, 'out.yaml')),
+    ).rejects.toThrow(/setVar with method is not supported/);
+  });
+
+  it('testVarSet / unsetVar shorthand strings work', async () => {
+    const dir = makeTmpDir();
+    const flowPath = writeFlow(dir, 'flow.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: 'v=1' }, { testVarSet: 'v' }, { unsetVar: 'v' }, { testVarSet: 'v' }],
+    });
+    await expect(
+      replayFlows([flowPath], makeMockPage() as unknown as Page, path.join(dir, 'out.yaml')),
+    ).rejects.toThrow(/testVarSet: variable "v" is not set/);
+  });
+});
+
+describe('variable scoping across runFlow', () => {
+  it('a child flow setVar survives the return to the caller', async () => {
+    const dir = makeTmpDir();
+    writeFlow(dir, 'child.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: 'fromChild=http://child.test' }],
+    });
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow: './child.yaml' }, { goto: '${fromChild}' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.goto).toHaveBeenCalledWith('http://child.test', { waitUntil: 'load' });
+  });
+
+  it('a child vars: default fills in an unset key but does not leak to the caller', async () => {
+    const dir = makeTmpDir();
+    writeFlow(dir, 'child.yaml', {
+      appId: 'http://example.com',
+      vars: { d: 'http://default.test' },
+      commands: [{ goto: '${d}' }],
+    });
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ runFlow: './child.yaml' }, { testVarSet: 'd' }],
+    });
+    const page = makeMockPage();
+    await expect(
+      replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml')),
+    ).rejects.toThrow(/testVarSet: variable "d" is not set/);
+    expect(page.goto).toHaveBeenCalledWith('http://default.test', { waitUntil: 'load' });
+  });
+
+  it('a child vars: default does not override a value already set by the caller', async () => {
+    const dir = makeTmpDir();
+    writeFlow(dir, 'child.yaml', {
+      appId: 'http://example.com',
+      vars: { d: 'http://default.test' },
+      commands: [{ goto: '${d}' }],
+    });
+    const parentPath = writeFlow(dir, 'parent.yaml', {
+      appId: 'http://example.com',
+      commands: [{ setVar: 'd=http://caller.test' }, { runFlow: './child.yaml' }, { testVarSet: 'd' }],
+    });
+    const page = makeMockPage();
+    await replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml'));
+    expect(page.goto).toHaveBeenCalledWith('http://caller.test', { waitUntil: 'load' });
+  });
+});
