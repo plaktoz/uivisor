@@ -3,8 +3,17 @@ export type {
   FlowFile, RunOptions, CommandResult, FlowResult,
   RunResult, RunContext,
   VarMap, MethodRunner, WorkingScheduleEntry, FlowConfig,
+  TimeoutSettings, TimeoutKey, FlowTimeoutLayers,
 } from './types.js';
 export type { PlaywrightContext } from './types.js';
+
+export { COMMAND_TRAITS } from './commandTraits.js';
+export type { TimeoutTrait } from './commandTraits.js';
+
+export {
+  createDeadline, realClock, DEFAULT_TIMEOUTS, RETRY_INTERVAL_MS, retryUntil,
+} from './deadline.js';
+export type { Clock, Deadline, Attempt } from './deadline.js';
 
 export { parseSelector } from './selectorParser.js';
 export { resolveSelector } from './selectorHeuristics.js';

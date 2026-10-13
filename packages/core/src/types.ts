@@ -2,6 +2,7 @@ import type { Locator } from 'playwright';
 
 export interface PlaywrightContext {
   lastTappedLocator: Locator | null;
+  lastTappedLabel?: string; // label = selector as written (AC32)
 }
 
 export type Selector =
@@ -84,7 +85,24 @@ export type Command =
 
 export type SessionDef = { id: string; label?: string };
 
-export type SessionedCommand = { session?: string; command: Command };
+// Per-step options, sibling keys next to `session`. After parsing, `timeout` is a
+// positive integer, or a string containing `${` (resolved at dispatch). Absent key =
+// property absent.
+export type SessionedCommand = { session?: string; timeout?: number | string; command: Command };
+
+export interface TimeoutSettings {
+  defaultTimeout: number;
+  navigationTimeout: number;
+}
+
+// Notice order: defaultTimeout, navigationTimeout.
+export type TimeoutKey = keyof TimeoutSettings;
+
+// Validated values one flow file sets itself. Each layer holds only the keys that file sets.
+export interface FlowTimeoutLayers {
+  header: Partial<TimeoutSettings>;
+  config: Partial<TimeoutSettings>;
+}
 
 export interface FlowFile {
   baseUrl: string;
@@ -94,6 +112,7 @@ export interface FlowFile {
   tags: string[];
   vars?: Record<string, string>;
   flowConfig?: FlowConfig;
+  timeouts?: FlowTimeoutLayers; // optional: test literals omit it
 }
 
 export interface RunOptions {
@@ -102,6 +121,7 @@ export interface RunOptions {
   reporter: 'html' | 'md' | null;
   runDir: string;
   tags: string[];
+  timeouts?: Partial<TimeoutSettings>; // the CLI layer
 }
 
 export interface CommandResult {
@@ -140,4 +160,9 @@ export interface RunContext extends PlaywrightContext {
   defaultSessionId: string;
   varMap: VarMap;
   methodRunner: MethodRunner;
+  // The run's policy: fixed once per top-level flow in runAll; never written by runFlow.
+  // Absent → DEFAULT_TIMEOUTS.
+  timeouts?: TimeoutSettings;
+  // Absolute paths of child files already noticed in this top-level run.
+  timeoutNotices?: Set<string>;
 }
