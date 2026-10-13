@@ -16,8 +16,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc",
-    "test": "vitest run --coverage"
+    "build": "tsc && node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "npm run typecheck && vitest run --coverage"
   },
   "dependencies": {
     "commander": "^15.0.0",

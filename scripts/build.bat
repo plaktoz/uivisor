@@ -15,6 +15,9 @@ echo Removing workspace node_modules and dist directories...
 if exist "node_modules"                  rmdir /s /q "node_modules"
 if exist "packages\core\node_modules"   rmdir /s /q "packages\core\node_modules"
 if exist "packages\core\dist"           rmdir /s /q "packages\core\dist"
+if exist "ui-diff\node_modules"         rmdir /s /q "ui-diff\node_modules"
+if exist "ui-diff\dist"                 rmdir /s /q "ui-diff\dist"
+if exist "ui-diff\coverage"             rmdir /s /q "ui-diff\coverage"
 if exist "uivisor-app\node_modules"     rmdir /s /q "uivisor-app\node_modules"
 if exist "uivisor-app\dist"             rmdir /s /q "uivisor-app\dist"
 if exist "recorder-app\node_modules"    rmdir /s /q "recorder-app\node_modules"
@@ -29,6 +32,14 @@ call npm install
 if errorlevel 1 goto :error
 
 echo.
+echo -- Building ui-diff --
+call npm run build --workspace=ui-diff
+if errorlevel 1 goto :error
+
+echo -- Testing ui-diff --
+call npm test --workspace=ui-diff
+if errorlevel 1 goto :error
+
 echo -- Building packages/core --
 call npm run build --workspace=packages/core
 if errorlevel 1 goto :error
