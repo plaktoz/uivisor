@@ -137,7 +137,7 @@ describe('measureDrift', () => {
 
   it('reports zero drift for identical maps', () => {
     const a = map(w, h, [[100, 10, 20, 20]]);
-    expect(worstBand(measureDrift(a, a, w, h, 16))?.drift).toBe(0);
+    expect(worstBand(measureDrift(a, a, w, h, 16, 0))?.drift).toBe(0);
   });
 
   it('measures a rigid horizontal shift on the horizontal axis', () => {
@@ -187,7 +187,7 @@ describe('measureDrift', () => {
 
   it('ignores bands with fewer edge pixels than the minimum mass (noise)', () => {
     const a = map(w, h, [[50, 20, 1, 3]]);
-    expect(measureDrift(a, a, w, h, 16)).toHaveLength(0);
+    expect(measureDrift(a, a, w, h, 16, 0)).toHaveLength(0);
     expect(worstBand([])).toBeUndefined();
   });
 
