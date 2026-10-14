@@ -4,10 +4,11 @@ config: config.yml
 # fixture page. No wait:/waitFor: steps anywhere in this flow — every delay is
 # crossed by the selector's own retry/cascade behaviour.
 commands:
-  # ── (1) int-delayed (delay 1500ms) found via four selector forms ──────────
+  # ── (1) int-delayed (delay 1500ms) found via four selector forms: bare
+  #        string, pipe cascade, testId object, and xpath object ───────────
   # Each case starts with a fresh goto so the delayed element starts absent.
   - goto: ${base}/integration-timeouts
-  - assertVisible: data-testid=int-delayed
+  - assertVisible: int-delayed
 
   - goto: ${base}/integration-timeouts
   - assertVisible: data-testid=int-delayed|text=Delayed content

@@ -127,7 +127,7 @@ export async function dispatch(
     return { command: cmd, passed: false, message, durationMs: Date.now() - start };
   }
 
-  // The run's effective timeout policy (S7, T9/T11) — fixed once per top-level
+  // The run's effective timeout policy — fixed once per top-level
   // flow, inherited unchanged by every child flow.
   const run = ctx.timeouts ?? DEFAULT_TIMEOUTS;
 
@@ -162,7 +162,7 @@ export async function dispatch(
     try {
       const file = loadAndParse(absPath);
 
-      // ── Notice (T11): print once per child file per top-level run when the
+      // ── Notice: print once per child file per top-level run when the
       // child's own header/config timeout value is overridden by inheritance.
       // Skipped when callStack is empty (direct-dispatch tests, no top-level run). ──
       const topLevelPath = Array.from(ctx.callStack)[0];
@@ -270,7 +270,7 @@ export async function dispatch(
   // Use the interpolated command for all subsequent processing
   const c = resolvedCmd;
 
-  // ── Budget (T11): one deadline per step, from the sibling/inner value already
+  // ── Budget: one deadline per step, from the sibling/inner value already
   // resolved above, the command's timeout trait, and the run's effective timeouts.
   // Trait 'none' → no deadline. ──
   const inner =

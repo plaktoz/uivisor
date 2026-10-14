@@ -2,9 +2,9 @@
  * src/engine/timeouts.ts
  *
  * Single source of truth for the timeout precedence order
- * "sibling > CLI > header > config > built-in" (S7, T9).
+ * "sibling > CLI > header > config > built-in".
  *
- * - The parser (T7) only validates the header/config layers.
+ * - The parser only validates the header/config layers.
  * - `resolveRunTimeouts` composes the CLI/header/config/built-in layers into
  *   one `TimeoutSettings` per top-level flow (called once per top-level flow
  *   by `runAll`).

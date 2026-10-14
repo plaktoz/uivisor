@@ -2,8 +2,8 @@
  * tests/unit/timeouts-precedence.test.ts
  *
  * Unit tests for the pure timeout-precedence functions in
- * src/engine/timeouts.ts (S7, T9): resolveRunTimeouts, stepTimeoutMs,
- * timeoutNotice. These are not wired into the engine yet (T11).
+ * src/engine/timeouts.ts: resolveRunTimeouts, stepTimeoutMs,
+ * timeoutNotice. These are wired into the engine via src/engine/dispatcher.ts.
  *
  * Covers AC51-54 (resolveRunTimeouts), AC51/AC35/AC70 (stepTimeoutMs),
  * AC58-62/AC80 (timeoutNotice, using the Gate 1 Revision 1 text for
