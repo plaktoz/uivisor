@@ -139,7 +139,21 @@ export function createLiveReporter(overrides: Partial<LiveDeps> = {}): RunReport
 
     onProgress(event: ProgressEvent) {
       guard(() => {
-        if (screen.kind === 'flow') screen = { ...screen, list: applyEvent(screen.list, event, now()) };
+        if (screen.kind === 'plain') {
+          plain.onProgress(event);
+          return;
+        }
+        if (screen.kind !== 'flow') return;
+        if (event.kind === 'notice') {
+          // Flush the notice as its own line above the live region: rewind the
+          // currently-painted frame (erasing it), write the notice (which then sits
+          // permanently in scrollback), and repaint the frame fresh underneath it.
+          out.write(rewind(screen.height) + `${event.message}\n`);
+          screen = { ...screen, height: 0, painted: '' };
+          paint();
+          return;
+        }
+        screen = { ...screen, list: applyEvent(screen.list, event, now()) };
       });
     },
 

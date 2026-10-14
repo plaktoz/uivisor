@@ -23,7 +23,9 @@ export function resolveConsoleMode(
 export function createPlainReporter(con: ConsoleReporter = new ConsoleReporter()): RunReporter {
   return {
     startFlow: (file) => con.startFlow(file.filePath, 0),
-    onProgress: () => {},
+    onProgress: (event) => {
+      if (event.kind === 'notice') con.notice(event.message);
+    },
     endFlow: (result) => {
       for (const r of result.commandResults) con.reportCommand(r, 0);
       con.endFlow(result);

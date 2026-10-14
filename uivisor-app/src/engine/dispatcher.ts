@@ -177,16 +177,18 @@ async function executeResolved(
     }
     ctx.onProgress?.({ kind: 'include', file });
 
-    // ── Notice: print once per child file per top-level run when the
+    // ── Notice: emit once per child file per top-level run when the
     // child's own header/config timeout value is overridden by inheritance.
-    // Skipped when callStack is empty (direct-dispatch tests, no top-level run). ──
+    // Skipped when callStack is empty (direct-dispatch tests, no top-level run).
+    // Delivered via onProgress rather than written to stdout directly, so every
+    // reporter (and no reporter at all) decides how/whether to surface it. ──
     const topLevelPath = Array.from(ctx.callStack)[0];
     if (topLevelPath !== undefined) {
       const line = timeoutNotice(file, run, topLevelPath);
       ctx.timeoutNotices ??= new Set();
       if (line !== null && !ctx.timeoutNotices.has(absPath)) {
         ctx.timeoutNotices.add(absPath);
-        process.stdout.write(line + '\n');
+        ctx.onProgress?.({ kind: 'notice', message: line });
       }
     }
 

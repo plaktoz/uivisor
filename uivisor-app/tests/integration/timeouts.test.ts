@@ -24,13 +24,13 @@
  * Run with:   npx vitest run tests/integration/timeouts.test.ts
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright';
 import * as http from 'http';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { RunContext, FlowFile, TimeoutSettings } from '@uivisor/core';
+import type { RunContext, FlowFile, TimeoutSettings, ProgressListener } from '@uivisor/core';
 import { dispatch } from '../../src/engine/dispatcher';
 import { runFlow } from '../../src/engine/index';
 import { createContext } from '../../src/engine/context';
@@ -147,6 +147,20 @@ function makeTmpDir(): string {
 
 function fixtureUrl(name: string, query = ''): string {
   return `${baseUrl}/fixtures/${name}${query ? '?' + query : ''}`;
+}
+
+/**
+ * A minimal onProgress listener that records every `notice` event's message, in order, so
+ * tests can assert on the emitted ProgressEvent instead of reaching for stdout.
+ */
+function collectNotices(): { messages: string[]; onProgress: ProgressListener } {
+  const messages: string[] = [];
+  return {
+    messages,
+    onProgress: (event) => {
+      if (event.kind === 'notice') messages.push(event.message);
+    },
+  };
 }
 
 /** Assert a duration falls within [minMs, maxMs) — the spec's T to T+1000ms tolerance by default. */
@@ -1091,23 +1105,21 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
         '  - assertVisible: data-testid=int-never-rendered',
       ].join('\n'),
     );
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       const result = await runFlow(file, page, ctx);
       const childResult = result.commandResults[0].nestedResult!;
       expect(childResult.commandResults[0].message!.split('\n')[0]).toBe(
         'Element not found after 5000ms: data-testid=int-never-rendered',
       );
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.filter((l) => l.includes('ignored (inherited from'))).toEqual([
-        'child.yaml: defaultTimeout ignored (inherited from top.yaml)\n',
+      expect(notices.messages).toEqual([
+        'child.yaml: defaultTimeout ignored (inherited from top.yaml)',
       ]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }, 10_000);
@@ -1115,19 +1127,17 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
   it('AC60 (revised)(a): a two-key notice is printed exactly once even when the child runs twice', async () => {
     const dir = makeTmpDir();
     const { topPath } = buildTopChild(dir, { topDefault: 1000, topNav: 1500, childDefault: 4000, childNav: 6000, calls: 2 });
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.filter((l) => l.includes('ignored (inherited from'))).toEqual([
-        'child.yaml: defaultTimeout, navigationTimeout ignored (inherited from top.yaml)\n',
+      expect(notices.messages).toEqual([
+        'child.yaml: defaultTimeout, navigationTimeout ignored (inherited from top.yaml)',
       ]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1140,19 +1150,17 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
       'top.yaml',
       [`appId: ${baseUrl}/fixtures/delayed.html?delay=999999`, 'commands:', '  - runFlow: ./child2.yaml'].join('\n'),
     );
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.filter((l) => l.includes('ignored (inherited from'))).toEqual([
-        'child2.yaml: defaultTimeout ignored (inherited from top.yaml)\n',
+      expect(notices.messages).toEqual([
+        'child2.yaml: defaultTimeout ignored (inherited from top.yaml)',
       ]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1160,17 +1168,15 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
   it('AC61 (revised)(a): no notice when the child sets neither key', async () => {
     const dir = makeTmpDir();
     const { topPath } = buildTopChild(dir, {});
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('ignored (inherited from'))).toBe(false);
+      expect(notices.messages).toEqual([]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1193,17 +1199,15 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
         '  - assertVisible: data-testid=int-never-rendered',
       ].join('\n'),
     );
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('ignored (inherited from'))).toBe(false);
+      expect(notices.messages).toEqual([]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1213,17 +1217,15 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
     writeTmpFile(dir, 'leaf.yaml', [`appId: ${baseUrl}/fixtures/delayed.html?delay=999999`, 'defaultTimeout: 4000', 'commands:', '  - assertVisible: data-testid=int-never-rendered'].join('\n'));
     writeTmpFile(dir, 'mid.yaml', [`appId: ${baseUrl}/fixtures/delayed.html?delay=999999`, 'commands:', '  - runFlow: ./leaf.yaml'].join('\n'));
     const topPath = writeTmpFile(dir, 'top.yaml', [`appId: ${baseUrl}/fixtures/delayed.html?delay=999999`, 'commands:', '  - runFlow: ./mid.yaml'].join('\n'));
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines).toContain('leaf.yaml: defaultTimeout ignored (inherited from top.yaml)\n');
+      expect(notices.messages).toContain('leaf.yaml: defaultTimeout ignored (inherited from top.yaml)');
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }, 10_000);
@@ -1235,21 +1237,19 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
       'child.yaml',
       [`appId: ${baseUrl}/fixtures/delayed.html?delay=999999`, 'defaultTimeout: 4000', 'commands:', '  - assertVisible: data-testid=int-never-rendered'].join('\n'),
     );
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(childPath);
       const run = resolveRunTimeouts({}, file);
       expect(run.defaultTimeout).toBe(4000);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       const result = await runFlow(file, page, ctx);
       expect(result.commandResults[0].message!.split('\n')[0]).toBe(
         'Element not found after 4000ms: data-testid=int-never-rendered',
       );
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('ignored (inherited from'))).toBe(false);
+      expect(notices.messages).toEqual([]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1297,17 +1297,15 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
   it('AC80(a): no notice when the child header value equals the effective value', async () => {
     const dir = makeTmpDir();
     const { topPath } = buildTopChild(dir, { topDefault: 1000, childDefault: 1000 });
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('ignored (inherited from'))).toBe(false);
+      expect(notices.messages).toEqual([]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1315,19 +1313,17 @@ describe('AC58-AC64, AC80: child flows inherit timeouts; the notice fires once p
   it('AC80(b): a partial notice lists only the key that differs', async () => {
     const dir = makeTmpDir();
     const { topPath } = buildTopChild(dir, { topDefault: 1000, topNav: 1500, childDefault: 1000, childNav: 9000 });
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
-      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run);
+      const ctx = createContext(os.tmpdir(), new Map([['__default__', page]]), '__default__', createVarMap({}), undefined, run, notices.onProgress);
       await page.goto(fixtureUrl('delayed.html', 'delay=999999'));
       await runFlow(file, page, ctx);
-      const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.filter((l) => l.includes('ignored (inherited from'))).toEqual([
-        'child.yaml: navigationTimeout ignored (inherited from top.yaml)\n',
+      expect(notices.messages).toEqual([
+        'child.yaml: navigationTimeout ignored (inherited from top.yaml)',
       ]);
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1437,7 +1433,7 @@ describe('B edge cases', () => {
         '    runFlow: ./child.yaml',
       ].join('\n'),
     );
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const notices = collectNotices();
     try {
       const file = loadAndParse(topPath);
       const run = resolveRunTimeouts({}, file);
@@ -1447,17 +1443,15 @@ describe('B edge cases', () => {
       ]);
       try {
         for (const p of sessions.values()) await p.goto(fixtureUrl('delayed.html', 'delay=999999'));
-        const ctx = createContext(os.tmpdir(), sessions, 'a', createVarMap({}), undefined, run);
+        const ctx = createContext(os.tmpdir(), sessions, 'a', createVarMap({}), undefined, run, notices.onProgress);
         await runFlow(file, sessions.get('a')!, ctx);
-        const lines = writeSpy.mock.calls.map((c) => String(c[0]));
-        expect(lines.filter((l) => l.includes('ignored (inherited from'))).toEqual([
-          'child.yaml: defaultTimeout ignored (inherited from top.yaml)\n',
+        expect(notices.messages).toEqual([
+          'child.yaml: defaultTimeout ignored (inherited from top.yaml)',
         ]);
       } finally {
         for (const p of sessions.values()) await p.close();
       }
     } finally {
-      writeSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }, 15_000);

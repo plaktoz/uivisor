@@ -178,6 +178,13 @@ describe('checklist model', () => {
     const ended = finishChecklist(fresh, flowResult(true, 0, 0, 0));
     expect(() => applyEvent(ended, start(runFlow('./login.yaml')), T0), 'event after the flow ended').toThrow(ChecklistProtocolError);
   });
+
+  it('a notice event is not part of the step tree and leaves the checklist unchanged', () => {
+    const fresh = planChecklist(myFlow, T0);
+    const inRunFlow = applyEvent(fresh, start(runFlow('./login.yaml')), T0);
+    // Notices may arrive while a runFlow step is open, before its include (per ProgressEvent's doc).
+    expect(applyEvent(inRunFlow, { kind: 'notice', message: 'child.yaml: defaultTimeout ignored (inherited from top.yaml)' }, T0)).toBe(inRunFlow);
+  });
 });
 
 describe('formatting', () => {

@@ -42,6 +42,10 @@ export class ConsoleReporter {
     process.stdout.write(`${flowSummary(result)}\n`);
   }
 
+  notice(message: string): void {
+    process.stdout.write(`${message}\n`);
+  }
+
   runEnd(result: RunResult): void {
     if (result.totalFlows > 1) {
       process.stdout.write(`\n${result.passedFlows} flows passed, ${result.failedFlows} flows failed\n`);

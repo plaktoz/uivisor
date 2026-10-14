@@ -184,13 +184,19 @@ export interface RunContext extends PlaywrightContext {
  * items, or the included flow's commands). Within one container, steps start in plan order and
  * stop after the first failure. `include` arrives only while a runFlow step is open, before its
  * first child. Steps carry no ids, so a listener locates them by this bracket structure.
+ *
+ * `notice` is informational and sits outside this bracket structure: it may arrive while a
+ * runFlow step is open, before its `include` (and thus before that child's first step).
  */
 export type ProgressEvent =
   /** `command` is interpolated, or raw when interpolation itself failed. */
   | { kind: 'stepStart'; command: Command }
   | { kind: 'stepEnd'; result: CommandResult }
   /** `file.commands` are raw (uninterpolated). */
-  | { kind: 'include'; file: FlowFile };
+  | { kind: 'include'; file: FlowFile }
+  /** A one-line, human-readable message, e.g. a child flow's timeout keys being overridden by
+   * inheritance. Not tied to any particular step. */
+  | { kind: 'notice'; message: string };
 
 /** Must not throw: it runs inside the engine. */
 export type ProgressListener = (event: ProgressEvent) => void;

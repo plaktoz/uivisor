@@ -104,6 +104,10 @@ export function applyEvent(list: Checklist, event: ProgressEvent, now: number): 
       const children = planSteps(event.file.commands);
       return { ...list, steps: updateAt(list.steps, open, (s) => ({ ...s, children })) };
     }
+    // Not part of the step tree — the live reporter intercepts and prints it before
+    // reaching here (see live.ts); applyEvent leaves the checklist untouched.
+    case 'notice':
+      return list;
   }
 }
 
