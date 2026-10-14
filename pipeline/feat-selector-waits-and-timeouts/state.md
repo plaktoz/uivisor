@@ -3907,3 +3907,120 @@ Detail: `pipeline/feat-selector-waits-and-timeouts/build_check.md`
 **Last checkpoint:** build check at 2026-10-14 09:40
 
 **Last checkpoint:** README committed; ready for PR at 2026-10-14 10:00
+
+## Escalation: main drift (2026-10-14 10:15)
+- After pushing the branch (`72acf65`), `origin/main` was 22 commits ahead (`48b345c`), with merge conflicts in 10 files. Overlapping main PRs: #103 (VarMap.withScope; runFlow var scoping in dispatcher/types/commandParser/interpolate), #110 and #118 (header/runFlow/vars parsing moved into `@uivisor/core`), #102 (live step checklist; args/runner/context/dispatcher), #108 (lazy within interpolation), #115 (recorder overlay/cli tests fixed → recorder baseline changes).
+- **Human decision:** merge `origin/main` into the feature branch (merge commit, no force-push), resolve with an opus Coder, re-verify against the new main baseline, short arbiter re-review. Cost cap raised from $30.00 to $40.00 (accumulated $24.92). PR not opened yet.
+
+## Main Baseline (origin/main 48b345c, measured in temporary worktree /tmp/sw-main, 2026-10-14 10:40)
+- core `npm test`: 552 passed (276 unique; dist double-count); **coverage gate fails on main itself**: branches 63.66% < 90% threshold (pre-existing).
+- uivisor-app vitest: 799 passed | 4 expected fail. recorder-app: tsc error at `src/cli.test.ts(141,7)` (pre-existing); vitest 179 passed | 1 todo, 0 failed (#115 fixed the old 26).
+- integration directory: 36 passed, 1 failed of 37 — only `sessions.yaml` (`run-flow-override-child.yaml` now passes on main).
+- Merge targets for the branch: core ≥ main counts + phase-1 tests, branch coverage not below 63.66%; app ≥ 799 + phase-1 tests; recorder 0 failed; integration 37/38 with only `sessions.yaml` failing.
+- The outer checkout could not fast-forward: an untracked `.claude/settings.json` (not created by this run) collides with the file #120 now tracks. Left untouched.
+
+### Merge with main (48b345c)
+
+# Merge artifacts — origin/main (48b345c) into feat-selector-waits-and-timeouts
+
+Worktree: `.worktrees/feat-selector-waits-and-timeouts`. Merge left **staged, not committed**. No abort, rebase or force.
+
+## Conflicted files (10)
+
+| File | Resolution |
+|---|---|
+| `packages/core/src/index.ts` | Union of the type exports: main's `ProgressEvent`, `ProgressListener`, `VarScope` plus phase 1's `TimeoutSettings`, `TimeoutKey`, `FlowTimeoutLayers`. main's `interpolate.js` re-exports and phase 1's `COMMAND_TRAITS`/`deadline.js` exports both kept (those parts merged cleanly). |
+| `packages/core/src/types.ts` | `RunContext` keeps phase 1's `timeouts?` and `timeoutNotices?` and main's `onProgress?`. Everything else (main's `RunFlowCommand`, `ProgressEvent`, `ProgressListener`; phase 1's `SessionedCommand.timeout`, `TimeoutSettings`, `FlowTimeoutLayers`, `FlowFile.timeouts`, `RunOptions.timeouts`) merged cleanly. `ProgressEvent.stepStart.command` is still a `Command`. |
+| `uivisor-app/src/cli/args.ts` | Both imports (`parsePositiveInt` and `ConsoleFlag`). The usage line combines main's `--reporter html\|md\|plain\|live (repeatable)` with phase 1's `[--timeout <ms>] [--navigation-timeout <ms>]`. The return value carries main's `console` and phase 1's `timeout`/`navigationTimeout`. |
+| `uivisor-app/src/cli/runner.ts` | main's `RunReporter`/`createPlainReporter` and `reporter.startFlow(file)`. Phase 1's `resolveRunTimeouts(options.timeouts ?? {}, file)` is re-applied, and the result goes to `createContext(..., methodRunner, runTimeouts, reporter.onProgress)`. |
+| `uivisor-app/src/engine/context.ts` | `createContext(runDir, sessions, defaultSessionId, varMap?, methodRunner?, timeouts = DEFAULT_TIMEOUTS, onProgress?)`. `timeouts` comes before `onProgress` because the phase-1 tests already pass `run` in position 6 and no main caller passes `onProgress` positionally except the runner. The context sets `timeouts`, `timeoutNotices: new Set()` and `onProgress`. |
+| `uivisor-app/src/engine/dispatcher.ts` | Built on main's structure: `dispatch` → `executeResolved`, with stepStart/stepEnd/include hooks, `UnresolvedVariableError` + `in flow "<stem>"` suffix, lazy `within` `do:` interpolation, `VarMap.withScope` for runFlow, and the `included from` suffix. Phase 1 re-applied on top: `dispatch(page, step: SessionedCommand, …)` (steps only, `cmd = step.command`); the sibling `timeout` is resolved inside the same try as interpolation, so its failures take main's failure path, which also emits stepStart/stepEnd with the raw command; `own` is passed into `executeResolved`; `run = ctx.timeouts ?? DEFAULT_TIMEOUTS`; the once-per-file child-flow timeout notice sits in main's runFlow branch, right after `loadAndParse` + `include` and before `withScope`; per-step `stepTimeoutMs` → `createDeadline`; `deadline` goes to every `execute*` and to `executeWithin` (step-based callback); failure `durationMs` is measured before the screenshot. Phase 1's old manual var save/restore and `callStack.add` in the runFlow branch are not brought back: main's `withScope` and `runFlow` (engine/index.ts) own them. `interpolateValue` now comes from `@uivisor/core`. |
+| `uivisor-app/src/parser/commandParser.ts` | main's import of `RunFlowCommand`/`parseRunFlow` (runFlow parsing now lives in core) plus phase 1's `COMMAND_TRAITS` and `parsePositiveInt`. Sibling `timeout` extraction and checks in `parseSessionedCommand` (trait `none` error, literal/`${` check, waitForPageLoad both-timeouts error) merged cleanly. That function is still app-side on main, and `within` `do:` items still go through it. |
+| `uivisor-app/src/parser/index.ts` | main's imports (`validateVars`, `flattenVars`, `interpolateValue`, `interpolateObject` from `@uivisor/core`; `loadConfigFile` from `./interpolate.js`) plus phase 1's `validateTimeoutKeys` from `./validator.js`. Header timeout validation and `FlowFile.timeouts {header, config}` merged cleanly. The header (`validateHeader`/`VALID_HEADER_KEYS`) is still parsed app-side on main, so phase 1's header keys stay in `validator.ts`. |
+| `uivisor-app/src/parser/interpolate.ts` | main's version: the local `flattenVars`/`resolveRef`/`interpolateValue`/`interpolateObject` are deleted and imported from `@uivisor/core`. Phase 1's `TimeoutSettings` type import and `validateTimeoutKeys` import re-added. `FLOW_CONFIG_KEYS` with `defaultTimeout`/`navigationTimeout` and the config timeout extraction in `loadConfigFile` (still app-side on main) merged cleanly. |
+| `uivisor-app/tests/unit/reporter.test.ts` | Both imports: main's `runFlowLabel` and phase 1's `SCREENSHOT_TIMEOUT_MS`. |
+
+## Other files changed (not conflicted)
+
+| File | Why |
+|---|---|
+| `uivisor-app/tests/unit/dispatcher-progress.test.ts` (new on main) | 7 `dispatch(page, <Command>, …)` calls wrapped as steps `{ command: … }`. The assertions are unchanged: stepStart still carries a `Command`. |
+| `uivisor-app/tests/unit/within-dispatcher.test.ts` | main's 3 new #108 tests (lazy `do:` interpolation) now pass steps to `dispatch`. |
+| `uivisor-app/tests/unit/var-scope.test.ts` | main's `callOnce` helper now passes a step to `dispatch`. |
+| `uivisor-app/tests/unit/error-message-format.test.ts` | Phase 1's AC50a/AC50b asserted the pre-#110 `(in flow <abs path>)` / `(in child flow …, called from …)` format, which main replaced. Now: AC50a expects `Variable "nope" is not defined in flow "top"` (dispatch with flowStem `top`). AC50b runs a real child file whose step has `timeout: "${nope}"` through a runFlow step and expects main's `… in flow "child", included from flow "top" via runFlow: ./child.yaml`. Same intent: a sibling-timeout var error gets the same flow context as any other command. Added `fs`/`os`/`path` imports and `import '../../src/engine/index'` to register runFlow. |
+| `uivisor-app/tests/integration/timeouts.test.ts` | AC66 expected-message string changed to main's format (`Variable "defaultTimeout" is not defined in flow "flow"`). |
+| `recorder-app/src/flowReplayer.test.ts` | main's 5 new #111 assertions `page.goto(url, { waitUntil: 'load' })` changed to `{ waitUntil: 'load', timeout: 30000 }`. That is phase 1's `executeGoto` behaviour, and phase 1 already made the same edit to the 3 older assertions in this file. |
+
+No production files were changed beyond the 10 conflicted ones. `label.ts`, `checklist.ts`, `live.ts`, `html.ts` and `markdown.ts` are untouched. They label `Command`s, and the sibling `timeout` lives on `SessionedCommand`, so labels don't change (AC75). The checklist plans from `sc.command`.
+
+## Verification
+
+| Check | Result |
+|---|---|
+| `npm run build -w packages/core && -w uivisor-app && -w recorder-app` | all OK |
+| `cd packages/core && npm test` | **820 passed (16 files)** = phase 1's 674 + main's 146 (dist double-count, as on main). Coverage: branches **80.95%** (main 63.66%). The 90% gate still fails, same as on main. |
+| `cd uivisor-app && npx tsc --noEmit` | clean |
+| `cd uivisor-app && npx vitest run` | **1000 passed \| 4 expected fail (1004), 38 files**. That is 799 main + 201 phase-1 (934 − 733). |
+| `cd recorder-app && npx tsc --noEmit` | only the pre-existing `src/cli.test.ts(141,7)` TS2769 |
+| `cd recorder-app && npx vitest run` | **179 passed \| 1 todo, 0 failed** |
+| `test-app/flows/integration/timeouts.yaml` | PASSED 20/20 |
+| `test-app/flows/integration-negative/timeouts-default-fails.yaml` | exit 1, `Element not found after 5000ms: data-testid=int-delayed` |
+| `test-app/flows/integration/ --reporter plain` | **37 passed, 1 failed of 38**. Only `sessions.yaml` fails (pre-existing cross-session `int-sessions-consumer-display`). `live-checklist.yaml` (from main) passes. |
+| `/tmp/sw-hang` hung-navigation repro (`--reporter md`) | `hang` row **1503ms** (≤ 2500ms) |
+
+## Not reconciled (flag for Orchestrator)
+
+- **The child-flow timeout notice and main's live checklist reporter (`--reporter live`, the default on a TTY).** The notice is still written straight to `process.stdout` from the dispatcher, as in phase 1. In live mode the next checklist repaint rewinds over it: the notice line is erased, and a stale copy of the checklist header is left in scrollback. Reproduced under `script` with a top flow that runs a child setting `defaultTimeout: 7000`. Plain mode (non-TTY, CI, `--reporter plain`) is correct. Fixing this means routing the notice through the reporter, for example a new `ProgressEvent` kind or a reporter method. That is a design change not covered by either side, so it was left as is.
+
+**Orchestrator verification:** 0 unmerged files, no conflict markers; builds ok; core `npm test` 820 passed, branch coverage 80.95% (main 63.66%; 90% gate fails on both); app tsc ok, 1000 passed + 4 expected fail; recorder 179 passed | 1 todo, 0 failed; timeouts.yaml 20/20; integration 37/38, only `sessions.yaml` (same as main).
+
+**Open item from the merge (F2):** the child-flow timeout notice is written straight to stdout; under main's live checklist (default on a TTY) the next redraw erases it. Plain mode is correct.
+
+**Last checkpoint:** merge committed at 2026-10-14 11:20
+
+**F2 fixed** (`ac04302`): new `ProgressEvent` `{ kind: 'notice'; message }`; dispatcher emits it instead of writing stdout; live reporter flushes it above the redraw region; plain reporter prints one line. Real TTY run (`script`) and `--reporter plain` both show the notice once. Orchestrator verified: core 820, coverage 80.95%; app 1003 passed + 4 expected fail. The live reporter now forwards events to the plain reporter after a fallback; plain only acts on `notice`, so no duplicate output.
+
+**Last checkpoint:** F2 committed at 2026-10-14 11:50
+
+### Quality Gate — Post-merge re-review
+
+**Verdict:** PASS
+
+**Checked by:** tester_arbiter
+
+Scope: `git show --remerge-diff 2c58e73` (all 10 conflicted files, resolved vs. both parents) and `git show ac04302` (F2), read against the merge's own per-file notes and `## Quality Gate` above. No full suite re-run (Orchestrator's `ac04302` numbers stand: core 820 passed, branch coverage 80.95% vs. main 63.66%; app tsc clean, 1003 passed + 4 expected fail; recorder 179 passed, 0 failed; `timeouts.yaml` 20/20; integration 37/38, only `sessions.yaml`, same as main `48b345c`). One targeted run to settle the merge/F2 doubt: `cd uivisor-app && npx vitest run tests/unit/error-message-format.test.ts tests/unit/live-reporter.test.ts tests/unit/checklist.test.ts tests/unit/run-reporter.test.ts` → **54 passed (4 files)**, 332ms. `npx tsc --noEmit` in `uivisor-app` → clean.
+
+**1. Nothing main added was lost — confirmed by direct read of merged source, not just the state.md notes:**
+- `VarMap.withScope` scoping: `uivisor-app/src/engine/varMap.ts:84` defines it; `uivisor-app/src/engine/dispatcher.ts:199` calls `ctx.varMap.withScope({ overrides: resolvedCmd.vars ?? {}, defaults: file.vars ?? {} }, () => runFn(file, page, ctx))` in the runFlow branch. Phase 1's old manual save/restore + `callStack.add` is gone from this branch, as the merge note claims.
+- Core-side `runFlow`/vars parsing: `uivisor-app/src/parser/commandParser.ts` imports `RunFlowCommand`/`parseRunFlow` from `@uivisor/core` alongside phase 1's `COMMAND_TRAITS`/`parsePositiveInt` — both present, no duplication.
+- Live checklist progress events: `uivisor-app/src/cli/runner.ts` builds `runTimeouts` via `resolveRunTimeouts` and passes it plus `reporter.onProgress` into `createContext`; `dispatcher.ts` fires `stepStart`/`stepEnd`/`include`/(now)`notice` at every exit path, including the lazy-interpolation-failure early return.
+- Lazy `within` interpolation: `dispatcher.ts`'s try block special-cases `cmd.type === 'within'` to interpolate the container's own fields but leave `do:` untouched (`{ ...cmd, do: [] }` then restore `do: cmd.do`), matching main's #108 behaviour; `tests/unit/within-dispatcher.test.ts`'s 3 lazy-interpolation tests pass steps to `dispatch` and are unmodified in intent.
+- Recorder fixes: `recorder-app/src/flowReplayer.test.ts`'s 5 #111 assertions now expect `{ waitUntil: 'load', timeout: 30000 }`, consistent with phase 1's own `executeGoto` behaviour already applied to the 3 older assertions in the same file — no conflict between the two, both land on the same expected call shape.
+
+**2. Phase-1 behaviours survived — confirmed by direct read:**
+- Steps-only dispatch: `dispatch(page, step: SessionedCommand, ctx, flowStem, flowDir)` (`dispatcher.ts:80`); `cmd = step.command`.
+- Sibling timeout parse + Q17/Q19 checks: trait check and the "can't have both inner and sibling timeout" check are at `commandParser.ts:338` and `:352` (Q17/Q19, AC44/46/72 citations in comments); `stepTimeoutMs(c.type, own ?? inner, run)` at `dispatcher.ts:233` carries the `// Q19: own and inner are never both set` comment.
+- Header/config timeout keys: `parser/index.ts` imports `validateTimeoutKeys` from `./validator.js` alongside main's `validateHeader`/`validateCommandList`/`validateSessions`; `parser/interpolate.ts` keeps `FLOW_CONFIG_KEYS` with `defaultTimeout`/`navigationTimeout` and the `TimeoutSettings` import.
+- CLI flags: `cli/args.ts`'s usage string carries both main's `--reporter html|md|plain|live (repeatable)` and phase 1's `[--timeout <ms>] [--navigation-timeout <ms>]`; the returned object has both `console` and `timeout`/`navigationTimeout`.
+- Precedence + notice: `executeResolved` computes `run = ctx.timeouts ?? DEFAULT_TIMEOUTS` once, and the runFlow branch computes/dedupes the notice via `ctx.timeoutNotices` before emitting it (now via `onProgress`, see §3).
+- Per-step deadline incl. `within`: `deadline` is threaded into every `execute*` call and into `executeWithin(page, c, ctx, (p, nextStep, cx) => dispatch(p, nextStep, cx, flowStem, flowDir), deadline)`.
+- Failure duration before the bounded screenshot: in the catch block, `const durationMs = Date.now() - start;` is computed *before* the `captureScreenshot` try/catch, exactly as the merge note states.
+
+**3. F2 (`ac04302`) is sound and scoped:**
+- New `ProgressEvent` member `{ kind: 'notice'; message: string }`, documented as sitting outside the stepStart/stepEnd/include bracket structure (`packages/core/src/types.ts`).
+- `dispatcher.ts`'s runFlow branch now does `ctx.onProgress?.({ kind: 'notice', message: line })` instead of `process.stdout.write(line + '\n')` — same dedup gate (`ctx.timeoutNotices`), only the sink changed.
+- `checklist.ts#applyEvent` gets an explicit `case 'notice': return list;` (checklist is unaffected, as documented) — this also keeps the switch exhaustive, consistent with `tsc --noEmit` being clean.
+- `live.ts#onProgress`: added a `screen.kind === 'plain'` forward-to-plain-reporter branch *before* the existing `if (screen.kind !== 'flow') return;` guard, plus a `notice`-specific branch that rewinds the painted frame, writes the notice as a permanent scrollback line, resets `height`/`painted`, and repaints. The forward-to-plain branch is new control flow (previously `onProgress` dropped all events once a live render failure demoted the screen to `'plain'`), but it is behaviourally inert for every event kind except `notice`, because `createPlainReporter`'s `onProgress` (`run-reporter.ts`) only acts on `kind: 'notice'` — confirmed by reading `run-reporter.ts` directly, not inferred. So this does not change any existing live/plain stepStart/stepEnd/include output; it only plugs a latent gap (dropped notices during the live→plain fallback) that F2's own feature needed closed anyway.
+- `console.ts` gets a new `notice(message)` method, used only from the plain reporter's new `onProgress` case; existing `startFlow`/`reportCommand`/`endFlow`/`runEnd` output is untouched.
+- Tests for F2 (`timeouts.test.ts`'s AC58–AC64/AC80/B-edge-case notice assertions, `checklist.test.ts`, `live-reporter.test.ts`, `run-reporter.test.ts`) were re-pointed from a `process.stdout.write` spy to a `ProgressListener` that collects `notice` messages, and still assert the exact expected message text (e.g. `'child.yaml: defaultTimeout ignored (inherited from top.yaml)'`) or exact escape-sequence framing (live reporter) — direction is correct, not tautological; re-run above (54/54) confirms they pass against the current code.
+
+**4. Edited tests still assert the spec:** `error-message-format.test.ts`'s AC50a/AC50b were rewritten to main's new message format but keep the same intent (a sibling-timeout variable error gets the same flow-context suffix as any other command's error) — AC50b in particular now exercises a real child file through a real `runFlow` dispatch (registered via `import '../../src/engine/index'`) rather than a hand-set `callStack`, which is a *stronger* test of the real code path, not a weaker one. `tests/integration/timeouts.test.ts`'s AC66 string update and the recorder's 5 `waitUntil`/`timeout` assertions are mechanical format updates with no loss of assertion strength.
+
+**No blocking findings.** No non-blocking findings beyond what's already on record in `## Quality Gate` (the pre-existing `sessions.yaml`/`run-flow-override-child.yaml` AC79 item, N1–N17 dispositions, no-linter note) — nothing new surfaced by the merge or F2.
+
+**Last checkpoint:** post-merge re-review at 2026-10-14 12:45
+
+## PR
+**URL:** (pending)
+**Branch:** feat-selector-waits-and-timeouts
+**Status:** opening
