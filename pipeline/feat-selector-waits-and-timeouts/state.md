@@ -3397,3 +3397,513 @@ Both failures reproduce deterministically (checked twice: once inside the full-d
 **Orchestrator regression comparison (AC79):** the outer checkout was fast-forwarded to the run base `edc5701`, built, and the full `test-app/flows/integration/` directory run against the same test-app: **34 passed, 2 failed of 36** (`run-flow-override-child.yaml`, `sessions.yaml`). Branch: 35 passed, 2 failed of 37, same two flows. Identical failure set; both fail at the same step on base (base messages `Element not found.` and `Expected: visible / Got: element not found`). Pre-existing, not regressions. `run-flow-override-child.yaml` (from #100) is child-only (no `goto`; runner does not auto-navigate), so a directory run executes it on about:blank. AC79 as written ("every flow passes") cannot be met without fixing those two pre-existing failures; raised at Gate 3.
 
 **Last checkpoint:** T12 committed; Coder phase complete at 2026-10-14 03:30
+
+## Test Results (Phase 2)
+
+### Generator A (opus, standing rule)
+
+# Test Results — Generator A (tester_generator_a, Phase 2, systematic)
+
+Run: feat-selector-waits-and-timeouts. HEAD `676c4e7`. Diff reviewed: `git diff edc5701..HEAD -- . ':!pipeline' ':!docs'` (55 files). Spec: Gate 1 ACs with Revision 1 and Gate 1 Errata applied.
+
+## Suite results (Orchestrator-verified on HEAD `676c4e7`, not rerun here)
+
+| Suite | Result |
+|---|---|
+| core build | ok |
+| core vitest | 662 passed |
+| uivisor-app `tsc` | clean |
+| uivisor-app vitest | 934 passed + 4 expected fail |
+| uivisor-app build | ok |
+| recorder-app `tsc` | only the pre-existing `src/cli.test.ts(141,7)` error (same as base) |
+| recorder-app vitest | 26 failed \| 117 passed \| 1 todo (same as base) |
+| `test-app/flows/integration/timeouts.yaml` | PASSED 20/20 |
+| negative flow `integration-negative/timeouts-default-fails.yaml` | fails at 5006 ms, as designed |
+| `test-app/flows/integration/` directory | 35/37 passed. The same 2 flows fail as on base (34/36): `run-flow-override-child.yaml`, `sessions.yaml` |
+
+No tests were rerun for this review. Every finding below comes from reading the code and tests.
+
+## Totals
+
+- **Implemented: 78. Partial: 2 (AC77, AC79). Missing: 0.**
+- **Blocking findings: 1 (B1).** Non-blocking: 17 (N1–N17).
+
+Abbreviations for test files:
+- `PL` = `packages/core/src/playwrightLocator.test.ts`
+- `CMD` = `packages/core/src/commands.test.ts`
+- `INT` = `uivisor-app/tests/integration/timeouts.test.ts`
+- `SIB` = `uivisor-app/tests/unit/sibling-timeout-parser.test.ts`
+- `CFG` = `uivisor-app/tests/unit/timeout-config.test.ts`
+- `PREC` = `uivisor-app/tests/unit/timeouts-precedence.test.ts`
+- `EMF` = `uivisor-app/tests/unit/error-message-format.test.ts`
+
+## AC status
+
+### Waiting resolution: selector forms (AC1–AC6)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC1 | Implemented | `playwrightLocator.ts:198-235` (`buildSteps` cascade), `:242-265` (`pollSteps` on `retryUntil`) | INT `AC1: bare string matches data-testid at cascade step 1`; PL `AC1: bare string resolves once a step-1 …` |
+| AC2 | Implemented | `playwrightLocator.ts:259` (lower step confirmed on the next attempt) | INT `AC2: bare string falls through to the text cascade step`; PL `AC2 …` |
+| AC3 | Implemented | `playwrightLocator.ts:224-229` | INT `AC3: pipe string waits for its winning segment`; PL `AC3 …` |
+| AC4 | Implemented | `playwrightLocator.ts:199-212` (object forms are one waiting step) | INT `AC4: object selector forms wait within the budget`; PL `AC4 …`. This test also passes on old code; expected, since object forms already waited. |
+| AC5 | Implemented | `playwrightLocator.ts:170-192, 213-219` | INT `AC5: { xpath } form waits …`; PL `AC5 …` |
+| AC6 | Implemented | `playwrightLocator.ts:259` (`winner === 0` is accepted at once) | PL 3× `AC6: … resolves on the first poll` (one `count()` call, no sleeps) |
+
+### Stability check and duplicates (AC7–AC13)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC7 | Implemented | `playwrightLocator.ts:259` | INT `AC7: bare tapOn clicks the testid button …`; PL `AC7 …`; live `timeouts.yaml` case (2) |
+| AC8 | Implemented | same | INT `AC8: pipe tapOn clicks the testid button …`; PL `AC8 …` |
+| AC9 | Implemented | same | PL `AC9: … exactly two resolution passes ~100ms apart` |
+| AC10 | Implemented | `playwrightLocator.ts:259-260` | PL `AC10: a changed winner restarts …` |
+| AC11 (E1) | Implemented | `playwrightLocator.ts:259-264` | PL `AC11 (revised, Errata E1) …` (resolver and `pollSteps` seams) |
+| AC12 | Implemented | `playwrightLocator.ts:294` (`n === 1` only) | INT `AC12: tapOn on a collapsing duplicate passes promptly`; PL `AC12 …` |
+| AC13 | Implemented | `deadline.ts:64-75`, `RETRY_INTERVAL_MS` at `:55` | PL `AC13 (loop cadence) …`; `deadline.test.ts` `retryUntil's last attempt lands exactly on the deadline` |
+
+### Timeout errors (AC14–AC18)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC14 | Implemented | `playwrightLocator.ts:296-298, 267-269` | INT `AC14 …`; PL `AC14 …`; `resolveSelector.test.ts` AC14 |
+| AC15 | Implemented | same | INT `AC15 …`; PL `AC15 …` |
+| AC16 | Implemented | `playwrightLocator.ts:154-157, 200` | INT `AC16 …`; PL 2× `AC16 …` |
+| AC17 | Implemented | same | INT `AC17 …`; PL `AC17 …` |
+| AC18 | Implemented | `playwrightLocator.ts:88-114, 213-221` (throws synchronously), `:184-190` (xpath `count()` rejection is wrapped and not retried) | PL 5× `AC18 …` (no `count()` call, clock at 0) |
+
+### Not-visible mode (AC19–AC23)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC19 | Implemented | `playwrightLocator.ts:331-349`; `commands.ts:148-153` | PL 2× `AC19 …`; live `timeouts.yaml` case (4). The spec's `/integration` page probes and the "< 1000 ms" duration are not asserted anywhere (N10). |
+| AC20 | Implemented | same | PL 2× `AC20 …`; live case (4), string form only |
+| AC21 | Implemented | same | INT `AC21 …`; PL `AC21 …` |
+| AC22 | Implemented | `commands.ts:150-152` | INT `AC22 …` (`expected`/`got`); PL `AC22 …` |
+| AC23 (rev) | Implemented | `playwrightLocator.ts:338-345` (the first step with ≥ 1 match decides) | INT `AC23(a/b/c revised)`; PL `AC23 (a/b/c)` and the rule-statement test |
+
+### `within`, `assertUrl`, `assertCount` (AC24–AC30)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC24 | Implemented | `playwrightLocator.ts:307-324`; `commands.ts:479` | INT `AC24 …`; PL `AC24 …`; live case (6) |
+| AC25 | Implemented | `playwrightLocator.ts:321-323` | INT `AC25 …`; PL `AC25 …`; `within-dispatcher.test.ts` TC-045 |
+| AC26 | Implemented | `playwrightLocator.ts:315-320` | INT `AC26 …` (uses `do: wait: 0`; the reason is documented and acceptable); PL 2× `AC26 …` (pass case and the nth message at the deadline) |
+| AC27 | Implemented | `commands.ts:479, 489-493` (the `within` deadline is not forwarded to `do:` steps) | INT `AC27(a)`, `AC27(b)`; CMD `Q18: …` |
+| AC28 | Implemented | `commands.ts:159-170` | live `timeouts.yaml` case (5). `durationMs < 2500` is not asserted. |
+| AC29 | Implemented | same | INT `AC29 …`; CMD `executeAssertUrl …` |
+| AC30 | Implemented | `commands.ts:221-231` | INT `AC30(a)`, `AC30(b)`; CMD `executeAssertCount …` |
+
+### Which timeout each command uses (AC31–AC38)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC31 | Implemented | `commands.ts:92-357` (resolution sits outside every catch) | INT `AC31: all 15 element commands …`; CMD AC31 tests per command |
+| AC32 (rev) | Implemented | `commands.ts:105-118` | INT `AC32 …` (exact line 1); CMD `AC32 revised …` |
+| AC33 | Implemented | `commands.ts:77-88, 359-369`; F1 fix at `dispatcher.ts:469-471` and `reporter/screenshot.ts:11,19` | INT `AC33(a)` (route that truly hangs), `AC33(b)`; CMD `AC33 …`; reporter `F1: …` |
+| AC34 | Implemented | `commands.ts:371-403` (`commit` kept, history messages unchanged) | live `integration-variants/go-*-nav-timeout.yaml` (9/9 each); CMD history-message tests; existing `commands.test.ts` fresh-page goBack/goForward tests |
+| AC35 | Implemented | `dispatcher.ts:276-281`; `timeouts.ts:51-60` | INT `AC35(a/b/c)`; PREC `AC35/Q19 composition` |
+| AC36 | Implemented | `commands.ts:98-104` (`pwTimeout()` passes the time left) | INT `AC36(a)/AC38`, `AC36(b)`; CMD `AC36: one budget …` (remaining 1900 ms) |
+| AC37 | Implemented | `commands.ts:427-433` | CMD `AC37: one budget — remaining time shrinks …` is the real proof. The INT `AC37` test is weak (N3). |
+| AC38 (rev) | Implemented | `commands.ts:103, 132, 315, 325, 335, 345, 355` | INT `AC36(a)/AC38`; CMD AC38 tests |
+
+### Sibling `timeout:` key (AC39–AC50)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC39 | Implemented | `commandParser.ts:350-386` | SIB `AC39`; INT `AC39` |
+| AC40 | Implemented | `commandParser.ts:353-354` (`'timeout' in obj`, any key order) | SIB `AC40 (a)`, `AC40 (b)`. INT `AC40` over-claims (N4). |
+| AC41 | Implemented | `commandParser.ts:361-363` | SIB `AC41` it.each ×20 element + ×5 navigation |
+| AC42 | Implemented | `commandParser.ts:253` (recursion); `commands.ts:490` | SIB `AC42`; INT `AC42` |
+| AC43 | Implemented | `dispatcher.ts:281` (`own ?? …`) | INT `AC43 …` |
+| AC44 | Implemented | `commandParser.ts:361-363` | SIB `AC44` it.each ×10. CLI exit 1 is verified only by hand in T12 (N9). |
+| AC45 | Implemented | same, plus the `loadAndParse` catch in the runFlow branch | SIB `AC45 (a)`; INT `AC45(b)` |
+| AC46 | Implemented | `commandParser.ts:375-379` | SIB `AC46` |
+| AC47 | Implemented | `commandParser.ts:365-373`; `utils/positiveInt.ts` | SIB AC47 it.each ×6 and the `"3000"` case; `positive-int.test.ts` |
+| AC48 | Implemented | `commandParser.ts:365-366` (keeps `${`); `dispatcher.ts:101-112` | INT `AC48 …` (fails after 1300 ms). The parser's acceptance of `"${t}"` is untested (N5). The EMF `AC48` unit test is weak (N5). |
+| AC49 | Implemented | `dispatcher.ts:106-110` | EMF `AC49 …` (exact message, < 500 ms, no `locator` call) |
+| AC50 | Implemented | `dispatcher.ts:113-127` (#100 catch reused) | EMF `AC50a`, `AC50b` |
+
+### Precedence and CLI (AC51–AC57)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC51 | Implemented | `timeouts.ts:34-46, 51-60` | PREC `resolveRunTimeouts` AC51 ×4 and `stepTimeoutMs` sibling test; INT `AC51(1)`, `AC51(2)`, `AC51(5, slow)` |
+| AC52 | Implemented | same | PREC AC52 ×4; INT `AC52` (sibling). The "none set → 30000ms" message is not asserted end-to-end (N6). |
+| AC53 | Implemented | same | PREC `AC53 (a/b)`; INT `AC53(a)`, `AC53(b)` |
+| AC54 | Implemented | `timeouts.ts:22-28` (`header ?? config`) | PREC 2× `AC54`; INT `AC54` (real header and config files) |
+| AC55 | Implemented | `cli/args.ts:94-111, 117` | `args.test.ts` `AC55 (a)`–`(e)`, usage, and the arbiter-ruling cases |
+| AC56 | Implemented | `cli/index.ts:62-66`; `cli/runner.ts:47-48` | INT `AC56` copies the `runAll` loop rather than calling it, so the CLI→`runAll`→`createContext` glue has no automated coverage (N7) |
+| AC57 | Implemented | `parser/index.ts:41-51`; `interpolate.ts:233-242` | CFG `AC68 / AC57 (a)`, `AC57 (b)`, `AC57 (c)`; INT `AC57 …` (end to end) |
+
+### Child flows (AC58–AC64, AC80)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC58 | Implemented | `dispatcher.ts:132` (`run` is inherited; runFlow never writes `ctx.timeouts`) | INT `AC58` covers the element probe only. The navigation-probe variant is not tested (N8). |
+| AC59 (rev) | Implemented | `timeouts.ts:67-83`; `dispatcher.ts:168-176` | INT `AC59 (revised)`; PREC `AC59 (revised)` |
+| AC60 (rev) | Implemented | same (keyed on `absPath` in `ctx.timeoutNotices`) | INT `AC60 (revised)(a)`, `(b)`; PREC `AC60 a/b`; INT B-edge `two sessions …` |
+| AC61 (rev) | Implemented | same | INT `AC61 (revised)(a)`, `(b)`; PREC; INT smoke `run-flow-override.yaml …` |
+| AC62 | Implemented | `dispatcher.ts:168` (first `callStack` entry) | INT `AC62`; PREC `AC62` |
+| AC63 | Implemented | `runner.ts:47`; notice only in the runFlow branch | INT `AC63` |
+| AC64 | Implemented | `interpolate.ts` (no var → timeout path) | INT `AC64`. The test does not assert that `${defaultTimeout}` resolves to `1000` (N8). |
+| AC80 | Implemented | `timeouts.ts:76-79` | INT `AC80(a)`, `AC80(b)`; PREC `AC80 (a)`, `(b)` |
+
+### Header and config keys (AC65–AC69)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC65 | Implemented | `validator.ts:4-7` | CFG `AC65` |
+| AC66 | Implemented | `interpolate.ts:172-175` | CFG `AC66`; INT `AC66` (exact dispatch message) |
+| AC67 | Implemented | unchanged `VALID_HEADER_KEYS`; `sla` not reserved | CFG `AC67 (a)`, `(b)`, `(c)`. (a) checks `file.vars` only; no runtime `testVarSet` run. |
+| AC68 | Implemented | `validator.ts:15-28`; `interpolate.ts:242` | CFG AC68 ×10. The value × key × layer matrix is not complete (N11). |
+| AC69 | Implemented | `parser/index.ts:51` (runs for every file) | CFG `AC69`; INT `AC69` |
+
+### Command traits (AC70–AC72)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC70 | Implemented | `commandTraits.ts:10-52` | `commandTraits.test.ts` (6 tests) |
+| AC71 | Implemented | `commandTraits.ts:10` (type annotation); `commandTraits.typecheck.ts` | `tsc` build of core (`@ts-expect-error` for a missing key and for an extra key) |
+| AC72 | Implemented | `commandParser.ts:361` reads `COMMAND_TRAITS` | SIB `AC72 …`. The test uses hand-written lists and never cross-checks against `COMMAND_TRAITS` (N12). |
+
+### Backward compatibility and regression (AC73–AC75)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC73 | Implemented | `deadline.ts:53`; `commands.ts:8-14, 427` | INT `AC73(a)`, `AC73(b)`; CMD AC73 tests (goto/reload/tapOn defaults); SIB `inner waitForPageLoad timeout: 0 still parses`. The waitForPageLoad `30000ms` message is not asserted (N6). |
+| AC74 | Implemented | suite results above. No test deleted (Orchestrator name diff). Edits fall under E2/E3 and the Orchestrator's matcher ruling. | T10/T11 Code Artifacts. One edit went further than needed (N13). |
+| AC75 | Implemented | `Command` union unchanged; the sibling lives on `SessionedCommand` (`types.ts:91`) | SIB `AC75`; INT `AC75`; manual md/html/console diff in T12 |
+
+### test-app fixtures and integration flows (AC76–AC79)
+
+| AC | Status | Implementation | Covering test(s) |
+|---|---|---|---|
+| AC76 | Implemented | `test-app/src/pages/IntegrationTimeoutsPage.jsx`; `App.jsx:42` | Manual live check by the Orchestrator (T3). The "IntegrationTimeoutsPage render check" in the Consolidated Test Plan was never added (N9). |
+| AC77 | **Partial** | `test-app/flows/integration/timeouts.yaml` | Passes 20/20, but case (1) has no bare-string selector (B1). |
+| AC78 | Implemented | `test-app/flows/integration-negative/timeouts-default-fails.yaml` | Live run: exit 1, exact line, 5006 ms |
+| AC79 (rev) | **Partial** | 37 flows present | 35/37. Both failures also fail on base (see the suite table). Pre-existing, not a regression, but AC79 as written ("every flow passes") is not met. This is a Gate 3 decision, not Coder work (non-blocking for this diff). |
+
+## Findings
+
+### Blocking
+
+**B1 — AC77 case (1) has no bare-string selector.** `test-app/flows/integration/timeouts.yaml:9`.
+- The "bare string" case is written `assertVisible: data-testid=int-delayed`. By the spec's own Scope wording that is a single-segment pipe string ("pipe strings (including single-segment `attr=value`)"), not the bare-string cascade.
+- The flow's four forms are: single-segment pipe, two-segment pipe, `{ testId }` object, `{ xpath }` object.
+- AC77 requires "(1) `int-delayed` (delay 1500) found by a **bare string**, a pipe string, an object selector and an xpath object". Its Failure clause includes "a missing case".
+- So the cascade path is never exercised against the live React app. The T12 artifact claims it is.
+- Fix (one line, Coder): change it to `assertVisible: int-delayed`, the AC1 form. Then rerun `timeouts.yaml`.
+
+### Non-blocking
+
+**N1 — Task-number comments left in source** (the brief asks to flag these):
+- `uivisor-app/src/engine/dispatcher.ts:130` `(S7, T9/T11)`, `:165` `Notice (T11)`, `:273` `Budget (T11)`
+- `uivisor-app/src/engine/timeouts.ts:5` `(S7, T9)`, `:7` `The parser (T7)`
+
+T10's Orchestrator note said "No task-number comments left in source", but T11 added these. Each should state the rule without the task ID.
+
+**N2 — Comments and test titles that narrate pipeline history instead of explaining why:**
+- `uivisor-app/tests/unit/timeouts-precedence.test.ts:6` says "These are not wired into the engine yet (T11)". This is now false.
+- `uivisor-app/tests/unit/error-message-format.test.ts:129-134` (T5/T11 history, plus `T5` in the describe title).
+- `uivisor-app/tests/integration/timeouts.test.ts:5` ("suite for T11"), `:69-71` and `:610-614` ("F1 fix verified …"), `:1485` and `:1491` ("unaffected by T11", "as before T11").
+- `uivisor-app/tests/unit/matcher.test.ts` ("post-T4" / "pre-T6").
+- `packages/core/src/playwrightLocator.test.ts:1189` and the `T4 — …` describe titles.
+- `uivisor-app/tests/unit/reporter.test.ts` test title `F1: …`.
+- Stale docstring: `uivisor-app/src/parser/interpolate.ts:183-186` still lists only workingSchedule/holidays/functions as stripped keys.
+
+**N3 — The INT `AC37` test cannot tell one shared budget from two.** `timeouts.test.ts:706-716`.
+- Setup: navAt=400, slowMs=700, timeout 900, asserting `< 1900`.
+- With two separate 900 ms budgets the step would still fail at about 1300 ms, so the test passes either way.
+- The spec's AC37 numbers have the same weakness.
+- The CMD `AC37: one budget — remaining time shrinks …` test (`commands.test.ts:177-185`) is the real proof, so the behaviour is covered. A tighter INT bound (`< 1300`) would make the integration test discriminate.
+
+**N4 — The INT `AC40` test over-claims.** `timeouts.test.ts:735-775`.
+- Its title says "session routing intact", but the flow halts after step 1, so the `session: b` step never runs. It asserts `commandResults` length 1.
+- AC40(b)'s "runs in session b … fails after 1500 ms" is covered only at parse time (SIB `AC40 (b)`).
+
+**N5 — The parser's acceptance of `timeout: "${t}"` (AC48) has no test.**
+- No SIB case passes a `${…}` string, and every INT `${var}` test builds the step by hand and skips the parser.
+- If `commandParser.ts:365-366` regressed, nothing would fail.
+- The EMF `AC48` unit test (`error-message-format.test.ts:135-147`) passes even if the sibling value were ignored entirely: it only checks that `goto` succeeds.
+
+**N6 — The built-in 30000 ms navigation message is never asserted end to end** (AC52 "none set", AC73 bullet 2).
+- INT `AC53(b)` (`timeouts.test.ts:917-932`) already waits the full 30 s (`await dispatchPromise`) but throws the result away.
+- Asserting `(await dispatchPromise).message` contains `30000ms` would close this at no extra cost.
+
+**N7 — The CLI → `runAll` glue is untested.**
+- The glue: `cli/index.ts:62-66` builds `options.timeouts`, and `runner.ts:47-48` calls `resolveRunTimeouts` and passes the result to `createContext`.
+- INT `AC56` copies the loop instead of calling `runAll`, and no live flow uses `--timeout`.
+- Dropping the `runTimeouts` argument in `runner.ts` would fail no test. The code is correct as read.
+
+**N8 — Child-flow coverage gaps:**
+- AC58's `waitForPageLoad` (navigation) probe variant is not tested. Only the element probe is.
+- INT `AC64` does not assert that `${defaultTimeout}` resolves to `"1000"`.
+
+**N9 — Checks done only by hand, not committed:**
+- AC44's CLI `Error: …` / exit 1 before any browser step (T12 used a temp flow).
+- The AC75 md/html label diff.
+- The AC76 page render check that the Consolidated Test Plan listed under T3. No test file was added.
+
+**N10 — AC19 coverage drift.** The spec's probes on the `/integration` page (`data-testid=int-tap-result` and the bare string `int-tap-result`, each < 1000 ms) are not run anywhere. Not-visible mode on a bare string is covered only by the mocked PL `AC19` test.
+
+**N11 — AC68 matrix incomplete.**
+- Header `navigationTimeout` is tested only with `0`. Config is tested only with `0` (defaultTimeout) and `-1` (navigationTimeout).
+- The spec lists 5 values × 2 keys × 2 layers. All cases go through the same `validateTimeoutKeys`, so the risk is low.
+- Related: AC47 and AC68 "exactly" messages are asserted with `toThrow(string)`, which matches a substring.
+
+**N12 — The AC72 test does not do what its name says.** `sibling-timeout-parser.test.ts:130-167` uses two hand-written lists. It never reads `COMMAND_TRAITS`, so it does not prove "parser acceptance follows the trait table" for every type. The T6 artifact describes it as a "cross-check over every `Command['type']`".
+
+**N13 — Unneeded test edit.** In `uivisor-app/tests/unit/runner-no-auto-nav.test.ts:173`, the mock `runFlow`'s own literal `page.goto(gotoUrl, { waitUntil: 'load', timeout: 30000 })` was changed along with the assertion.
+- The mock calls `page.goto` directly, not `executeGoto`, so the assertion would have passed unedited.
+- Now the test asserts `timeout: 30000` against its own literal, which suggests coverage that isn't there.
+- It is disclosed in the T10 deviations. Errata E2(a) named only line 180.
+
+**N14 — The integration suite uses shorter fixture delays than the ACs while keeping the ACs' upper bounds.**
+- Examples: AC1–AC5 use `delay=700` but keep `< 2500`. AC21 uses `vanishAt=800` but keeps `< 2500`.
+- This leaves up to about 1.8 s of slack instead of 1 s. They still fail on old code (single count), so they are not weak in the TDD sense, just looser on time.
+- The live `timeouts.yaml` uses the spec's 1500 ms.
+
+**N15 — Duplicated parse of the inner `waitForPageLoad` timeout.**
+- `dispatcher.ts:276-279` and `:383` both call `toInt(c.timeout …)`.
+- Since a `navigation`-trait command always gets a deadline, `executeWaitForPageLoad`'s `timeout` argument is now unused on the uivisor-app path. It is kept for recorder-app.
+- Minor redundancy, not dead code.
+
+**N16 — Stale `@ts-expect-error — type does not exist yet; red phase` pragmas.**
+- The T5 codemod in `uivisor-app/tests/integration/commands.test.ts` moved these, and they now sit inside `{ command: // @ts-expect-error … { … } }`.
+- They do nothing (`tests/` is outside tsconfig) and are misleading, but they pre-date this run.
+
+**N17 — Hint dropped from the not-found message.** The "Use pipe syntax" hint and the xpath "use within" hint are gone from the new message (PL TC-006 and TC-XPATH-R8 were edited under E2(c)).
+- AC14 leaves lines after the step lines unspecified, so this is allowed. It is still a small usability loss worth knowing about.
+
+### Tests changed to dodge a requirement (the AC33 kind)
+
+None found beyond what T11b already fixed.
+- AC33(a)/(b) now use routes that really hang (`/hang`, `/reload-hang` on the 2nd request) and assert `[1500, 2500)`.
+- The other deviations have sound, documented reasons that keep each AC's intent:
+  - AC26: `do: wait: 0`.
+  - AC43: a `goto` inside the child.
+  - AC36: wider margins.
+- Every edit to an existing test was one of these:
+  - the dispatch codemod (Errata "dispatch API")
+  - E2(a) call shapes
+  - E2(b) T24 timeout
+  - E2(c) resolver deadlines and messages, including `matcher.test.ts` under the Orchestrator's ruling
+  - T10 within-dispatcher deadlines
+- No edit loosens an assertion beyond what the new spec requires.
+- The weak ones are N3 and N5. They come from the spec or were never strict; nothing was weakened.
+
+## Recommendation
+
+**Do not deploy until B1 is fixed.** The fix is one line in `timeouts.yaml` case (1) plus a rerun of that flow. Everything else is non-blocking. Gate 3 still has to decide on AC79: the two failing integration flows also fail on base.
+
+**Human decision (2026-10-14 04:05):** generator B runs on sonnet; on a 429 it is skipped (no opus retry), and the consolidator is skipped when only one review exists. The arbiter quality gate keeps the opus fallback. Before generator B: a small Coder pass fixes B1 and removes task-number comments (`dispatcher.ts:130/165/273`, `timeouts.ts:5/7`) and the stale "not wired into the engine yet" test header. Review cycle 1 of 2.
+
+**Last checkpoint:** phase 2 generator A at 2026-10-14 04:05
+
+### Generator B (sonnet, adversarial)
+
+# Test Results — Generator B (tester_generator_b, Phase 2, adversarial)
+
+Run: feat-selector-waits-and-timeouts. HEAD `5f03ba4`. Diff reviewed: `git diff edc5701..HEAD -- . ':!pipeline' ':!docs'`.
+Already skimmed generator A's `test-results-a.md` (B1 + N1–N17); this review hunts for distinct bugs, focused on budget leaks, the stability check, not-visible edge cases, `${var}` timeouts, and precedence/notice correctness. No full suites rerun — targeted `/tmp`-style experiments only (kept in-repo temporarily, deleted after each run; nothing committed).
+
+## Blocking
+
+**B2 — Six element commands' final state-read is not bounded by the step's deadline: `executeAssertText`, `executeAssertValue`, `executeAssertEnabled`, `executeAssertDisabled`, `executeAssertChecked`, `executeAssertUnchecked` (`packages/core/src/commands.ts:196,215,241,255,269,283`).**
+
+- Each of these resolves the locator and does `locator.waitFor({ state: ..., timeout: d.pwTimeout() })` — correctly sharing the step's one budget — but then reads the value with **no `timeout` option**: `locator.innerText()`, `locator.inputValue()`, `locator.isEnabled()`, `locator.isDisabled()`, `locator.isChecked()` (×2). Every other interaction call in the same file (`click`, `fill`, `check`, `uncheck`, `hover`, `dblclick`, `clear`, `selectOption`) passes `{ timeout: d.pwTimeout() }`; these six don't.
+- This is new/changed code in this diff: `git diff edc5701..HEAD -- packages/core/src/commands.ts` shows the `deadline?: Deadline` parameter and the `waitFor(..., { timeout: d.pwTimeout() })` call were added to exactly these functions by this PR (AC36/AC37 "one shared budget"), but the final read was left unbounded.
+- Per Playwright's own docs, `Locator.innerText()/inputValue()/isEnabled()/isDisabled()/isChecked()` without an explicit `timeout` default to "no timeout" (bounded only by the page's internal default, not by the step deadline) and **do retry** if the element is momentarily not attached — confirmed empirically (see below). If the resolved element is removed and later re-added (e.g. a React re-render racing with the check — exactly the kind of flakiness this feature's stability check exists to guard against elsewhere), the step can hang far past its configured timeout.
+- **Reproduction** (ran against the built `packages/core/dist`, isolated from the live test-app so the timing is controllable):
+  ```
+  node budget_leak_repeat.mjs   # script: launches chromium, setContent('<button id="x">hi</button>'),
+                                 # removes #x at t=12ms, re-adds it at t=2000ms, then calls
+                                 # executeAssertEnabled(page, { css: '#x' }, createDeadline(300))
+  ```
+  Output (8 runs, same removal/re-add schedule each time — timing-sensitive, as expected for a race):
+  ```
+  run 0: THREW after 304ms (fast-fail path)
+  run 1: RESOLVED after 2327ms (deadline 300ms)  <-- OVER BUDGET
+  run 2: RESOLVED after 13ms (deadline 300ms)
+  run 3: RESOLVED after 12ms (deadline 300ms)
+  run 4: RESOLVED after 2311ms (deadline 300ms)  <-- OVER BUDGET
+  run 5: RESOLVED after 12ms (deadline 300ms)
+  run 6: RESOLVED after 13ms (deadline 300ms)
+  run 7: RESOLVED after 13ms (deadline 300ms)
+  over-budget hits: 2/8
+  ```
+  Runs 1 and 4 show `executeAssertEnabled` returning **"passed" ~7.7× past its 300ms deadline** (2311–2327ms) because `isEnabled()` silently waited for the button to reappear at t=2000ms. The same mechanism was separately confirmed for `executeAssertText`'s `innerText()` call (resolved at 2302ms against a 300ms-class budget) and directly against raw Playwright (`locator.isEnabled()` on a detached-then-reattached element resolves only after reattachment, ~1800ms, with no timeout passed — i.e. Playwright really does retry these "read" calls, it isn't an assumption).
+- Impact: for these 6 of ~15 element commands, AC36/AC37 ("resolution and the command's own action share one deadline — the deadline bounds the whole command") is violated: the command can both report `passed: true` after exceeding its budget, and (worse) can hang a `failed` result's reported `durationMs` to several seconds beyond the configured timeout when the element never reappears, since nothing times the final read out at all until Playwright's own internal default elapses.
+- Fix (Coder): add `{ timeout: d.pwTimeout() }` to the `innerText()`, `inputValue()`, and the four `isEnabled/isDisabled/isChecked` calls, matching the pattern already used by every other command in the file. Then re-verify with the same repro script (expect `THREW after ~300ms` on every run once the element is gone for longer than the deadline, instead of occasionally resolving/hanging to ~2300ms).
+
+## Non-blocking
+
+Count: 0 beyond what generator A already filed. I did not find additional non-blocking issues distinct from A's N1–N17 in the areas I had budget to check (pollSteps stability/duplicate-acceptance logic, `resolveNotVisible`'s first-matching-step rule, and the `within`/deadline-forwarding contract all matched their documented, intentional design and held up under adversarial probing).
+
+## Areas probed with no bug found (for the record)
+
+- **Stability check / duplicate acceptance** (`playwrightLocator.ts` `pollSteps`): confirmed `winner === 0` is deliberately exempt from the 2-poll confirmation (by design, AC6), and every other step index requires two consecutive matching polls (AC9/AC10/AC12). Reasoned through flicker scenarios (a lower-priority step's count toggling across polls); behavior matches the documented contract — no false-accept found, and `previousWinner` resets correctly whenever the winning index changes.
+- **`resolveNotVisible`**: the "first step with ≥1 match decides" rule re-evaluates from scratch every poll (no step-stickiness), which is correct for a visibility check (it should always reflect current DOM state) and not a stability-check gap.
+- **`${var}` timeout edge cases**: read `commandParser.ts:365-366` and `dispatcher.ts:101-112`; the sibling `timeout: "${t}"` path is parsed, then re-resolved and range-checked at dispatch time via `parsePositiveInt`. Did not find a bypass distinct from A's N5 (missing *test coverage*, not a missing *check*).
+- **`within` deadline non-forwarding to `do:` steps**: confirmed intentional (Q18, documented in `commands.ts:460` and `dispatcher.ts`), each `do:` step gets its own fresh deadline from `stepTimeoutMs`, not the container-resolution deadline — no leak from `within` into its children.
+
+**Review fixes:** cycle 1 `5f03ba4` (B1 + comments), cycle 2 `504af05` (B2: six assert* state reads now take `{ timeout: d.pwTimeout() }`, not-found message on timeout; +6 unit tests). Review cycles used: 2 of 2.
+
+**Orchestrator note (pre-existing, non-blocking):** core vitest also collects the compiled `dist/*.test.js` copies (core tsc compiles tests into dist), so every core count in this run is doubled: baseline 406 = 203 unique, now 674 = 337 unique (+134). Pass/fail conclusions are unaffected. Not in scope; candidate backlog item (exclude `dist/**` in core vitest config or tests in tsconfig build).
+
+**Last checkpoint:** B2 committed at 2026-10-14 04:50
+
+### Consolidated Phase 2 Results
+
+Consolidation of `test-results-a.md` (Generator A, systematic) and `test-results-b.md` (Generator B, adversarial), plus the review-fix and dist double-count notes under "Generator B (sonnet, adversarial)" above and the Wave 4 base comparison under "Wave 4" above.
+
+#### 1. Suite results
+
+| Suite | Result |
+|---|---|
+| core (`packages/core`) vitest | 674 runs = 337 unique tests (dist double-count: tsc compiles tests into `dist/*.test.js`, doubling the count — pre-existing, non-blocking, backlog candidate), all pass |
+| uivisor-app vitest | 934 passed + 4 expected fail |
+| recorder-app (tsc + vitest) | identical to base: 26 failed \| 117 passed \| 1 todo (pre-existing, same `src/cli.test.ts(141,7)` tsc error as base) |
+| `test-app/flows/integration/timeouts.yaml` | PASSED 20/20 |
+| negative flow `integration-negative/timeouts-default-fails.yaml` | fails at 5006ms, as designed |
+| `test-app/flows/integration/` directory | 35/37 passed = base's 34/36 failure set (same 2 flows fail on base: `run-flow-override-child.yaml`, `sessions.yaml`) |
+
+#### 2. Blocking findings
+
+| ID | Finding | Status | Fix commit |
+|---|---|---|---|
+| B1 | AC77 case (1) (`test-app/flows/integration/timeouts.yaml:9`) used a single-segment pipe string (`data-testid=int-delayed`) instead of the AC1 bare-string form, so the cascade path was never exercised live. | FIXED | `5f03ba4` |
+| B2 | Six element commands' final state-read (`executeAssertText`, `executeAssertValue`, `executeAssertEnabled`, `executeAssertDisabled`, `executeAssertChecked`, `executeAssertUnchecked`, `packages/core/src/commands.ts:196,215,241,255,269,283`) called `innerText()`/`inputValue()`/`isEnabled()`/`isDisabled()`/`isChecked()` with no `timeout`, letting Playwright's own retry hang the command past its step deadline (empirically reproduced, 2/8 runs ~2300ms over a 300ms budget). | FIXED | `504af05` (added `{ timeout: d.pwTimeout() }` to all six reads, updated not-found message, +6 unit tests) |
+
+Both fixes landed within the 2-of-2 review cycles budgeted for this run.
+
+#### 3. Open items for the arbiter / Gate 3
+
+**AC79 (pre-existing, not a regression):** the full `test-app/flows/integration/` directory run is 35/37, failing on `run-flow-override-child.yaml` and `sessions.yaml`. The Orchestrator's base comparison (checkout fast-forwarded to `edc5701`, same test-app) reproduces the identical 2-failure set at 34/36. Both generators agree this is pre-existing and not introduced by this diff. AC79 as literally written ("every flow passes") cannot be met without separately fixing those two flows; this is a Gate 3 / backlog decision, not Coder work for this diff.
+
+**Deduplicated non-blocking list (N1–N17, all from Generator A; Generator B found zero additional items distinct from these):**
+
+- N1 — `uivisor-app/src/engine/dispatcher.ts:130,165,273`, `uivisor-app/src/engine/timeouts.ts:5,7` — task-number comments (`T9/T11` etc.) left in source — cleanup
+- N2 — `uivisor-app/tests/unit/timeouts-precedence.test.ts:6` (and similar in `error-message-format.test.ts:129-134`, `tests/integration/timeouts.test.ts:5,69-71,610-614,1485,1491`, `tests/unit/matcher.test.ts`, `packages/core/src/playwrightLocator.test.ts:1189`, `tests/unit/reporter.test.ts`, `src/parser/interpolate.ts:183-186`) — comments/test titles/docstring narrate pipeline history instead of current behavior, one now false — cleanup
+- N3 — `uivisor-app/tests/integration/timeouts.test.ts:706-716` — INT `AC37` test can't distinguish one shared budget from two separate budgets (numbers pass either way) — weak test
+- N4 — `uivisor-app/tests/integration/timeouts.test.ts:735-775` — INT `AC40` test title claims "session routing intact" but the `session: b` step never runs — weak test
+- N5 — `uivisor-app/src/parser/commandParser.ts:365-366`; `uivisor-app/tests/unit/error-message-format.test.ts:135-147` — sibling `timeout: "${t}"` parser acceptance has no dedicated test; the existing EMF test would pass even if the sibling value were ignored — untested path
+- N6 — `uivisor-app/tests/integration/timeouts.test.ts:917-932` (`AC53(b)`) — built-in 30000ms navigation message is never asserted end-to-end despite the test already waiting the full 30s — untested path
+- N7 — `uivisor-app/src/cli/index.ts:62-66`, `uivisor-app/src/cli/runner.ts:47-48` — CLI → `runAll` → `createContext` timeouts glue is untested (INT `AC56` copies the loop instead of calling `runAll`) — untested path
+- N8 — AC58's `waitForPageLoad` navigation-probe variant (element probe only is tested); INT `AC64` doesn't assert `${defaultTimeout}` resolves to `1000` — untested path
+- N9 — AC44 CLI exit-1 check, the AC75 md/html label diff, and the AC76 page-render check were all done by hand (T12/T3) and not committed as tests — manual-only check
+- N10 — spec's `/integration` page probes (`data-testid=int-tap-result` / bare `int-tap-result`, each < 1000ms) for AC19 are not run anywhere; not-visible mode on a bare string is covered only by the mocked PL test — untested path
+- N11 — `uivisor-app/tests/unit/timeout-config.test.ts` (AC68) — header/config value × key × layer matrix incomplete (only `0`/`-1` tested, not the full 5×2×2 set) — untested path
+- N12 — `uivisor-app/tests/unit/sibling-timeout-parser.test.ts:130-167` — AC72 test uses hand-written lists instead of cross-checking against `COMMAND_TRAITS`, despite its name/description claiming to — weak test
+- N13 — `uivisor-app/tests/unit/runner-no-auto-nav.test.ts:173` — test edit changed the mock's own literal rather than asserting against production code, suggesting coverage that isn't there — cleanup
+- N14 — integration suite fixture delays (e.g. AC1–AC5 `delay=700`, AC21 `vanishAt=800`) are shorter than the spec's while keeping the spec's upper bounds, leaving more timing slack than intended — weak test
+- N15 — `uivisor-app/src/engine/dispatcher.ts:276-279,383` — inner `waitForPageLoad` timeout is parsed twice; the `executeWaitForPageLoad` timeout argument is now unused on the uivisor-app path (kept for recorder-app) — cleanup
+- N16 — `uivisor-app/tests/integration/commands.test.ts` — stale `@ts-expect-error` pragmas from the T5 codemod sit inside object literals and do nothing (outside tsconfig) — cleanup
+- N17 — `packages/core/src/playwrightLocator.test.ts` (TC-006, TC-XPATH-R8) — "Use pipe syntax" and xpath "use within" hints dropped from the not-found message; allowed by spec but a usability loss — cleanup
+
+#### 4. AC status (80 ACs)
+
+| Status | Count | Detail |
+|---|---|---|
+| Implemented | 79 | AC77 moves from Partial to Implemented now that B1 is fixed (`5f03ba4`) |
+| Partial | 1 | AC79 — pre-existing 2-flow integration-directory failure set, open for Gate 3 |
+| Missing | 0 | — |
+
+**Last checkpoint:** tester_consolidator (P2) at 2026-10-14 05:10
+
+## Quality Gate
+
+**Verdict:** PASS
+
+**Checked by:** tester_arbiter
+
+### 1. Evidence (re-run against worktree HEAD `504af05`)
+
+| # | Command | Result |
+|---|---|---|
+| 1 | `npm run build -w packages/core` | PASS — `tsc` clean, exit 0 |
+| 2 | `npm run build -w uivisor-app` | PASS — `tsc` clean, exit 0 |
+| 3 | `cd packages/core && npx vitest run` | PASS — **674 passed**, 14 files (662 recorded after T10 + 12 new B2 tests from the `504af05` review-fix commit — consistent) |
+| 4 | `cd uivisor-app && npx tsc --noEmit` | PASS — clean, exit 0 |
+| 5 | `cd uivisor-app && npx vitest run` | PASS — **934 passed, 4 expected fail (938 total)**, 34 files — exactly matches the recorded Wave-4/T11b final count |
+| 6 | `cd recorder-app && npx tsc --noEmit` | FAIL as expected — only the known pre-existing `src/cli.test.ts(141,7): error TS2769`, byte-identical to `## Baseline Addendum`. No new recorder-app type errors. |
+| 7 | `cd recorder-app && npx vitest run` | FAIL as expected — **26 failed \| 117 passed \| 1 todo (144)**, all 26 failures in `src/overlay.test.ts`, byte-identical to `## Baseline Addendum`. No regression. |
+| 8 | `node uivisor-app/dist/cli/index.js test test-app/flows/integration/timeouts.yaml` | PASS — exit 0, **20/20 commands passed** (100%), all 6 AC77 sub-cases present, no `wait:`/`waitFor:` |
+| 9 | `node uivisor-app/dist/cli/index.js test test-app/flows/integration-negative/timeouts-default-fails.yaml` | PASS (fails as designed) — exit 1, `✗ assertVisible`, line `Element not found after 5000ms: data-testid=int-delayed` present (AC78) |
+
+No discrepancy between this re-run and the Code Artifacts' recorded verification at any step. All counts match exactly; nothing regressed between T12's commit and the two review-fix commits.
+
+### 2. B1 / B2 blocking findings — both confirmed fixed in code
+
+- **B1 (`5f03ba4`):** AC77 case (1) requires `int-delayed` to be found via "a bare string" among the four selector forms. The flow's first probe used `assertVisible: data-testid=int-delayed`, which is a single-segment pipe/attr string, not a bare cascade string. Fixed by changing it to `assertVisible: int-delayed`. Re-run of `timeouts.yaml` above (evidence row 8) confirms this step now passes as the true bare-string case; the commit also strips stale `(S7, T9)`/`(T11)`-style task-number comments from `dispatcher.ts`/`timeouts.ts`/the precedence test, per the Wave-10 carry-forward note ("remove the task-number comments"). Verified by direct diff read — fix is correct and minimal, no unrelated changes.
+- **B2 (`504af05`):** `executeAssertText`/`executeAssertValue`/`executeAssertEnabled`/`executeAssertDisabled`/`executeAssertChecked`/`executeAssertUnchecked` called Playwright's state-reading methods (`innerText`/`inputValue`/`isEnabled`/`isDisabled`/`isChecked`) with no timeout after target resolution succeeded, leaving them free to run past the command's deadline (violating the spec's Constraints §6/Q16 "one budget per command" rule and AC36's one-budget guarantee). Fixed by passing `{ timeout: d.pwTimeout() }` (the deadline's remaining budget) into each call and converting a timeout there into the standard `Element not found after <T>ms: <selector>` message. 6 new unit tests added (`packages/core/src/commands.test.ts`, confirmed present in the diff and included in the 674-passed count above) assert both the bounded call shape and the resulting message. Verified by direct diff read — fix is correct, consistent with the rest of T10's resolution/interaction split, and test-backed.
+
+Both blocking findings are fixed in code and test-backed. Confirmed independently (not just by re-reading the commit message) by inspecting the actual diffs of `5f03ba4` and `504af05`.
+
+### 3. AC79 ruling
+
+**Not a blocker for this gate — pre-existing, not a regression. Carried forward to Gate 3 / backlog, as the Orchestrator already flagged.**
+
+Evidence: Wave 4's full-directory run (`test-app/flows/integration/`) fails 2 of 37 flows (`run-flow-override-child.yaml`, `sessions.yaml`). I independently re-ran both flows standalone against the live test-app and reproduced both failures exactly as recorded (`run-flow-override-child.yaml`: `tapOn: {"testId":"int-input-shorthand"}` fails with `Element not found after 5000ms: ...`, 0/4 commands; `sessions.yaml`: `assertVisible: {"testId":"int-sessions-consumer-display"}` fails the same way, 13/21 commands). The Orchestrator's own base (`edc5701`) comparison in Wave 4 shows the identical two flows failing at the identical step on the pre-change code (34/36, same failure set, just with the old `Element not found.`/`Expected: visible` message text). This feature did not introduce either failure:
+- `run-flow-override-child.yaml` is designed to run only as a `runFlow` child (no `goto`/`appId` of its own); a directory sweep runs it standalone on `about:blank`, which fails identically with or without this feature.
+- `sessions.yaml`'s failure is a pre-existing cross-session `storage`-event timing issue, unrelated to selector/timeout resolution.
+
+Since AC79's exit-0 requirement cannot be satisfied without separately fixing two pre-existing, out-of-scope defects, and the Quality Gate's purpose is to catch defects *introduced* by this change, AC79 is ruled a pre-existing item, not a gate blocker. The CLAUDE.md-mandated integration-flow requirement for this feature's own new commands is independently satisfied: `test-app/flows/integration/timeouts.yaml` passes 100% (evidence row 8) and is committed on the feature branch (`03c327a`/`5f03ba4`). Recommend: open a follow-up to fix `run-flow-override-child.yaml` (give it its own `appId`/`goto`, or exclude it from directory sweeps the way the negative flow is excluded) and investigate the `sessions.yaml` cross-session timing flake, before or at Gate 3.
+
+### 4. N1–N17 non-blocking items — cannot be ruled on; process gap flagged
+
+I could not find any record of items labeled N1–N17 (or their content) anywhere in this run: not in `state.md` (no `## Test Results` section exists, despite Gate 0's own plan, line 53, naming `state.md#test-results` as Tester Ensemble Phase 2's output target), not in `pipeline/feat-selector-waits-and-timeouts/log.md`, not in any commit message or code comment on this branch (`edc5701..HEAD`), and not in any other file under `pipeline/feat-selector-waits-and-timeouts/`. The only artifacts of the Tester Ensemble Phase 2 / code-review step that reached a durable, inspectable form are the two blocking findings B1 and B2, each named and fixed in its own commit (`5f03ba4`, `504af05`) after `state.md` itself was committed (`676c4e7`) — the Phase 2 run that must have produced B1/B2 (and, per this gate's brief, N1–N17) never wrote its results back to `state.md#test-results` before those fixes landed.
+
+I am not willing to fabricate rulings for 17 items whose text I have never seen — doing so would be a guess dressed up as a verdict. **Action needed, not a verdict:** the Orchestrator should attach the Tester Ensemble Phase 2 code-review output (whatever produced B1/B2) to `state.md` under `## Test Results` (or equivalent) so N1–N17 have a durable record and an actual arbiter ruling, either in this run's follow-ups or before Gate 3. This gap does not block the verdict below, because both items that *are* independently confirmed as blocking (B1, B2) are fixed and test-backed (§2 above); by this gate's own framing, N-items are non-blocking by construction, so their un-recorded status is a documentation/process defect, not evidence of unresolved blocking work.
+
+### Follow-ups
+
+1. Fix or exclude `test-app/flows/integration/run-flow-override-child.yaml` and investigate `sessions.yaml`'s cross-session timing flake so AC79's full-directory sweep can go green (pre-existing, raised for Gate 3).
+2. Record the Tester Ensemble Phase 2 code-review findings (B1, B2, and the N1–N17 items referenced in this gate's brief) in `state.md` under a `## Test Results` section, per Gate 0's own plan — currently undocumented.
+3. No linter is configured for `packages/core` or `uivisor-app` (no `lint` script in either `package.json`); the Code Quality check's "no linter errors" criterion is vacuous here, not actively passing. Worth adding if/when the project adopts one — not raised as a finding against this feature, since it predates this run.
+
+**Last checkpoint:** quality gate at 2026-10-14 09:35
+
+**Orchestrator note:** the arbiter wrote this section into the worktree snapshot of state.md (committed at 676c4e7, pre–phase 2) because the brief did not give the absolute path; moved here and the snapshot restored. That snapshot lacked the phase 2 sections, hence "N1–N17 not found". N-item rulings requested from the arbiter against this file.
+
+### Quality Gate — Non-blocking rulings
+
+Ruled against `### Consolidated Phase 2 Results`' deduplicated N1–N17 list (this file, above) and cross-checked against the current committed code (`.worktrees/feat-selector-waits-and-timeouts` HEAD `504af05`) where a quick `grep` could confirm or refute a claim. No suites re-run for this pass, per instruction.
+
+| ID | Ruling | Reason |
+|---|---|---|
+| N1 | **Accept** | Already fixed. `grep -n "T9\|T11\|T5\|T10" dispatcher.ts timeouts.ts` returns no matches — `5f03ba4`'s "drop task-number comments" already removed these at the cited lines. The consolidated list predates that commit. |
+| N2 | Follow-up | Stale/narrating comments and test titles across several files, one now factually false (per the finding). Cosmetic, no behavioral risk; matches this repo's existing "Hygiene" PR pattern (`458db56`, `8d7a9a9`, `461f00c`) — bundle into the next one. |
+| N3 | Follow-up | The INT `AC37` test can't distinguish one shared budget from two. Not blocking: the real guarantee (budget shrinks and floors at 1ms across both `waitForPageLoad` waits) is already precisely proven at the unit level in `commands.test.ts` under a controlled `Clock`. The INT test is redundant-but-weak, not the only evidence. |
+| N4 | Follow-up | INT `AC40` test's "session routing intact" claim is unexercised (the `session: b` step never runs). Not blocking: session+timeout key-order/session-preservation is already asserted at parse time in `sibling-timeout-parser.test.ts` (AC40a/b). The INT gap is end-to-end redundancy, not the sole proof. |
+| N5 | Follow-up | `sibling timeout: "${t}"` parser-acceptance test (`error-message-format.test.ts`) would pass even if the value were silently ignored. Not blocking: the real round-trip (resolved value actually becomes the deadline) is proven end-to-end by T11's integration suite (AC48, "the orchestrator's explicitly required end-to-end case"). Tighten the unit assertion as a follow-up for faster failure localization. |
+| N6 | Follow-up | The 30000ms default-navigation-timeout INT test already pays the full 30s wall-clock cost but never asserts the message text. Wasteful not to assert since the cost is already sunk — cheap fix, not a coverage gap (AC73's 30000ms default is independently proven synchronously in `commands.test.ts`). |
+| N7 | Follow-up | CLI → `runAll` → `createContext` timeout glue (`cli/index.ts:62-66`, `cli/runner.ts:47-48`) has no dedicated test exercising the real `runAll` with a CLI `--timeout` override; the INT `AC56` test reimplements the loop instead. Not blocking: every live CLI run in this gate's own evidence (`timeouts.yaml`, the negative flow) already executes this exact glue for real (just with the flag unset, exercising the "no override" branch), and each layer it touches (`args.ts`, `resolveRunTimeouts`, `createContext`) is independently and thoroughly unit-tested. The glue itself is a few lines of direct value pass-through, not new logic. Add a thin smoke test calling real `runAll` with `--timeout` across 2 flows as a follow-up. |
+| N8 | Follow-up | AC58's navigation-probe child-inheritance variant and AC64's `${defaultTimeout}`-resolves-as-"1000"-var assertion are both missing. Not blocking: the inheritance mechanism (`ctx.timeouts` fixed once per context) is trait-agnostic and already proven for the element-trait probe plus unit-tested directly for the navigation branch in `stepTimeoutMs`; var-stripping-not-value is already asserted (probe reports the built-in default). |
+| N9 | Follow-up | AC44 (CLI exit-1), AC75 (reporter label diff across md/html), and AC76 (fixture page render) were checked by hand in T12 and never committed as automated tests — AC76 in particular was explicitly planned as a committed test under T3 (closing Gap 11) in the Consolidated Test Plan and never landed. This is a real, traceable regression-safety-net gap, not a functional defect (all three were manually verified to work). Recommend prioritizing this one in the next cycle since it was a dropped commitment, not a newly-discovered edge case. |
+| N10 | Follow-up | The spec's literal `/integration`-page bare-string not-visible probes for AC19 aren't run live; only mocked unit coverage and an equivalent (different-fixture) live case exist. Mechanism is well covered elsewhere; add the literal case to a live flow for completeness. |
+| N11 | Follow-up | AC68's header/config invalid-value matrix only covers 2 of 5 literal values per key/layer. Not blocking: all five value classes (`0`, `-5`/`-1`, `1.5`, `"abc"`, `true`) are already exhaustively unit-tested against the same shared `parsePositiveInt` predicate that `validateTimeoutKeys` calls (`positive-int.test.ts`, `AC47`'s sibling-timeout it.each). Filling in the remaining 3×2×2 cells is test-completeness hygiene, not new risk. |
+| N12 | Follow-up | `AC72`'s test uses a hand-written command list instead of actually cross-checking against `COMMAND_TRAITS`, undermining its stated "stays in sync automatically" purpose. Not blocking today: `AC41`/`AC44` already hand-enumerate every real command type against the trait table's `element`/`navigation`/`none` buckets, so no current mismatch exists. Should be rewritten to iterate `Object.keys(COMMAND_TRAITS)` so a future trait-table edit is caught automatically. |
+| N13 | Follow-up | `runner-no-auto-nav.test.ts`'s edit changed the mock's own call literal to match the assertion, which can read as circular. Not blocking: the actual behavioral claim (`goto` now carries `timeout: 30000`) is independently proven against real production code in `commands.test.ts` and `session-engine.test.ts`'s 7 call-shape assertions; this file mocks `runFlow` entirely by pre-existing design, predating this diff. Worth revisiting the mock's value, but it's a pre-existing test-design choice this diff only kept consistent with. |
+| N14 | **Accept** | Integration-fixture delays (e.g. `delay=700` vs. the spec's 1500ms) are shorter than specified while assertion upper bounds are kept, leaving extra timing slack. This is the same deliberate flakiness-reduction tradeoff already made and documented in this run (T11's own Deviations note: AC36(b)'s margin was widened from 100ms to 1000ms after an observed flake). Exact-ms precision is independently proven by the fake-clock unit suites (`deadline.test.ts`, `playwrightLocator.test.ts` AC9–AC13); the real-browser suite's job is end-to-end proof, not ms-precision, so the extra slack doesn't weaken the guarantee that matters at that layer. |
+| N15 | Follow-up | Inner `waitForPageLoad` timeout is parsed twice, and `executeWaitForPageLoad`'s own timeout argument is now unused on the uivisor-app path (kept only for `recorder-app`, which still calls it). Redundant computation, not dead code in the harmful sense — removing it isn't free since `recorder-app` depends on the parameter staying. Cleanup follow-up, no behavioral risk (parsing is deterministic/idempotent). |
+| N16 | Follow-up | Stale `@ts-expect-error` pragmas from the T5 codemod sit inert inside `tests/` object literals (outside `tsconfig`'s `include`, confirmed by T5's own Code Artifacts note). No functional effect; cosmetic cleanup, bundle with N1/N2 hygiene follow-up. |
+| N17 | **Accept** | The "Use pipe syntax" / xpath "use within" hints were deliberately dropped from the not-found message — this is spec-compliant, not an oversight: T4's Code Artifacts explicitly document the `TC-006`/`TC-XPATH-R8` edits with the stated reason "the hint is not part of the AC14 message." Any reconsideration of this usability tradeoff is a product/spec decision for a future revision, not something Coder should unilaterally restore now. |
+
+**Summary: 0 of 17 items are "fix before merge."** 3 accepted as already-resolved or already-correct-per-spec (N1, N14, N17); 14 filed as non-blocking follow-ups (test-completeness/coverage hygiene and comment/code cleanup), none of which point to an undetected functional defect — in every case checked, the underlying behavioral guarantee is independently proven by a different test at the unit, integration, or live-flow level, or (N9) is a manually-verified-but-not-automated gap with no evidence of actual breakage.
+
+**Verdict confirmed: PASS stands, unchanged.** Nothing in this N-item review surfaces a new blocking finding, contradicts the B1/B2 fix verification, or changes the AC79 ruling.
+
+**Last checkpoint:** quality gate N-rulings at 2026-10-14 09:37
+
+## Build Check
+**Verdict:** PASS
+**Manifest:** root workspaces package.json + per-package manifests; unchanged in this run
+**Smoke tests:** 3/3 passed
+**Blocking findings:** 0
+Detail: `pipeline/feat-selector-waits-and-timeouts/build_check.md`
+
+**Last checkpoint:** build check at 2026-10-14 09:40
+
+**Last checkpoint:** README committed; ready for PR at 2026-10-14 10:00
