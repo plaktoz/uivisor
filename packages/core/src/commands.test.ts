@@ -399,6 +399,64 @@ describe('executeAssertEnabled / executeAssertDisabled / executeAssertChecked / 
   });
 });
 
+// ─── B2: state read after resolution carries its own (remaining) timeout ────
+
+describe('B2: innerText/inputValue/isEnabled/isDisabled/isChecked time out after resolution', () => {
+  it('executeAssertText: innerText never resolves in time -> "Element not found after <T>ms: <selector>"; receives { timeout: remaining }', async () => {
+    const target = makeLocator(1, { innerText: vi.fn().mockRejectedValue(new Error('timeout')) });
+    const page = makeTextPage(target);
+    await expect(
+      executeAssertText(page, 'text=Foo', 'right', createDeadline(300, makeFakeClock())),
+    ).rejects.toThrow('Element not found after 300ms: text=Foo');
+    expect(target.innerText).toHaveBeenCalledWith({ timeout: 300 });
+  });
+
+  it('executeAssertValue: inputValue never resolves in time -> "Element not found after <T>ms: <selector>"; receives { timeout: remaining }', async () => {
+    const target = makeLocator(1, { inputValue: vi.fn().mockRejectedValue(new Error('timeout')) });
+    const page = makeTextPage(target);
+    await expect(
+      executeAssertValue(page, 'text=Foo', 'right', createDeadline(300, makeFakeClock())),
+    ).rejects.toThrow('Element not found after 300ms: text=Foo');
+    expect(target.inputValue).toHaveBeenCalledWith({ timeout: 300 });
+  });
+
+  it('executeAssertEnabled: isEnabled never resolves in time -> "Element not found after <T>ms: <selector>"; receives { timeout: remaining }', async () => {
+    const target = makeLocator(1, { isEnabled: vi.fn().mockRejectedValue(new Error('timeout')) });
+    const page = makeTextPage(target);
+    await expect(
+      executeAssertEnabled(page, 'text=Foo', createDeadline(300, makeFakeClock())),
+    ).rejects.toThrow('Element not found after 300ms: text=Foo');
+    expect(target.isEnabled).toHaveBeenCalledWith({ timeout: 300 });
+  });
+
+  it('executeAssertDisabled: isDisabled never resolves in time -> "Element not found after <T>ms: <selector>"; receives { timeout: remaining }', async () => {
+    const target = makeLocator(1, { isDisabled: vi.fn().mockRejectedValue(new Error('timeout')) });
+    const page = makeTextPage(target);
+    await expect(
+      executeAssertDisabled(page, 'text=Foo', createDeadline(300, makeFakeClock())),
+    ).rejects.toThrow('Element not found after 300ms: text=Foo');
+    expect(target.isDisabled).toHaveBeenCalledWith({ timeout: 300 });
+  });
+
+  it('executeAssertChecked: isChecked never resolves in time -> "Element not found after <T>ms: <selector>"; receives { timeout: remaining }', async () => {
+    const target = makeLocator(1, { isChecked: vi.fn().mockRejectedValue(new Error('timeout')) });
+    const page = makeTextPage(target);
+    await expect(
+      executeAssertChecked(page, 'text=Foo', createDeadline(300, makeFakeClock())),
+    ).rejects.toThrow('Element not found after 300ms: text=Foo');
+    expect(target.isChecked).toHaveBeenCalledWith({ timeout: 300 });
+  });
+
+  it('executeAssertUnchecked: isChecked never resolves in time -> "Element not found after <T>ms: <selector>"; receives { timeout: remaining }', async () => {
+    const target = makeLocator(1, { isChecked: vi.fn().mockRejectedValue(new Error('timeout')) });
+    const page = makeTextPage(target);
+    await expect(
+      executeAssertUnchecked(page, 'text=Foo', createDeadline(300, makeFakeClock())),
+    ).rejects.toThrow('Element not found after 300ms: text=Foo');
+    expect(target.isChecked).toHaveBeenCalledWith({ timeout: 300 });
+  });
+});
+
 describe('executeAssertNotVisible (AC23 revised)', () => {
   it('uses resolveNotVisible; a visible match -> "Expected: not visible\\nGot: visible"', async () => {
     const target = makeLocator(1, { isVisible: vi.fn().mockResolvedValue(true) });

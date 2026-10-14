@@ -193,7 +193,12 @@ export async function executeAssertText(
   } catch {
     throw new Error(`Expected: ${expected}\nGot: element not found`);
   }
-  const actual = (await locator.innerText()).trim();
+  let actual: string;
+  try {
+    actual = (await locator.innerText({ timeout: d.pwTimeout() })).trim();
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (actual !== expected) {
     throw new Error(`Expected: ${expected}\nGot: ${actual}`);
   }
@@ -212,7 +217,12 @@ export async function executeAssertValue(
   } catch {
     throw new Error(`Expected: ${expected}\nGot: element not found`);
   }
-  const actual = await locator.inputValue();
+  let actual: string;
+  try {
+    actual = await locator.inputValue({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (actual !== expected) {
     throw new Error(`Expected: ${expected}\nGot: ${actual}`);
   }
@@ -238,7 +248,12 @@ export async function executeAssertEnabled(page: Page, selector: Selector, deadl
   } catch {
     throw new Error(`Expected: enabled\nGot: element not found`);
   }
-  const enabled = await locator.isEnabled();
+  let enabled: boolean;
+  try {
+    enabled = await locator.isEnabled({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (!enabled) {
     throw new Error(`Expected: enabled\nGot: disabled`);
   }
@@ -252,7 +267,12 @@ export async function executeAssertDisabled(page: Page, selector: Selector, dead
   } catch {
     throw new Error(`Expected: disabled\nGot: element not found`);
   }
-  const disabled = await locator.isDisabled();
+  let disabled: boolean;
+  try {
+    disabled = await locator.isDisabled({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (!disabled) {
     throw new Error(`Expected: disabled\nGot: enabled`);
   }
@@ -266,7 +286,12 @@ export async function executeAssertChecked(page: Page, selector: Selector, deadl
   } catch {
     throw new Error(`Expected: checked\nGot: element not found`);
   }
-  const checked = await locator.isChecked();
+  let checked: boolean;
+  try {
+    checked = await locator.isChecked({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (!checked) {
     throw new Error(`Expected: checked\nGot: unchecked`);
   }
@@ -280,7 +305,12 @@ export async function executeAssertUnchecked(page: Page, selector: Selector, dea
   } catch {
     throw new Error(`Expected: unchecked\nGot: element not found`);
   }
-  const checked = await locator.isChecked();
+  let checked: boolean;
+  try {
+    checked = await locator.isChecked({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (checked) {
     throw new Error(`Expected: unchecked\nGot: checked`);
   }
