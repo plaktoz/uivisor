@@ -1,8 +1,8 @@
 export type {
-  Selector, Command, SessionDef, SessionedCommand,
+  Selector, Command, RunFlowCommand, SessionDef, SessionedCommand,
   FlowFile, RunOptions, CommandResult, FlowResult,
-  RunResult, RunContext,
-  VarMap, MethodRunner, WorkingScheduleEntry, FlowConfig,
+  RunResult, RunContext, ProgressEvent, ProgressListener,
+  VarMap, VarScope, MethodRunner, WorkingScheduleEntry, FlowConfig,
   TimeoutSettings, TimeoutKey, FlowTimeoutLayers,
 } from './types.js';
 export type { PlaywrightContext } from './types.js';
@@ -16,6 +16,15 @@ export {
 export type { Clock, Deadline, Attempt } from './deadline.js';
 
 export { parseSelector } from './selectorParser.js';
+export {
+  UnresolvedVariableError,
+  resolveRef,
+  interpolateValue,
+  interpolateObject,
+  validateVars,
+  flattenVars,
+  parseRunFlow,
+} from './interpolate.js';
 export { resolveSelector } from './selectorHeuristics.js';
 export { CAPTURE_SCRIPT } from './captureScript.js';
 

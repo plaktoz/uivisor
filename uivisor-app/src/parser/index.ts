@@ -1,9 +1,10 @@
 import * as path from 'path';
 import type { FlowFile, TimeoutSettings } from '@uivisor/core';
 import { readYamlFile } from './reader.js';
-import { validateHeader, validateCommandList, validateSessions, validateVars, validateTimeoutKeys } from './validator.js';
+import { validateHeader, validateCommandList, validateSessions, validateTimeoutKeys } from './validator.js';
 import { parseSessionedCommand } from './commandParser.js';
-import { flattenVars, interpolateValue, interpolateObject, loadConfigFile } from './interpolate.js';
+import { validateVars, flattenVars, interpolateValue, interpolateObject } from '@uivisor/core';
+import { loadConfigFile } from './interpolate.js';
 
 export function loadAndParse(filePath: string): FlowFile {
   const raw = readYamlFile(filePath);

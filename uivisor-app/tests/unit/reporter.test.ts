@@ -17,6 +17,7 @@ import type { Page } from 'playwright';
 import { ConsoleReporter } from '../../src/reporter/console';
 import { generateHtmlReport } from '../../src/reporter/html';
 import { generateMarkdownReport } from '../../src/reporter/markdown';
+import { runFlowLabel } from '../../src/reporter/runFlowLabel';
 import { captureScreenshot, SCREENSHOT_TIMEOUT_MS } from '../../src/reporter/screenshot';
 import type { Command, CommandResult, FlowResult, RunResult } from '@uivisor/core';
 
@@ -539,5 +540,36 @@ describe('waitForPageLoad reporter coverage', () => {
     const md = generateMarkdownReport(run);
     expect(md).toContain('✗');
     expect(md).toContain('waitForPageLoad');
+  });
+});
+
+describe('runFlow reporter label', () => {
+  const plain: Command = { type: 'runFlow', path: './login.yaml' };
+  const withVars: Command = { type: 'runFlow', path: './login.yaml', vars: { u: 'S1', t: '3' } };
+
+  it('runFlowLabel prints the path, then the call-site vars in order', () => {
+    expect(runFlowLabel({ type: 'runFlow', path: './login.yaml' })).toBe('runFlow: ./login.yaml');
+    expect(runFlowLabel({ type: 'runFlow', path: './login.yaml', vars: { u: 'S1', t: '3' } })).toBe(
+      'runFlow: ./login.yaml (u=S1, t=3)',
+    );
+  });
+
+  it('ConsoleReporter prints the label with vars', () => {
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const reporter = new ConsoleReporter();
+    reporter.reportCommand(passedResult(withVars), 0);
+    reporter.reportCommand(passedResult(plain), 0);
+    const output = (stdoutSpy.mock.calls as [string | Buffer][])
+      .map(([arg]) => (typeof arg === 'string' ? arg : arg.toString()))
+      .join('');
+    stdoutSpy.mockRestore();
+    expect(output).toContain('✓ runFlow: ./login.yaml (u=S1, t=3)\n');
+    expect(output).toContain('✓ runFlow: ./login.yaml\n');
+  });
+
+  it('HTML and Markdown reports print the label with vars', () => {
+    const run = makeRunResult([makeFlowResult('/flows/main.yaml', [passedResult(withVars)])]);
+    expect(generateHtmlReport(run)).toContain('runFlow: ./login.yaml (u=S1, t=3)');
+    expect(generateMarkdownReport(run)).toContain('runFlow: ./login.yaml (u=S1, t=3)');
   });
 });

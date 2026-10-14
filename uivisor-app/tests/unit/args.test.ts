@@ -142,6 +142,47 @@ describe('parseArgs', () => {
   });
 });
 
+describe('--reporter console style', () => {
+  function argv(...args: string[]): string[] {
+    return ['node', 'uivisor', ...args];
+  }
+
+  it('defaults to auto with no file report', () => {
+    const result = parseArgs(argv('test', 'flow.yaml'));
+    expect(result.console).toBe('auto');
+    expect(result.reporter).toBeNull();
+  });
+
+  it.each(['plain', 'live'] as const)('--reporter %s sets the console style without a file report', (style) => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--reporter', style));
+    expect(result.console).toBe(style);
+    expect(result.reporter).toBeNull();
+  });
+
+  it('a file report and a console style combine in either order', () => {
+    for (const args of [['--reporter', 'md', '--reporter', 'live'], ['--reporter', 'live', '--reporter', 'md']]) {
+      const result = parseArgs(argv('test', 'flow.yaml', ...args));
+      expect(result.reporter, args.join(' ')).toBe('md');
+      expect(result.console, args.join(' ')).toBe('live');
+    }
+  });
+
+  it('the last value wins within each slot', () => {
+    const result = parseArgs(argv('test', 'flow.yaml', '--reporter', 'live', '--reporter', 'html', '--reporter', 'plain', '--reporter', 'md'));
+    expect(result.console).toBe('plain');
+    expect(result.reporter).toBe('md');
+  });
+
+  it('usage lists the console styles', () => {
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit'); }) as never);
+    expect(() => parseArgs(argv('test'))).toThrow('exit');
+    expect(String(write.mock.calls[0][0])).toContain('[--reporter html|md|plain|live (repeatable)]');
+    write.mockRestore();
+    exit.mockRestore();
+  });
+});
+
 // ─── --output-dir flag ────────────────────────────────────────────────────────
 //
 // Decisions documented here so the intent is clear when reading failures:

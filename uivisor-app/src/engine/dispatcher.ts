@@ -2,8 +2,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
 import type { Command, CommandResult, RunContext, FlowFile, FlowResult, SessionedCommand } from '@uivisor/core';
-import { createDeadline, DEFAULT_TIMEOUTS } from '@uivisor/core';
-import { interpolateObject, interpolateValue } from '../parser/interpolate.js';
+import {
+  interpolateObject, interpolateValue, UnresolvedVariableError, createDeadline, DEFAULT_TIMEOUTS,
+} from '@uivisor/core';
 import { parsePositiveInt } from '../utils/positiveInt.js';
 import { stepTimeoutMs, timeoutNotice } from './timeouts.js';
 import {
@@ -40,6 +41,7 @@ import {
   executeWithin,
 } from '../driver/commands.js';
 import { captureScreenshot } from '../reporter/screenshot.js';
+import { runFlowLabel } from '../reporter/runFlowLabel.js';
 import { loadAndParse } from '../parser/index.js';
 
 type RunFlowFn = (file: FlowFile, page: Page, ctx: RunContext) => Promise<FlowResult>;
@@ -50,15 +52,12 @@ export function registerRunFlow(fn: RunFlowFn): void {
   _runFlowImpl = fn;
 }
 
-/** Walk a FlowResult tree and return the first failure message found */
-function extractFailureMessage(result: FlowResult): string | undefined {
-  for (const cr of result.commandResults) {
-    if (!cr.passed) {
-      if (cr.nestedResult) return extractFailureMessage(cr.nestedResult);
-      return cr.message;
-    }
-  }
-  return undefined;
+function firstFailureMessage(result: FlowResult): string {
+  return result.commandResults.find((r) => !r.passed)?.message ?? `${path.basename(result.filePath)} failed`;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -91,12 +90,17 @@ export async function dispatch(
 
   // ── Lazy interpolation: resolve ${...} in command at dispatch time ──────────
   // This is strict mode: an absent variable with no default is an error.
+  // A `within` block's `do:` steps are left untouched: each is interpolated when it
+  // is dispatched, so a setVar earlier in the block is visible to later steps.
   // The sibling `timeout` (if any) is resolved in the same try block, so an
-  // undefined var or an invalid resolved value shares the flow-context logic below.
+  // undefined var or an invalid resolved value shares the failure path below.
   let resolvedCmd: Command;
   let own: number | undefined;
   try {
-    resolvedCmd = interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command;
+    resolvedCmd =
+      cmd.type === 'within'
+        ? { ...(interpolateObject({ ...cmd, do: [] }, ctx.varMap.toRecord(), true) as typeof cmd), do: cmd.do }
+        : (interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command);
 
     if (step.timeout === undefined) {
       own = undefined;
@@ -111,22 +115,32 @@ export async function dispatch(
       own = parsed;
     }
   } catch (err: unknown) {
-    let message = err instanceof Error ? err.message : String(err);
-    if (message.includes('is not defined') || message.includes('Unclosed ${')) {
-      const stack = Array.from(ctx.callStack);
-      if (stack.length > 0) {
-        const currentFlow = stack[stack.length - 1];
-        if (stack.length >= 2) {
-          const parentFlow = stack[stack.length - 2];
-          message = `${message} (in child flow ${currentFlow}, called from ${parentFlow})`;
-        } else {
-          message = `${message} (in flow ${currentFlow})`;
-        }
-      }
+    let message = errorMessage(err);
+    if (err instanceof UnresolvedVariableError) {
+      message += ` in flow "${flowStem}"`;
+      if (cmd.type === 'runFlow') message += ` at ${runFlowLabel(cmd)}`;
     }
-    return { command: cmd, passed: false, message, durationMs: Date.now() - start };
+    ctx.onProgress?.({ kind: 'stepStart', command: cmd });
+    const failed: CommandResult = { command: cmd, passed: false, message, durationMs: Date.now() - start };
+    ctx.onProgress?.({ kind: 'stepEnd', result: failed });
+    return failed;
   }
 
+  ctx.onProgress?.({ kind: 'stepStart', command: resolvedCmd });
+  const result = await executeResolved(page, resolvedCmd, own, ctx, flowStem, flowDir, start);
+  ctx.onProgress?.({ kind: 'stepEnd', result });
+  return result;
+}
+
+async function executeResolved(
+  page: Page,
+  resolvedCmd: Command,
+  own: number | undefined,
+  ctx: RunContext,
+  flowStem: string,
+  flowDir: string,
+  start: number,
+): Promise<CommandResult> {
   // The run's effective timeout policy — fixed once per top-level
   // flow, inherited unchanged by every child flow.
   const run = ctx.timeouts ?? DEFAULT_TIMEOUTS;
@@ -155,115 +169,52 @@ export async function dispatch(
       };
     }
 
-    const preCallStates = new Map<string, { hasRuntime: boolean; runtimeValue?: string; isUnset: boolean }>();
-    let callStackAdded = false;
-    let indentLevelIncreased = false;
-
+    let file: FlowFile;
     try {
-      const file = loadAndParse(absPath);
+      file = loadAndParse(absPath);
+    } catch (err: unknown) {
+      return { command: resolvedCmd, passed: false, message: errorMessage(err), durationMs: Date.now() - start };
+    }
+    ctx.onProgress?.({ kind: 'include', file });
 
-      // ── Notice: print once per child file per top-level run when the
-      // child's own header/config timeout value is overridden by inheritance.
-      // Skipped when callStack is empty (direct-dispatch tests, no top-level run). ──
-      const topLevelPath = Array.from(ctx.callStack)[0];
-      if (topLevelPath !== undefined) {
-        const line = timeoutNotice(file, run, topLevelPath);
-        ctx.timeoutNotices ??= new Set();
-        if (line !== null && !ctx.timeoutNotices.has(absPath)) {
-          ctx.timeoutNotices.add(absPath);
-          process.stdout.write(line + '\n');
-        }
+    // ── Notice: print once per child file per top-level run when the
+    // child's own header/config timeout value is overridden by inheritance.
+    // Skipped when callStack is empty (direct-dispatch tests, no top-level run). ──
+    const topLevelPath = Array.from(ctx.callStack)[0];
+    if (topLevelPath !== undefined) {
+      const line = timeoutNotice(file, run, topLevelPath);
+      ctx.timeoutNotices ??= new Set();
+      if (line !== null && !ctx.timeoutNotices.has(absPath)) {
+        ctx.timeoutNotices.add(absPath);
+        process.stdout.write(line + '\n');
       }
+    }
 
-      // ── Variable scoping and defaults merging ──
-      const overrides = resolvedCmd.vars ?? {};
-      const defaults = file.vars ?? {};
-
-      // Identify scoped keys:
-      // 1. Any key in overrides is a scoped override.
-      // 2. Any key in defaults that is NOT already in the varMap is a scoped default.
-      const scopedKeys = new Set<string>();
-      for (const key of Object.keys(overrides)) {
-        scopedKeys.add(key);
-      }
-      for (const key of Object.keys(defaults)) {
-        if (ctx.varMap.get(key) === undefined) {
-          scopedKeys.add(key);
-        }
-      }
-
-      // Capture pre-call state of scoped keys
-      for (const key of scopedKeys) {
-        preCallStates.set(key, {
-          hasRuntime: ctx.varMap.hasRuntime(key),
-          runtimeValue: ctx.varMap.hasRuntime(key) ? ctx.varMap.get(key) : undefined,
-          isUnset: ctx.varMap.isUnset(key),
-        });
-      }
-
-      // Apply child defaults first (fill-in only for keys that are undefined)
-      for (const [key, value] of Object.entries(defaults)) {
-        if (ctx.varMap.get(key) === undefined) {
-          ctx.varMap.set(key, value);
-        }
-      }
-
-      // Apply call-site overrides (highest precedence)
-      for (const [key, value] of Object.entries(overrides)) {
-        ctx.varMap.set(key, value);
-      }
-
-      ctx.callStack.add(absPath);
-      callStackAdded = true;
-      ctx.indentLevel++;
-      indentLevelIncreased = true;
-
+    const includedFrom = `, included from flow "${flowStem}" via ${runFlowLabel(resolvedCmd)}`;
+    ctx.indentLevel++;
+    try {
       const runFn = _runFlowImpl!;
-      const nestedResult = await runFn(file, page, ctx);
+      const nestedResult = await ctx.varMap.withScope(
+        { overrides: resolvedCmd.vars ?? {}, defaults: file.vars ?? {} },
+        () => runFn(file, page, ctx),
+      );
 
       return {
         command: resolvedCmd,
         passed: nestedResult.passed,
         nestedResult,
-        message: nestedResult.passed ? undefined : extractFailureMessage(nestedResult),
+        message: nestedResult.passed ? undefined : `${firstFailureMessage(nestedResult)}${includedFrom}`,
         durationMs: Date.now() - start,
       };
     } catch (err: unknown) {
-      let message = err instanceof Error ? err.message : String(err);
-      if (message.includes('is not defined') || message.includes('Unclosed ${')) {
-        const stack = Array.from(ctx.callStack);
-        // Include the child flow path being initialized if it wasn't added to callStack yet
-        const childPath = absPath;
-        if (stack.length > 0) {
-          const parentFlow = stack[stack.length - 1];
-          message = `${message} (in child flow ${childPath}, called from ${parentFlow})`;
-        } else {
-          message = `${message} (in flow ${childPath})`;
-        }
-      }
       return {
         command: resolvedCmd,
         passed: false,
-        message,
+        message: `${errorMessage(err)}${includedFrom}`,
         durationMs: Date.now() - start,
       };
     } finally {
-      if (indentLevelIncreased) {
-        ctx.indentLevel--;
-      }
-      if (callStackAdded) {
-        ctx.callStack.delete(absPath);
-      }
-      // Restore pre-call state of scoped keys
-      for (const [key, state] of preCallStates.entries()) {
-        if (state.hasRuntime) {
-          ctx.varMap.set(key, state.runtimeValue!);
-        } else if (state.isUnset) {
-          ctx.varMap.unset(key);
-        } else {
-          ctx.varMap.delete(key);
-        }
-      }
+      ctx.indentLevel--;
     }
   }
 

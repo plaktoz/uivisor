@@ -1,4 +1,4 @@
-import type { RunContext, VarMap, MethodRunner, TimeoutSettings } from '@uivisor/core';
+import type { RunContext, VarMap, MethodRunner, ProgressListener, TimeoutSettings } from '@uivisor/core';
 import { DEFAULT_TIMEOUTS } from '@uivisor/core';
 import { createVarMap } from './varMap.js';
 
@@ -16,6 +16,7 @@ export function createContext(
   varMap: VarMap = createVarMap({}),
   methodRunner: MethodRunner = noopMethodRunner,
   timeouts: TimeoutSettings = DEFAULT_TIMEOUTS,
+  onProgress?: ProgressListener,
 ): RunContext {
   return {
     lastTappedLocator: null,
@@ -28,5 +29,6 @@ export function createContext(
     methodRunner,
     timeouts,
     timeoutNotices: new Set(),
+    onProgress,
   };
 }

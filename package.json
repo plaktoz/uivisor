@@ -1,7 +1,7 @@
 {
   "name": "uivisor-workspace",
   "private": true,
-  "workspaces": ["packages/*", "uivisor-app", "recorder-app"],
+  "workspaces": ["packages/*", "ui-diff", "uivisor-app", "recorder-app"],
   "scripts": {
     "uivisor": "node uivisor-app/dist/cli/index.js",
     "uivisor-record": "node recorder-app/dist/cli.js"

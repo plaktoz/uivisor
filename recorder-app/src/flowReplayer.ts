@@ -4,7 +4,11 @@ import yaml from 'js-yaml';
 import type { Page } from 'playwright';
 import type { Command, Selector, SessionedCommand, PlaywrightContext } from '@uivisor/core';
 import {
+  flattenVars,
+  interpolateObject,
+  parseRunFlow,
   parseSelector,
+  validateVars,
   resolveContainerLocator,
   createScopedPage,
   executeGoto,
@@ -40,6 +44,9 @@ import {
 } from '@uivisor/core';
 
 // ─── YAML command parser ──────────────────────────────────────────────────────
+
+/** Matches a method call on the right-hand side of a setVar shorthand: name(args...) */
+const METHOD_CALL_RE = /^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$/s;
 
 function parseCommand(record: Record<string, unknown>): Command {
   const key = Object.keys(record)[0];
@@ -82,7 +89,7 @@ function parseCommand(record: Record<string, unknown>): Command {
       return { type: 'assertUrl', path: String(val) };
 
     case 'runFlow':
-      return { type: 'runFlow', path: String(val) };
+      return parseRunFlow(val);
 
     case 'scroll':
       return { type: 'scroll', direction: String(val) as 'up' | 'down' | 'left' | 'right' };
@@ -186,6 +193,23 @@ function parseCommand(record: Record<string, unknown>): Command {
     }
 
     case 'setVar': {
+      if (typeof val === 'string') {
+        // Shorthand: "name=value" or "name=method(args)" — split on the first '='
+        const eqIdx = val.indexOf('=');
+        if (eqIdx === -1) {
+          throw new Error(`setVar: expected "name=value" or "name=method(args)", got: ${val}`);
+        }
+        const name = val.slice(0, eqIdx);
+        const rhs = val.slice(eqIdx + 1);
+        if (name.trim() === '') throw new Error('setVar: variable name must not be empty');
+        const methodMatch = METHOD_CALL_RE.exec(rhs);
+        if (methodMatch) {
+          const argsStr = methodMatch[2];
+          const args = argsStr.trim() === '' ? [] : argsStr.split(',').map((a) => a.trim());
+          return { type: 'setVar', name, method: methodMatch[1], args };
+        }
+        return { type: 'setVar', name, value: rhs };
+      }
       const obj = val as Record<string, unknown>;
       if ('method' in obj) {
         return {
@@ -199,6 +223,7 @@ function parseCommand(record: Record<string, unknown>): Command {
     }
 
     case 'testVarSet': {
+      if (typeof val === 'string') return { type: 'testVarSet', name: val };
       const obj = val as Record<string, unknown>;
       return {
         type: 'testVarSet',
@@ -262,33 +287,13 @@ function loadFlowYaml(absPath: string): { appId: string; vars: Record<string, st
   const rawCommands = Array.isArray(raw.commands) ? raw.commands : [];
   const commands = rawCommands.map((r) => parseCommand(r));
 
-  const vars: Record<string, string> = {};
-  if (raw.vars && typeof raw.vars === 'object') {
-    for (const [k, v] of Object.entries(raw.vars)) {
-      vars[k] = String(v);
-    }
+  let vars: Record<string, string> = {};
+  if (raw.vars !== undefined) {
+    validateVars(raw.vars, absPath);
+    vars = flattenVars(raw.vars, absPath);
   }
 
   return { appId, vars, commands };
-}
-
-/** Substitute ${name} references using the current var map. */
-function interpolateStr(value: string, varMap: Map<string, string>): string {
-  return value.replace(/\$\{([^}]+)\}/g, (_, name: string) => varMap.get(name) ?? '');
-}
-
-/** Recursively interpolate all string leaves in a command object. */
-function interpolateCmd<T>(obj: T, varMap: Map<string, string>): T {
-  if (typeof obj === 'string') return interpolateStr(obj, varMap) as unknown as T;
-  if (Array.isArray(obj)) return obj.map((item) => interpolateCmd(item, varMap)) as unknown as T;
-  if (obj !== null && typeof obj === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      result[k] = interpolateCmd(v, varMap);
-    }
-    return result as T;
-  }
-  return obj;
 }
 
 // ─── Playwright command dispatcher ───────────────────────────────────────────
@@ -301,8 +306,12 @@ async function dispatchCommand(
   callStack: Set<string>,
   varMap: Map<string, string>,
 ): Promise<void> {
-  // Interpolate ${var} references in all string values before dispatch
-  const c = interpolateCmd(cmd, varMap);
+  // A `within` block's `do:` steps are interpolated when each is dispatched, so a
+  // setVar earlier in the block is visible to later steps.
+  const c =
+    cmd.type === 'within'
+      ? { ...(interpolateObject({ ...cmd, do: [] }, Object.fromEntries(varMap), true) as typeof cmd), do: cmd.do }
+      : (interpolateObject(cmd, Object.fromEntries(varMap), true) as Command);
   switch (c.type) {
     case 'goto':
       await executeGoto(page, c.url);
@@ -438,7 +447,7 @@ async function dispatchCommand(
       callStack.add(nestedAbsPath);
       try {
         // Share replay context so lastTappedLocator persists across nested flows
-        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap);
+        await replayFlowFile(nestedAbsPath, page, ctx, callStack, varMap, c.vars);
       } finally {
         callStack.delete(nestedAbsPath);
       }
@@ -515,22 +524,41 @@ async function replayFlowFile(
   ctx: PlaywrightContext,
   callStack: Set<string>,
   parentVarMap?: Map<string, string>,
+  callSiteVars?: Readonly<Record<string, string>>,
 ): Promise<void> {
   const { vars, commands } = loadFlowYaml(absPath);
   const total = commands.length;
   const fileName = path.basename(absPath);
 
-  // Seed a varMap from the file's vars block, inheriting any parent vars
-  const varMap: Map<string, string> = new Map([...(parentVarMap ?? []), ...Object.entries(vars)]);
+  // A nested flow shares the caller's varMap, so its setVar/unsetVar survive the return.
+  // Only the file's `vars:` defaults (fill-in for unset keys) and the call-site runFlow vars
+  // are scoped to this call: their prior state is restored afterwards.
+  const varMap: Map<string, string> = parentVarMap ?? new Map();
+  const scoped = new Map<string, string | undefined>();
+  for (const key of Object.keys(callSiteVars ?? {})) scoped.set(key, varMap.get(key));
+  for (const key of Object.keys(vars)) {
+    if (!varMap.has(key) && !scoped.has(key)) scoped.set(key, undefined);
+  }
+  for (const [key, value] of Object.entries(vars)) {
+    if (!varMap.has(key)) varMap.set(key, value);
+  }
+  for (const [key, value] of Object.entries(callSiteVars ?? {})) varMap.set(key, value);
 
-  for (let i = 0; i < total; i++) {
-    console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);
-    const cmd = commands[i];
-    try {
-      await dispatchCommand(page, cmd, ctx, absPath, callStack, varMap);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`[replay] FAILED: ${cmd.type} in ${fileName}: ${message}`);
+  try {
+    for (let i = 0; i < total; i++) {
+      console.log(`[replay] ${fileName}: ${i + 1}/${total} commands`);
+      const cmd = commands[i];
+      try {
+        await dispatchCommand(page, cmd, ctx, absPath, callStack, varMap);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`[replay] FAILED: ${cmd.type} in ${fileName}: ${message}`);
+      }
+    }
+  } finally {
+    for (const [key, prior] of scoped) {
+      if (prior === undefined) varMap.delete(key);
+      else varMap.set(key, prior);
     }
   }
 }
@@ -549,6 +577,7 @@ async function replayFlowFile(
  * - Replay commands are NOT written to the output file.
  * - Progress is logged to stdout: "[replay] <file>: <n>/<total> commands".
  * - Assertion failures reject with: "[replay] FAILED: <type> in <file>: <message>".
+ *   So does a reference to an undefined variable that has no `${name:default}`.
  *
  * @param flowPaths  Paths as supplied to --run-flow (resolved from process.cwd()).
  * @param page       Playwright Page instance shared with the recorder.

@@ -6,9 +6,13 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { Page } from 'playwright';
 import type { RunContext, Command } from '@uivisor/core';
 import { dispatch } from '../../src/engine/dispatcher';
+import '../../src/engine/index'; // registers runFlow with the dispatcher
 import { createVarMap } from '../../src/engine/varMap';
 
 function makePage(): Page {
@@ -165,37 +169,48 @@ describe('error message format: sibling timeout resolution at dispatch (AC48–A
     expect(page.locator).not.toHaveBeenCalled();
   });
 
-  it('AC50a: an undefined "${var}" in a top-level flow sibling timeout gets the #100 flow-context suffix', async () => {
+  it('AC50a: an undefined "${var}" in a top-level flow sibling timeout gets the flow-context suffix', async () => {
     const page = makePage();
     const ctx = makeCtx();
-    ctx.callStack.add('/abs/top.yaml');
 
     const result = await dispatch(
       page,
       { command: { type: 'tapOn', selector: 'x' }, timeout: '${nope}' },
       ctx,
+      'top',
     );
 
     expect(result.passed).toBe(false);
-    expect(result.message).toBe('Variable "nope" is not defined (in flow /abs/top.yaml)');
+    expect(result.message).toBe('Variable "nope" is not defined in flow "top"');
   });
 
   it('AC50b: the same undefined "${var}" inside a child flow gets the child+caller context suffix', async () => {
-    const page = makePage();
-    const ctx = makeCtx();
-    ctx.callStack.add('/abs/top.yaml');
-    ctx.callStack.add('/abs/child.yaml');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uiv-ac50b-'));
+    try {
+      fs.writeFileSync(
+        path.join(dir, 'child.yaml'),
+        'appId: http://test\ncommands:\n  - tapOn: x\n    timeout: "${nope}"\n',
+        'utf8',
+      );
+      const page = makePage();
+      const ctx = makeCtx();
+      ctx.sessions = new Map([['__default__', page]]);
 
-    const result = await dispatch(
-      page,
-      { command: { type: 'tapOn', selector: 'x' }, timeout: '${nope}' },
-      ctx,
-    );
+      const result = await dispatch(
+        page,
+        { command: { type: 'runFlow', path: './child.yaml' } },
+        ctx,
+        'top',
+        dir,
+      );
 
-    expect(result.passed).toBe(false);
-    expect(result.message).toBe(
-      'Variable "nope" is not defined (in child flow /abs/child.yaml, called from /abs/top.yaml)',
-    );
+      expect(result.passed).toBe(false);
+      expect(result.message).toBe(
+        'Variable "nope" is not defined in flow "child", included from flow "top" via runFlow: ./child.yaml',
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

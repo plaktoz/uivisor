@@ -2,13 +2,14 @@
 
 A YAML-driven web UI test runner. Write user flows in plain YAML — navigate, type, tap, assert, screenshot — and run them against a real browser via Playwright.
 
-This repo is an npm workspace with four packages:
+This repo is an npm workspace with five packages:
 
 | Package | Description |
 |---------|-------------|
 | [`packages/core/`](./packages/core/) | Shared types, selector parser, capture script, and selector heuristics |
 | [`uivisor-app/`](./uivisor-app/) | The `uivisor` CLI — the test runner |
 | [`recorder-app/`](./recorder-app/) | The `uivisor-record` CLI — opens a browser and records interactions to YAML |
+| [`ui-diff/`](./ui-diff/) | The `ui-diff` CLI — structural image directory comparison for post-upgrade UI verification |
 | [`test-app/`](./test-app/) | A sample React app to run tests against |
 
 ---
@@ -40,7 +41,7 @@ bash scripts/build.sh
 scripts\build.bat
 ```
 
-This does a clean install, builds `packages/core`, `uivisor-app`, and `recorder-app` in dependency order, and installs the Playwright Chromium browser.
+This does a clean install, builds and tests `ui-diff`, then builds `packages/core`, `uivisor-app`, and `recorder-app` in dependency order, and installs the Playwright Chromium browser.
 
 ---
 
@@ -127,7 +128,7 @@ See [`uivisor-app/README.md`](./uivisor-app/README.md) for the full reference co
 
 ### Console (default)
 
-Steps print as they run with pass/fail icons and timings. Failed steps print the error and a screenshot path.
+On a terminal, each flow is a live checklist that updates in place: pending `○`, running spinner with a timer, `✓`/`✗` with durations, and `–` for steps skipped after a failure. Piped or CI output stays append-only plain text. Force either with `--reporter live` or `--reporter plain`. Failed steps print the error and a screenshot path.
 
 ### HTML report (`--reporter html`)
 
@@ -154,6 +155,16 @@ npm run test:integration --workspace=uivisor-app
 # Rebuild after source changes
 npm run build --workspace=packages/core
 npm run build --workspace=uivisor-app
+
+# Build and test ui-diff
+npm run build --workspace=ui-diff
+npm test --workspace=ui-diff
+
+# Type-check ui-diff (src + test files)
+npm run typecheck --workspace=ui-diff
+
+# Run ui-diff
+npx ui-diff --baseline ./screenshots/baseline --current ./screenshots/current
 ```
 
 ---

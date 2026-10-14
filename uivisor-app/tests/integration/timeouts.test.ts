@@ -1353,7 +1353,7 @@ describe('AC66, AC69, AC73: reserved keys, child validation, and built-in defaul
       await page.goto(fixtureUrl('delayed.html'));
       const result = await runFlow(file, page, ctx);
       expect(result.commandResults[0].passed).toBe(false);
-      expect(result.commandResults[0].message).toBe(`Variable "defaultTimeout" is not defined (in flow ${file.filePath})`);
+      expect(result.commandResults[0].message).toBe('Variable "defaultTimeout" is not defined in flow "flow"');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
