@@ -1,3 +1,4 @@
+import { parsePositiveInt } from '../utils/positiveInt.js';
 import type { ConsoleFlag } from '../reporter/run-reporter.js';
 
 export interface CompactArgs {
@@ -47,6 +48,8 @@ export interface ParsedArgs {
   console: ConsoleFlag;
   tags: string[];
   outputDir?: string;
+  timeout?: number;
+  navigationTimeout?: number;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -60,6 +63,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let consoleFlag: ConsoleFlag = 'auto';
   const tags: string[] = [];
   let outputDir: string | undefined;
+  let timeout: number | undefined;
+  let navigationTimeout: number | undefined;
 
   let i = 0;
   // skip 'test' subcommand
@@ -90,15 +95,33 @@ export function parseArgs(argv: string[]): ParsedArgs {
     } else if (arg === '--output-dir' && i + 1 < args.length) {
       outputDir = args[i + 1] as string;
       i += 2;
+    } else if (arg === '--timeout') {
+      const raw = i + 1 < args.length ? (args[i + 1] as string) : '';
+      const parsed = parsePositiveInt(raw);
+      if (parsed === undefined) {
+        process.stdout.write(`Error: --timeout must be a positive integer, got "${raw}"\n`);
+        process.exit(1);
+      }
+      timeout = parsed;
+      i += 2;
+    } else if (arg === '--navigation-timeout') {
+      const raw = i + 1 < args.length ? (args[i + 1] as string) : '';
+      const parsed = parsePositiveInt(raw);
+      if (parsed === undefined) {
+        process.stdout.write(`Error: --navigation-timeout must be a positive integer, got "${raw}"\n`);
+        process.exit(1);
+      }
+      navigationTimeout = parsed;
+      i += 2;
     } else {
       i++;
     }
   }
 
   if (!target) {
-    process.stdout.write('Usage: uivisor test <target> [--headed] [--slow-mo <ms>] [--reporter html|md|plain|live (repeatable)] [--tag <name>] [--output-dir <path>]\n');
+    process.stdout.write('Usage: uivisor test <target> [--headed] [--slow-mo <ms>] [--reporter html|md|plain|live (repeatable)] [--tag <name>] [--output-dir <path>] [--timeout <ms>] [--navigation-timeout <ms>]\n');
     process.exit(1);
   }
 
-  return { target, headed, slowMo, reporter, console: consoleFlag, tags, outputDir };
+  return { target, headed, slowMo, reporter, console: consoleFlag, tags, outputDir, timeout, navigationTimeout };
 }

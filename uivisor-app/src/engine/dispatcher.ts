@@ -1,8 +1,12 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from 'playwright';
-import type { Command, CommandResult, RunContext, FlowFile, FlowResult } from '@uivisor/core';
-import { interpolateObject, UnresolvedVariableError } from '@uivisor/core';
+import type { Command, CommandResult, RunContext, FlowFile, FlowResult, SessionedCommand } from '@uivisor/core';
+import {
+  interpolateObject, interpolateValue, UnresolvedVariableError, createDeadline, DEFAULT_TIMEOUTS,
+} from '@uivisor/core';
+import { parsePositiveInt } from '../utils/positiveInt.js';
+import { stepTimeoutMs, timeoutNotice } from './timeouts.js';
 import {
   executeGoto,
   executeTapOn,
@@ -76,23 +80,40 @@ export function resetScreenshotCounter(): void {
 
 export async function dispatch(
   page: Page,
-  cmd: Command,
+  step: SessionedCommand,
   ctx: RunContext,
   flowStem = 'flow',
   flowDir = process.cwd(),
 ): Promise<CommandResult> {
   const start = Date.now();
+  const cmd = step.command;
 
   // ── Lazy interpolation: resolve ${...} in command at dispatch time ──────────
   // This is strict mode: an absent variable with no default is an error.
   // A `within` block's `do:` steps are left untouched: each is interpolated when it
   // is dispatched, so a setVar earlier in the block is visible to later steps.
+  // The sibling `timeout` (if any) is resolved in the same try block, so an
+  // undefined var or an invalid resolved value shares the failure path below.
   let resolvedCmd: Command;
+  let own: number | undefined;
   try {
     resolvedCmd =
       cmd.type === 'within'
         ? { ...(interpolateObject({ ...cmd, do: [] }, ctx.varMap.toRecord(), true) as typeof cmd), do: cmd.do }
         : (interpolateObject(cmd, ctx.varMap.toRecord(), true) as Command);
+
+    if (step.timeout === undefined) {
+      own = undefined;
+    } else if (typeof step.timeout === 'number') {
+      own = step.timeout;
+    } else {
+      const resolved = interpolateValue(step.timeout, ctx.varMap.toRecord(), true);
+      const parsed = parsePositiveInt(resolved);
+      if (parsed === undefined) {
+        throw new Error(`timeout must be a positive integer, got "${resolved}"`);
+      }
+      own = parsed;
+    }
   } catch (err: unknown) {
     let message = errorMessage(err);
     if (err instanceof UnresolvedVariableError) {
@@ -106,7 +127,7 @@ export async function dispatch(
   }
 
   ctx.onProgress?.({ kind: 'stepStart', command: resolvedCmd });
-  const result = await executeResolved(page, resolvedCmd, ctx, flowStem, flowDir, start);
+  const result = await executeResolved(page, resolvedCmd, own, ctx, flowStem, flowDir, start);
   ctx.onProgress?.({ kind: 'stepEnd', result });
   return result;
 }
@@ -114,11 +135,16 @@ export async function dispatch(
 async function executeResolved(
   page: Page,
   resolvedCmd: Command,
+  own: number | undefined,
   ctx: RunContext,
   flowStem: string,
   flowDir: string,
   start: number,
 ): Promise<CommandResult> {
+  // The run's effective timeout policy — fixed once per top-level
+  // flow, inherited unchanged by every child flow.
+  const run = ctx.timeouts ?? DEFAULT_TIMEOUTS;
+
   // Handle runFlow specially
   if (resolvedCmd.type === 'runFlow') {
     const absPath = path.resolve(flowDir, resolvedCmd.path);
@@ -151,6 +177,21 @@ async function executeResolved(
     }
     ctx.onProgress?.({ kind: 'include', file });
 
+    // ── Notice: emit once per child file per top-level run when the
+    // child's own header/config timeout value is overridden by inheritance.
+    // Skipped when callStack is empty (direct-dispatch tests, no top-level run).
+    // Delivered via onProgress rather than written to stdout directly, so every
+    // reporter (and no reporter at all) decides how/whether to surface it. ──
+    const topLevelPath = Array.from(ctx.callStack)[0];
+    if (topLevelPath !== undefined) {
+      const line = timeoutNotice(file, run, topLevelPath);
+      ctx.timeoutNotices ??= new Set();
+      if (line !== null && !ctx.timeoutNotices.has(absPath)) {
+        ctx.timeoutNotices.add(absPath);
+        ctx.onProgress?.({ kind: 'notice', message: line });
+      }
+    }
+
     const includedFrom = `, included from flow "${flowStem}" via ${runFlowLabel(resolvedCmd)}`;
     ctx.indentLevel++;
     try {
@@ -182,30 +223,40 @@ async function executeResolved(
   // Use the interpolated command for all subsequent processing
   const c = resolvedCmd;
 
+  // ── Budget: one deadline per step, from the sibling/inner value already
+  // resolved above, the command's timeout trait, and the run's effective timeouts.
+  // Trait 'none' → no deadline. ──
+  const inner =
+    c.type === 'waitForPageLoad' && c.timeout !== undefined
+      ? toInt(c.timeout as unknown as number | string, 'waitForPageLoad timeout')
+      : undefined;
+  const ms = stepTimeoutMs(c.type, own ?? inner, run); // Q19: own and inner are never both set
+  const deadline = ms === undefined ? undefined : createDeadline(ms);
+
   let capturedScreenshotPath: string | undefined;
 
   try {
     switch (c.type) {
       case 'goto':
-        await executeGoto(page, c.url);
+        await executeGoto(page, c.url, deadline);
         break;
       case 'tapOn':
-        await executeTapOn(page, c.selector, ctx);
+        await executeTapOn(page, c.selector, ctx, deadline);
         break;
       case 'inputText':
-        await executeInputText(ctx, c.text);
+        await executeInputText(ctx, c.text, deadline);
         break;
       case 'inputTextTargeted':
-        await executeInputTextTargeted(page, c.element, c.text);
+        await executeInputTextTargeted(page, c.element, c.text, deadline);
         break;
       case 'assertVisible':
-        await executeAssertVisible(page, c.selector);
+        await executeAssertVisible(page, c.selector, deadline);
         break;
       case 'assertNotVisible':
-        await executeAssertNotVisible(page, c.selector);
+        await executeAssertNotVisible(page, c.selector, deadline);
         break;
       case 'assertUrl':
-        await executeAssertUrl(page, c.path);
+        await executeAssertUrl(page, c.path, deadline);
         break;
       case 'wait':
         await executeWait(toInt(c.ms as unknown as number | string, 'wait ms'));
@@ -214,55 +265,55 @@ async function executeResolved(
         await executeScroll(page, c.direction);
         break;
       case 'assertText':
-        await executeAssertText(page, c.selector, c.expected);
+        await executeAssertText(page, c.selector, c.expected, deadline);
         break;
       case 'assertValue':
-        await executeAssertValue(page, c.selector, c.expected);
+        await executeAssertValue(page, c.selector, c.expected, deadline);
         break;
       case 'assertCount':
-        await executeAssertCount(page, c.css, toInt(c.expected as unknown as number | string, 'assertCount expected'));
+        await executeAssertCount(page, c.css, toInt(c.expected as unknown as number | string, 'assertCount expected'), deadline);
         break;
       case 'assertEnabled':
-        await executeAssertEnabled(page, c.selector);
+        await executeAssertEnabled(page, c.selector, deadline);
         break;
       case 'assertDisabled':
-        await executeAssertDisabled(page, c.selector);
+        await executeAssertDisabled(page, c.selector, deadline);
         break;
       case 'assertChecked':
-        await executeAssertChecked(page, c.selector);
+        await executeAssertChecked(page, c.selector, deadline);
         break;
       case 'assertUnchecked':
-        await executeAssertUnchecked(page, c.selector);
+        await executeAssertUnchecked(page, c.selector, deadline);
         break;
       case 'pressKey':
         await executePressKey(page, c.key);
         break;
       case 'selectOption':
-        await executeSelectOption(page, c.selector, c.value);
+        await executeSelectOption(page, c.selector, c.value, deadline);
         break;
       case 'check':
-        await executeCheck(page, c.selector);
+        await executeCheck(page, c.selector, deadline);
         break;
       case 'uncheck':
-        await executeUncheck(page, c.selector);
+        await executeUncheck(page, c.selector, deadline);
         break;
       case 'hover':
-        await executeHover(page, c.selector);
+        await executeHover(page, c.selector, deadline);
         break;
       case 'doubleClick':
-        await executeDoubleClick(page, c.selector);
+        await executeDoubleClick(page, c.selector, deadline);
         break;
       case 'clearText':
-        await executeClearText(page, c.selector);
+        await executeClearText(page, c.selector, deadline);
         break;
       case 'reload':
-        await executeReload(page);
+        await executeReload(page, deadline);
         break;
       case 'goBack':
-        await executeGoBack(page);
+        await executeGoBack(page, deadline);
         break;
       case 'goForward':
-        await executeGoForward(page);
+        await executeGoForward(page, deadline);
         break;
       case 'setViewport':
         await executeSetViewport(
@@ -283,12 +334,17 @@ async function executeResolved(
           page,
           c.path,
           c.timeout !== undefined ? toInt(c.timeout as unknown as number | string, 'waitForPageLoad timeout') : undefined,
+          deadline,
         );
         break;
 
       case 'within': {
-        const nestedResults = await executeWithin(page, c, ctx, (p, nc, cx) =>
-          dispatch(p, nc, cx, flowStem, flowDir),
+        const nestedResults = await executeWithin(
+          page,
+          c,
+          ctx,
+          (p, nextStep, cx) => dispatch(p, nextStep, cx, flowStem, flowDir),
+          deadline,
         );
         const allPassed = nestedResults.every((r) => r.passed);
         const nestedResult = {
@@ -363,6 +419,9 @@ async function executeResolved(
     }
     return { command: c, passed: true, screenshotPath: capturedScreenshotPath, durationMs: Date.now() - start };
   } catch (err: unknown) {
+    // Measure the failure's duration at the point it was caught, before the
+    // (potentially slow — e.g. a page stuck mid-navigation) screenshot capture.
+    const durationMs = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
     let expected: string | undefined;
     let got: string | undefined;
@@ -392,7 +451,7 @@ async function executeResolved(
       expected,
       got,
       screenshotPath,
-      durationMs: Date.now() - start,
+      durationMs,
     };
   }
 }

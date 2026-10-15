@@ -1,0 +1,54 @@
+appId: ${base}/integration-timeouts
+config: config.yml
+# Tests: selector waits & timeouts (AC77) against the live /integration-timeouts
+# fixture page. No wait:/waitFor: steps anywhere in this flow — every delay is
+# crossed by the selector's own retry/cascade behaviour.
+commands:
+  # ── (1) int-delayed (delay 1500ms) found via four selector forms: bare
+  #        string, pipe cascade, testId object, and xpath object ───────────
+  # Each case starts with a fresh goto so the delayed element starts absent.
+  - goto: ${base}/integration-timeouts
+  - assertVisible: int-delayed
+
+  - goto: ${base}/integration-timeouts
+  - assertVisible: data-testid=int-delayed|text=Delayed content
+
+  - goto: ${base}/integration-timeouts
+  - assertVisible:
+      testId: int-delayed
+
+  - goto: ${base}/integration-timeouts
+  - assertVisible:
+      xpath: "//div[@data-testid='int-delayed']"
+
+  # ── (2) stability: tapOn Submit resolves the button, not the earlier
+  #        "Submit" heading that appears first ─────────────────────────────
+  - goto: ${base}/integration-timeouts
+  - tapOn: Submit
+  - assertVisible:
+      testId: int-submit-result
+
+  # ── (3) long delay crossed with a custom sibling timeout ──────────────────
+  - goto: ${base}/integration-timeouts?delay=6500
+  - assertVisible: data-testid=int-delayed
+    timeout: 8000
+
+  # ── (4) not-visible mode: absent and hidden, both string selectors ────────
+  - goto: ${base}/integration-timeouts
+  - assertNotVisible: data-testid=int-never-rendered
+  - assertNotVisible: data-testid=int-hidden
+
+  # ── (5) client-side redirect, asserted via assertUrl (no wait:) ───────────
+  - goto: ${base}/integration-timeouts?redirect=1500
+  - assertUrl: /integration-timeouts?arrived=1
+
+  # ── (6) within on the delayed card ─────────────────────────────────────────
+  - goto: ${base}/integration-timeouts
+  - within:
+      data-testid: int-delayed-card
+      do:
+        - assertVisible:
+            testId: int-card-label
+        - assertText:
+            testId: int-card-label
+            expected: Card ready

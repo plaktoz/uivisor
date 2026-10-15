@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timeouts Fixture: late-enable</title>
+</head>
+<body>
+
+  <!--
+    Query params:
+      appear  (ms, default 1500) - when the disabled button is added to the DOM.
+      enable  (ms, default 3000) - when the button becomes enabled (absolute, from load).
+
+    Elements:
+      data-testid="int-late-enable" - a <button disabled> added at `appear` ms,
+                                       enabled at `enable` ms (AC36, AC38).
+  -->
+
+  <div id="root"></div>
+
+  <script>
+    function qp(name, def) {
+      var v = new URLSearchParams(window.location.search).get(name);
+      if (v === null || v === '') return def;
+      return Number(v);
+    }
+
+    var appear = qp('appear', 1500);
+    var enable = qp('enable', 3000);
+
+    var root = document.getElementById('root');
+
+    setTimeout(function () {
+      var button = document.createElement('button');
+      button.setAttribute('data-testid', 'int-late-enable');
+      button.disabled = true;
+      button.textContent = 'Enable Me';
+      root.appendChild(button);
+
+      var remaining = enable - appear;
+      if (remaining <= 0) {
+        button.disabled = false;
+      } else {
+        setTimeout(function () {
+          button.disabled = false;
+        }, remaining);
+      }
+    }, appear);
+  </script>
+
+</body>
+</html>

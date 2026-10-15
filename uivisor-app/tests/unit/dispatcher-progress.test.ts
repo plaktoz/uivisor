@@ -110,7 +110,7 @@ describe('dispatch progress events', () => {
   it('stepStart carries the interpolated command and stepEnd the result dispatch returns', async () => {
     const { ctx, events, page } = record();
     ctx.varMap.set('who', 'alice');
-    const result = await dispatch(page, { type: 'setVar', name: 'x', value: '${who}' }, ctx);
+    const result = await dispatch(page, { command: { type: 'setVar', name: 'x', value: '${who}' } }, ctx);
 
     expect(events[0]).toEqual({ kind: 'stepStart', command: { type: 'setVar', name: 'x', value: 'alice' } });
     expect(events[1]).toEqual({ kind: 'stepEnd', result });
@@ -119,7 +119,7 @@ describe('dispatch progress events', () => {
   it('interpolation failure still brackets the step, with the raw command', async () => {
     const { ctx, events, page } = record();
     const raw: Command = { type: 'setVar', name: 'x', value: '${nope}' };
-    const result = await dispatch(page, raw, ctx);
+    const result = await dispatch(page, { command: raw }, ctx);
 
     expect(result.passed).toBe(false);
     expect(events).toEqual([
@@ -148,13 +148,15 @@ describe('dispatch progress events', () => {
   it('nested within emits each do child inside its parent bracket', async () => {
     const { ctx, events, page } = record();
     await dispatch(page, {
-      type: 'within',
-      selector: 'text=Outer',
-      do: [
-        { command: { type: 'setVar', name: 'a', value: '1' } },
-        { command: { type: 'within', selector: 'text=Inner', do: [{ command: { type: 'setVar', name: 'b', value: '2' } }] } },
-        { command: { type: 'setVar', name: 'c', value: '3' } },
-      ],
+      command: {
+        type: 'within',
+        selector: 'text=Outer',
+        do: [
+          { command: { type: 'setVar', name: 'a', value: '1' } },
+          { command: { type: 'within', selector: 'text=Inner', do: [{ command: { type: 'setVar', name: 'b', value: '2' } }] } },
+          { command: { type: 'setVar', name: 'c', value: '3' } },
+        ],
+      },
     }, ctx);
 
     expect(trace(events)).toEqual([
@@ -165,14 +167,14 @@ describe('dispatch progress events', () => {
 
   it('within whose container is missing ends without starting any child', async () => {
     const { ctx, events, page } = record();
-    await dispatch(page, { type: 'within', selector: 'css=.absent', do: [{ command: { type: 'setVar', name: 'a', value: '1' } }] }, ctx);
+    await dispatch(page, { command: { type: 'within', selector: 'css=.absent', do: [{ command: { type: 'setVar', name: 'a', value: '1' } }] } }, ctx);
 
     expect(trace(events)).toEqual(['+within', '-within✗']);
   });
 
   it('runFlow to a missing file brackets the step with no include', async () => {
     const { ctx, events, page } = record();
-    await dispatch(page, { type: 'runFlow', path: '/definitely/not/here.yaml' }, ctx);
+    await dispatch(page, { command: { type: 'runFlow', path: '/definitely/not/here.yaml' } }, ctx);
 
     expect(trace(events)).toEqual(['+runFlow', '-runFlow✗']);
   });
@@ -180,7 +182,7 @@ describe('dispatch progress events', () => {
   it('runFlow to an unparsable file brackets the step with no include', async () => {
     const broken = tmpFlow('broken.yaml', 'appId: http://test\ncommands: 42\n');
     const { ctx, events, page } = record();
-    const result = await dispatch(page, { type: 'runFlow', path: broken }, ctx);
+    const result = await dispatch(page, { command: { type: 'runFlow', path: broken } }, ctx);
 
     expect(result.passed).toBe(false);
     expect(trace(events)).toEqual(['+runFlow', '-runFlow✗']);
@@ -189,7 +191,7 @@ describe('dispatch progress events', () => {
   it('child flow that throws mid-run still closes the runFlow bracket', async () => {
     const child = tmpFlow('ghost.yaml', 'appId: http://test\nsessions:\n  - id: ghost\ncommands:\n  - session: ghost\n    setVar: g=1\n');
     const { ctx, events, page } = record();
-    const result = await dispatch(page, { type: 'runFlow', path: child }, ctx);
+    const result = await dispatch(page, { command: { type: 'runFlow', path: child } }, ctx);
 
     expect(result.message).toMatch(/Unknown session: "ghost"/);
     expect(trace(events)).toEqual(['+runFlow', '@ghost.yaml', '-runFlow✗']);

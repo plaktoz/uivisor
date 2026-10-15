@@ -2,6 +2,7 @@ import type { Locator } from 'playwright';
 
 export interface PlaywrightContext {
   lastTappedLocator: Locator | null;
+  lastTappedLabel?: string; // label = selector as written (AC32)
 }
 
 export type Selector =
@@ -93,7 +94,24 @@ export type RunFlowCommand = Extract<Command, { type: 'runFlow' }>;
 
 export type SessionDef = { id: string; label?: string };
 
-export type SessionedCommand = { session?: string; command: Command };
+// Per-step options, sibling keys next to `session`. After parsing, `timeout` is a
+// positive integer, or a string containing `${` (resolved at dispatch). Absent key =
+// property absent.
+export type SessionedCommand = { session?: string; timeout?: number | string; command: Command };
+
+export interface TimeoutSettings {
+  defaultTimeout: number;
+  navigationTimeout: number;
+}
+
+// Notice order: defaultTimeout, navigationTimeout.
+export type TimeoutKey = keyof TimeoutSettings;
+
+// Validated values one flow file sets itself. Each layer holds only the keys that file sets.
+export interface FlowTimeoutLayers {
+  header: Partial<TimeoutSettings>;
+  config: Partial<TimeoutSettings>;
+}
 
 export interface FlowFile {
   baseUrl: string;
@@ -103,6 +121,7 @@ export interface FlowFile {
   tags: string[];
   vars?: Record<string, string>;
   flowConfig?: FlowConfig;
+  timeouts?: FlowTimeoutLayers; // optional: test literals omit it
 }
 
 export interface RunOptions {
@@ -111,6 +130,7 @@ export interface RunOptions {
   reporter: 'html' | 'md' | null;
   runDir: string;
   tags: string[];
+  timeouts?: Partial<TimeoutSettings>; // the CLI layer
 }
 
 export interface CommandResult {
@@ -149,6 +169,11 @@ export interface RunContext extends PlaywrightContext {
   defaultSessionId: string;
   varMap: VarMap;
   methodRunner: MethodRunner;
+  // The run's policy: fixed once per top-level flow in runAll; never written by runFlow.
+  // Absent → DEFAULT_TIMEOUTS.
+  timeouts?: TimeoutSettings;
+  // Absolute paths of child files already noticed in this top-level run.
+  timeoutNotices?: Set<string>;
   onProgress?: ProgressListener;
 }
 
@@ -159,13 +184,19 @@ export interface RunContext extends PlaywrightContext {
  * items, or the included flow's commands). Within one container, steps start in plan order and
  * stop after the first failure. `include` arrives only while a runFlow step is open, before its
  * first child. Steps carry no ids, so a listener locates them by this bracket structure.
+ *
+ * `notice` is informational and sits outside this bracket structure: it may arrive while a
+ * runFlow step is open, before its `include` (and thus before that child's first step).
  */
 export type ProgressEvent =
   /** `command` is interpolated, or raw when interpolation itself failed. */
   | { kind: 'stepStart'; command: Command }
   | { kind: 'stepEnd'; result: CommandResult }
   /** `file.commands` are raw (uninterpolated). */
-  | { kind: 'include'; file: FlowFile };
+  | { kind: 'include'; file: FlowFile }
+  /** A one-line, human-readable message, e.g. a child flow's timeout keys being overridden by
+   * inheritance. Not tied to any particular step. */
+  | { kind: 'notice'; message: string };
 
 /** Must not throw: it runs inside the engine. */
 export type ProgressListener = (event: ProgressEvent) => void;

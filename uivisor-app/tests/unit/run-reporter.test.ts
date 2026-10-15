@@ -81,6 +81,17 @@ describe('createPlainReporter', () => {
     );
   });
 
+  it('prints a notice event as its own line', () => {
+    const plain = createPlainReporter();
+
+    plain.startFlow(file);
+    plain.onProgress({ kind: 'notice', message: 'child.yaml: defaultTimeout ignored (inherited from top.yaml)' });
+    expect(out).toBe(
+      '▶ Running: checkout.yaml\n' +
+      'child.yaml: defaultTimeout ignored (inherited from top.yaml)\n',
+    );
+  });
+
   it('prints the run aggregate only when more than one flow ran', () => {
     const plain = createPlainReporter();
     const run = (totalFlows: number): RunResult => ({ flows: [], totalFlows, passedFlows: 1, failedFlows: totalFlows - 1, durationMs: 0 });

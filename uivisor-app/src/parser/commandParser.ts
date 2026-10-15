@@ -1,4 +1,7 @@
-import { type Command, type RunFlowCommand, type SessionedCommand, parseSelector, parseRunFlow } from '@uivisor/core';
+import {
+  type Command, type RunFlowCommand, type SessionedCommand, parseSelector, parseRunFlow, COMMAND_TRAITS,
+} from '@uivisor/core';
+import { parsePositiveInt } from '../utils/positiveInt.js';
 
 const SCROLL_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
@@ -321,9 +324,41 @@ export function parseSessionedCommand(raw: unknown): SessionedCommand {
     throw new Error(`Invalid command: ${String(raw)}`);
   }
   const obj = raw as Record<string, unknown>;
-  // Extract session field before passing to parseCommand (parseCommand throws on unknown keys)
+  // Extract session and timeout fields before passing to parseCommand (parseCommand throws
+  // on unknown keys). `'timeout' in obj` so a literal `null` still counts as present (AC47).
   const session = typeof obj['session'] === 'string' ? obj['session'] : undefined;
-  const { session: _session, ...rest } = obj;
+  const hasTimeout = 'timeout' in obj;
+  const rawTimeout = obj['timeout'];
+  const { session: _session, timeout: _timeout, ...rest } = obj;
+  const yamlKey = Object.keys(rest)[0];
   const command = parseCommand(rest);
-  return session !== undefined ? { session, command } : { command };
+
+  let timeout: number | string | undefined;
+  if (hasTimeout) {
+    // 1. Trait check (Q17/Q19, AC44, AC72).
+    if (COMMAND_TRAITS[command.type].timeout === 'none') {
+      throw new Error(`timeout is not supported on ${yamlKey}`);
+    }
+    // 2. Literal value check (AC47).
+    if (typeof rawTimeout === 'string' && rawTimeout.includes('${')) {
+      timeout = rawTimeout;
+    } else {
+      const parsed = parsePositiveInt(rawTimeout);
+      if (parsed === undefined) {
+        throw new Error(`timeout must be a positive integer, got ${String(rawTimeout)}`);
+      }
+      timeout = parsed;
+    }
+    // 3. Q19: waitForPageLoad can't take both an inner and a sibling timeout (AC46).
+    if (command.type === 'waitForPageLoad' && command.timeout !== undefined) {
+      throw new Error(
+        'waitForPageLoad: timeout given both inside the command and as a sibling key; use one',
+      );
+    }
+  }
+
+  const result: SessionedCommand = { command };
+  if (session !== undefined) result.session = session;
+  if (timeout !== undefined) result.timeout = timeout;
+  return result;
 }

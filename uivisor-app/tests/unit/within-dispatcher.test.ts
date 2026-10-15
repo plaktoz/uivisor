@@ -7,10 +7,20 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Page, Locator } from 'playwright';
-import type { RunContext, Command } from '@uivisor/core';
+import type { RunContext, Command, Clock } from '@uivisor/core';
+import { createDeadline } from '@uivisor/core';
 import { executeWithin, WithinDispatch } from '../../src/driver/commands';
 import { dispatch } from '../../src/engine/dispatcher';
 import { createVarMap } from '../../src/engine/varMap';
+
+/** Deterministic clock: `sleep` advances time instantly (no real-time wait). */
+function makeFakeClock(): Clock {
+  let t = 0;
+  return {
+    now: () => t,
+    sleep: async (ms: number) => { t += ms; },
+  };
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -90,8 +100,9 @@ describe('executeWithin — container not found (TC-045)', () => {
       do: [],
     };
 
-    await expect(executeWithin(page, cmd, makeCtx(), dispatch)).rejects.toThrow(
-      "within: No container found for selector 'text=NoSuchRow'"
+    const d = createDeadline(50, makeFakeClock());
+    await expect(executeWithin(page, cmd, makeCtx(), dispatch, d)).rejects.toThrow(
+      "within: No container found after 50ms for selector 'text=NoSuchRow'"
     );
     // Inner dispatch must NOT run when container not found
     expect(dispatch).not.toHaveBeenCalled();
@@ -120,7 +131,8 @@ describe('executeWithin — nth out of range (TC-047)', () => {
       do: [],
     };
 
-    await expect(executeWithin(page, cmd, makeCtx(), dispatchFn)).rejects.toThrow(
+    const d = createDeadline(50, makeFakeClock());
+    await expect(executeWithin(page, cmd, makeCtx(), dispatchFn, d)).rejects.toThrow(
       "within: nth=5 requested but only 2 containers matched selector 'text=Row'"
     );
     expect(dispatchFn).not.toHaveBeenCalled();
@@ -158,7 +170,7 @@ describe('dispatcher — within command dispatch', () => {
       do: [{ command: { type: 'goto', url: 'http://test/inner' } }],
     };
 
-    const result = await dispatch(page, cmd, makeCtx());
+    const result = await dispatch(page, { command: cmd }, makeCtx());
 
     expect(result.passed).toBe(true);
     expect(result.nestedResult).toBeDefined();
@@ -192,7 +204,7 @@ describe('dispatcher — within command dispatch', () => {
       do: [],
     };
 
-    const result = await dispatch(page, cmd, makeCtx());
+    const result = await dispatch(page, { command: cmd }, makeCtx());
 
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/within.*No container found.*text=NoSuchRow/i);
@@ -258,8 +270,9 @@ describe('executeWithin — xpath container selector (AC11)', () => {
       do: [],
     };
 
+    const d = createDeadline(50, makeFakeClock());
     await expect(
-      executeWithin(page, cmd, makeCtx(), innerDispatch)
+      executeWithin(page, cmd, makeCtx(), innerDispatch, d)
     ).rejects.toThrow(
       /No container found.*xpath=\/\/div\[@class="missing"\]/
     );
@@ -366,8 +379,9 @@ describe('executeWithin — xpath container selector (AC11)', () => {
       do: [],
     };
 
+    const d = createDeadline(50, makeFakeClock());
     await expect(
-      executeWithin(page, cmd, makeCtx(), innerDispatch)
+      executeWithin(page, cmd, makeCtx(), innerDispatch, d)
     ).rejects.toThrow(/nth=3.*only 1.*containers/i);
 
     expect(innerDispatch).not.toHaveBeenCalled();
@@ -426,7 +440,7 @@ describe('dispatcher — within do: steps interpolate lazily (issue #108)', () =
       ],
     };
 
-    const result = await dispatch(page, cmd, makeCtx());
+    const result = await dispatch(page, { command: cmd }, makeCtx());
 
     expect(result.passed).toBe(true);
     expect(result.nestedResult!.commandResults).toHaveLength(2);
@@ -436,7 +450,7 @@ describe('dispatcher — within do: steps interpolate lazily (issue #108)', () =
   it('still interpolates the within command\'s own fields up front', async () => {
     const result = await dispatch(
       makePage(1),
-      { type: 'within', selector: '${missing}', do: [] },
+      { command: { type: 'within', selector: '${missing}', do: [] } },
       makeCtx(),
     );
 
@@ -448,9 +462,11 @@ describe('dispatcher — within do: steps interpolate lazily (issue #108)', () =
     const result = await dispatch(
       makePage(1),
       {
-        type: 'within',
-        selector: 'text=Alice',
-        do: [{ command: { type: 'goto', url: 'http://test/${nope}' } }],
+        command: {
+          type: 'within',
+          selector: 'text=Alice',
+          do: [{ command: { type: 'goto', url: 'http://test/${nope}' } }],
+        },
       },
       makeCtx(),
     );

@@ -6,9 +6,13 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { Page } from 'playwright';
 import type { RunContext, Command } from '@uivisor/core';
 import { dispatch } from '../../src/engine/dispatcher';
+import '../../src/engine/index'; // registers runFlow with the dispatcher
 import { createVarMap } from '../../src/engine/varMap';
 
 function makePage(): Page {
@@ -50,8 +54,7 @@ describe('error message format: interpolation failures', () => {
   it('undefined var with no default produces a clear error message containing the var name', async () => {
     const ctx = makeCtx({});
     const result = await dispatch(
-      makePage(),
-      { type: 'goto', url: '${undeclaredVar}' },
+      makePage(), { command: { type: 'goto', url: '${undeclaredVar}' } },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -61,8 +64,7 @@ describe('error message format: interpolation failures', () => {
   it('testVarSet fails with message naming the missing variable', async () => {
     const ctx = makeCtx();
     const result = await dispatch(
-      makePage(),
-      { type: 'testVarSet', name: 'notSet' } as Command,
+      makePage(), { command: { type: 'testVarSet', name: 'notSet' } as Command },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -73,8 +75,7 @@ describe('error message format: interpolation failures', () => {
     const ctx = makeCtx();
     ctx.varMap.set('x', '5');
     const result = await dispatch(
-      makePage(),
-      { type: 'testVarSet', name: 'x', expected: '99' } as Command,
+      makePage(), { command: { type: 'testVarSet', name: 'x', expected: '99' } as Command },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -91,8 +92,7 @@ describe('error message format: method call failures', () => {
       ) as unknown as typeof ctx.methodRunner.call,
     };
     const result = await dispatch(
-      makePage(),
-      { type: 'setVar', name: 'x', method: 'myMethod', args: [] } as Command,
+      makePage(), { command: { type: 'setVar', name: 'x', method: 'myMethod', args: [] } as Command },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -107,8 +107,7 @@ describe('error message format: method call failures', () => {
       ) as unknown as typeof ctx.methodRunner.call,
     };
     const result = await dispatch(
-      makePage(),
-      { type: 'setVar', name: 'x', method: 'specificMethod', args: [] } as Command,
+      makePage(), { command: { type: 'setVar', name: 'x', method: 'specificMethod', args: [] } as Command },
       ctx,
     );
     expect(result.passed).toBe(false);
@@ -123,12 +122,95 @@ describe('error message format: method call failures', () => {
       ) as unknown as typeof ctx.methodRunner.call,
     };
     const result = await dispatch(
-      makePage(),
-      { type: 'setVar', name: 'x', method: 'fn', args: [] } as Command,
+      makePage(), { command: { type: 'setVar', name: 'x', method: 'fn', args: [] } as Command },
       ctx,
     );
     expect(result.passed).toBe(false);
     expect(result.message).toContain('underlying cause here');
+  });
+});
+
+describe('error message format: sibling timeout resolution at dispatch (AC48–AC50, T5)', () => {
+  // AC48: happy path — "${t}" resolves from a runtime var set by an earlier setVar,
+  // so dispatch is not blocked by validation and the command proceeds.
+  // The budget/deadline plumbing that would make a mismatched element actually
+  // wait `t` ms lands in T11 (stepTimeoutMs / createDeadline wiring); this test
+  // covers T5's half: dispatch-time resolution of the sibling value.
+  it('AC48: a sibling timeout "${t}" set by an earlier setVar resolves without error', async () => {
+    const page = makePage();
+    const ctx = makeCtx();
+
+    await dispatch(page, { command: { type: 'setVar', name: 't', value: '1300' } }, ctx);
+    const result = await dispatch(
+      page,
+      { command: { type: 'goto', url: 'http://test/' }, timeout: '${t}' },
+      ctx,
+    );
+
+    expect(result.passed).toBe(true);
+  });
+
+  it('AC49: "${var}" resolving to an invalid value fails the command immediately with the exact quoted-value message', async () => {
+    const page = makePage();
+    const ctx = makeCtx();
+    await dispatch(page, { command: { type: 'setVar', name: 't', value: 'abc' } }, ctx);
+
+    const start = Date.now();
+    const result = await dispatch(
+      page,
+      { command: { type: 'tapOn', selector: 'x' }, timeout: '${t}' },
+      ctx,
+    );
+
+    expect(Date.now() - start).toBeLessThan(500);
+    expect(result.passed).toBe(false);
+    expect(result.message).toBe('timeout must be a positive integer, got "abc"');
+    // No resolution attempt should have been made before the invalid value was rejected.
+    expect(page.locator).not.toHaveBeenCalled();
+  });
+
+  it('AC50a: an undefined "${var}" in a top-level flow sibling timeout gets the flow-context suffix', async () => {
+    const page = makePage();
+    const ctx = makeCtx();
+
+    const result = await dispatch(
+      page,
+      { command: { type: 'tapOn', selector: 'x' }, timeout: '${nope}' },
+      ctx,
+      'top',
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.message).toBe('Variable "nope" is not defined in flow "top"');
+  });
+
+  it('AC50b: the same undefined "${var}" inside a child flow gets the child+caller context suffix', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uiv-ac50b-'));
+    try {
+      fs.writeFileSync(
+        path.join(dir, 'child.yaml'),
+        'appId: http://test\ncommands:\n  - tapOn: x\n    timeout: "${nope}"\n',
+        'utf8',
+      );
+      const page = makePage();
+      const ctx = makeCtx();
+      ctx.sessions = new Map([['__default__', page]]);
+
+      const result = await dispatch(
+        page,
+        { command: { type: 'runFlow', path: './child.yaml' } },
+        ctx,
+        'top',
+        dir,
+      );
+
+      expect(result.passed).toBe(false);
+      expect(result.message).toBe(
+        'Variable "nope" is not defined in flow "child", included from flow "top" via runFlow: ./child.yaml',
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -138,8 +220,7 @@ describe('error message format: arg parsing', () => {
     const callFn = vi.fn().mockResolvedValue('123456');
     ctx.methodRunner = { call: callFn as unknown as typeof ctx.methodRunner.call };
     await dispatch(
-      makePage(),
-      { type: 'setVar', name: 'code', method: 'random', args: ['6'] } as Command,
+      makePage(), { command: { type: 'setVar', name: 'code', method: 'random', args: ['6'] } as Command },
       ctx,
     );
     expect(callFn).toHaveBeenCalledWith('random', [6]);
@@ -150,8 +231,7 @@ describe('error message format: arg parsing', () => {
     const callFn = vi.fn().mockResolvedValue('20261001');
     ctx.methodRunner = { call: callFn as unknown as typeof ctx.methodRunner.call };
     await dispatch(
-      makePage(),
-      { type: 'setVar', name: 'd', method: 'today', args: ["'YYYYMMDD'"] } as Command,
+      makePage(), { command: { type: 'setVar', name: 'd', method: 'today', args: ["'YYYYMMDD'"] } as Command },
       ctx,
     );
     expect(callFn).toHaveBeenCalledWith('today', ['YYYYMMDD']);

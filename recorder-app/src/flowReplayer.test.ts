@@ -102,7 +102,7 @@ describe('replayFlows — T14: single goto', () => {
     const page = makeMockPage();
     await replayFlows([flowPath], page as unknown as Page, '/tmp/out.yaml');
     expect(page.goto).toHaveBeenCalledOnce();
-    expect(page.goto).toHaveBeenCalledWith('http://example.com', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://example.com', { waitUntil: 'load', timeout: 30000 });
   });
 });
 
@@ -177,7 +177,7 @@ describe('replayFlows — T17: nested runFlow', () => {
     const page = makeMockPage();
     await replayFlows([parentPath], page as unknown as Page, '/tmp/out.yaml');
     expect(page.goto).toHaveBeenCalledOnce();
-    expect(page.goto).toHaveBeenCalledWith('http://sub.com', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://sub.com', { waitUntil: 'load', timeout: 30000 });
   });
 });
 
@@ -328,7 +328,7 @@ describe('replayFlows — T23: three-level nested chain', () => {
     const page = makeMockPage();
     await replayFlows([aPath], page as unknown as Page, '/tmp/out.yaml');
     expect(page.goto).toHaveBeenCalledOnce();
-    expect(page.goto).toHaveBeenCalledWith('http://c.com', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://c.com', { waitUntil: 'load', timeout: 30000 });
   });
 });
 
@@ -350,7 +350,7 @@ describe('replayFlows — T24: assertUrl mismatch', () => {
     expect(err.message).toContain('[replay] FAILED');
     expect(err.message).toContain('/expected-path');
     expect(err.message).toContain('/actual-path');
-  });
+  }, 10000);
 });
 
 // ─── T25 ─────────────────────────────────────────────────────────────────────
@@ -527,7 +527,7 @@ describe('setVar / testVarSet shorthand', () => {
     });
     const page = makeMockPage();
     await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
-    expect(page.goto).toHaveBeenCalledWith('http://x.test/a=b', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://x.test/a=b', { waitUntil: 'load', timeout: 30000 });
   });
 
   it('setVar object form still works', async () => {
@@ -538,7 +538,7 @@ describe('setVar / testVarSet shorthand', () => {
     });
     const page = makeMockPage();
     await replayFlows([flowPath], page as unknown as Page, path.join(dir, 'out.yaml'));
-    expect(page.goto).toHaveBeenCalledWith('http://y.test', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://y.test', { waitUntil: 'load', timeout: 30000 });
   });
 
   it('setVar shorthand without "=" fails with a clear message', async () => {
@@ -588,7 +588,7 @@ describe('variable scoping across runFlow', () => {
     });
     const page = makeMockPage();
     await replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml'));
-    expect(page.goto).toHaveBeenCalledWith('http://child.test', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://child.test', { waitUntil: 'load', timeout: 30000 });
   });
 
   it('a child vars: default fills in an unset key but does not leak to the caller', async () => {
@@ -606,7 +606,7 @@ describe('variable scoping across runFlow', () => {
     await expect(
       replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml')),
     ).rejects.toThrow(/testVarSet: variable "d" is not set/);
-    expect(page.goto).toHaveBeenCalledWith('http://default.test', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://default.test', { waitUntil: 'load', timeout: 30000 });
   });
 
   it('a child vars: default does not override a value already set by the caller', async () => {
@@ -622,7 +622,7 @@ describe('variable scoping across runFlow', () => {
     });
     const page = makeMockPage();
     await replayFlows([parentPath], page as unknown as Page, path.join(dir, 'out.yaml'));
-    expect(page.goto).toHaveBeenCalledWith('http://caller.test', { waitUntil: 'load' });
+    expect(page.goto).toHaveBeenCalledWith('http://caller.test', { waitUntil: 'load', timeout: 30000 });
   });
 });
 

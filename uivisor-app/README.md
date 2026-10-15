@@ -55,6 +55,8 @@ npm run uivisor -- test <target> [options]
 | `--reporter live` / `--reporter plain` | Force the live checklist or the append-only console output (default: live on a terminal, plain otherwise). Combines with `html`/`md`: `--reporter md --reporter live` |
 | `--output-dir <path>` | Base directory for report output (default: `target/`) |
 | `--tag <name>` | Only run flows with this tag (repeatable; multiple flags use OR semantics) |
+| `--timeout <ms>` | Element-command timeout for this run (overrides flow/config `defaultTimeout`; see [Timeouts](#timeouts)) |
+| `--navigation-timeout <ms>` | Timeout for `goto`/`reload`/`goBack`/`goForward`/`waitForPageLoad` for this run (overrides flow/config `navigationTimeout`) |
 
 ### Examples
 
@@ -131,6 +133,8 @@ The runner navigates to `appId` before executing the first command.
 | `config` | No | Path to an external YAML config file; keys override inline `vars` |
 | `tags` | No | Array of strings for `--tag` filtering |
 | `sessions` | No | Array of named browser sessions for multi-tab tests; each entry has an `id:` field |
+| `defaultTimeout` | No | Element-command timeout for this flow, in ms (see [Timeouts](#timeouts)) |
+| `navigationTimeout` | No | Navigation-command timeout for this flow, in ms (see [Timeouts](#timeouts)) |
 
 ---
 
@@ -250,9 +254,93 @@ Any other failure inside an included flow gets the same `, included from flow ..
 
 ---
 
+## Timeouts
+
+Element commands and page navigations wait for their target instead of failing instantly. Each command gets **one deadline** — covering finding its target and the interaction itself — resolved from (highest wins):
+
+1. a per-command `timeout:` sibling key
+2. the CLI flag (`--timeout` / `--navigation-timeout`)
+3. the flow's own top-level header (`defaultTimeout` / `navigationTimeout`)
+4. the shared `config:` file
+5. built-in default — **5000 ms** for element commands, **30000 ms** for navigation
+
+A header value beats the shared config for these two keys. A timeout is a maximum, not a delay: a command continues as soon as its condition is met, and only waits the full budget right before failing.
+
+### Flow header and shared config
+
+`defaultTimeout` and `navigationTimeout` can be set once for a flow, or shared across every flow via `config:`:
+
+```yaml
+# flows/config.yml
+defaultTimeout: 15000
+navigationTimeout: 45000
+```
+
+```yaml
+# my-flow.yaml
+appId: http://localhost:3000
+config: ./config.yml
+defaultTimeout: 20000   # overrides the shared config, for this flow only
+commands:
+  - tapOn: Submit
+```
+
+`${var}` inside a header or shared-config value is resolved at **parse time**, from config vars and the environment — a runtime `setVar` has no effect on these.
+
+### Per-command `timeout:`
+
+Add `timeout:` as a sibling key, next to the command (not inside the selector) — the same way `session:` works:
+
+```yaml
+- tapOn: text=Book now
+  timeout: 30000
+```
+
+`${var}` in a sibling `timeout:` is resolved at **run time**, so a runtime `setVar` can change it per step.
+
+Only commands that wait for something accept `timeout:`. Commands with nothing to wait for — `wait`, `waitFor`, `scroll`, `setViewport`, `screenshot`, `setVar`, `testVarSet`, `unsetVar`, `runFlow`, `pressKey` — reject it at parse time: `timeout is not supported on <command>`.
+
+`within`'s `timeout:` bounds only finding the container; commands inside its `do:` block keep their own budgets, the same way steps inside a `runFlow` do.
+
+`waitForPageLoad` accepts its timeout either inside the object or as the sibling key, never both — giving both is a parse error.
+
+### Which timeout a command uses
+
+| Timeout | Commands |
+|---|---|
+| `defaultTimeout` | `tapOn`, `doubleClick`, `hover`, `inputText`, `inputTextTargeted`, `clearText`, `selectOption`, `check`, `uncheck`, every `assert*` command, `within` (container lookup only) |
+| `navigationTimeout` | `goto`, `reload`, `goBack`, `goForward`, `waitForPageLoad` (unless it has its own `timeout:`) |
+| n/a (rejected at parse time) | `wait`, `waitFor`, `scroll`, `setViewport`, `screenshot`, `setVar`, `testVarSet`, `unsetVar`, `runFlow`, `pressKey` |
+
+### Child flows (`runFlow`)
+
+A child flow run via `runFlow` inherits the top-level flow's timeouts. If the child file sets its own `defaultTimeout`/`navigationTimeout` (header or shared config), that value is ignored while it runs as a child, and the console prints a notice once per file:
+
+```
+login-flow-v1.yaml: defaultTimeout ignored (inherited from my-flow.yaml)
+```
+
+The notice only prints when the child's value actually differs from the one in effect. The same file's own settings apply normally when it's run as a top-level flow.
+
+### Errors
+
+A command whose target never resolves fails with:
+
+```
+Element not found after 15000ms: text=Book now
+```
+
+If the target is found but the interaction itself (click, fill, check, …) doesn't complete within the remaining budget, the error is:
+
+```
+Element not actionable after 15000ms: text=Book now
+```
+
+---
+
 ## Selectors
 
-All interaction and assertion commands accept a selector. There are three forms.
+All interaction and assertion commands accept a selector. There are three forms. Every form **waits** for a unique match, up to the command's [timeout](#timeouts) — string selectors (bare and pipe syntax) included.
 
 ### Object selector
 
@@ -270,7 +358,7 @@ Use an object with exactly one (or two) keys:
 
 ### Pipe-syntax selector
 
-A string containing `=` is treated as a pipe-syntax selector: `attr=value`. Chain multiple segments with `|` for left-to-right fallback — the first segment that finds exactly one matching element wins.
+A string containing `=` is treated as a pipe-syntax selector: `attr=value`. Chain multiple segments with `|` for left-to-right fallback — the first segment that finds exactly one matching element wins. uivisor retries every segment until one wins, up to the command's timeout; if a later segment wins before the first segment's element has rendered, it's re-checked 100 ms later and only accepted if it still wins (see the cascade note below).
 
 ```yaml
 - tapOn: text=Sign In
@@ -308,7 +396,9 @@ A string with no `=` is tried against attributes in this order, stopping at the 
 - tapOn: submit-btn     # finds by data-testid, name, or id
 ```
 
-If the string matches zero or more than one element at every level, an error is thrown suggesting the more specific pipe-syntax form.
+uivisor retries this cascade until one level finds exactly one match, up to the command's timeout. If a lower-priority level (e.g. `name=`) wins before a higher-priority element (e.g. `data-testid=`) has had a chance to render, the winner is re-checked 100 ms later and only accepted if it still wins — so a `data-testid` element that appears a moment later isn't missed by a weaker match. The first level to win never needs this check, since nothing can outrank it.
+
+If the string still matches zero or more than one element at every level once the timeout runs out, the command fails with `Element not found after <timeout>ms: <selector>`, followed by the match count at each level — use that to pick a more specific pipe-syntax form.
 
 ---
 
@@ -503,7 +593,7 @@ Scrolls the page by one viewport in the given direction.
 
 #### `assertVisible`
 
-Waits up to 5 s for an element to be visible.
+Waits for an element to be visible, up to `defaultTimeout` (5 s by default; see [Timeouts](#timeouts)).
 
 ```yaml
 - assertVisible: Welcome, Alice
@@ -513,7 +603,7 @@ Waits up to 5 s for an element to be visible.
 
 #### `assertNotVisible`
 
-Waits up to 5 s for an element to be hidden or absent.
+Waits for an element to be hidden or absent, up to `defaultTimeout`. **Passes immediately once the element is absent** (zero matches) — it doesn't wait out the full timeout just because nothing was ever there.
 
 ```yaml
 - assertNotVisible: Error message
@@ -523,7 +613,7 @@ Waits up to 5 s for an element to be hidden or absent.
 
 #### `assertUrl`
 
-Asserts the current URL path (including query string and hash) matches the given string. Supports `*` as a wildcard.
+Asserts the current URL path (including query string and hash) matches the given string. Supports `*` as a wildcard. Retries until it matches or `defaultTimeout` runs out — a passing check still passes immediately, but a failing one now takes up to the timeout to report as failed.
 
 ```yaml
 - assertUrl: /dashboard
@@ -556,7 +646,7 @@ Asserts the current value of an input element.
 
 #### `assertCount`
 
-Asserts the number of elements matching a CSS selector. Note: this command takes a `css` key directly — not a standard selector object.
+Asserts the number of elements matching a CSS selector. Note: this command takes a `css` key directly — not a standard selector object. Retries until the count matches or `defaultTimeout` runs out.
 
 ```yaml
 - assertCount:
@@ -717,6 +807,16 @@ Scopes all nested commands to a matched container element. Useful for disambigua
 ```
 
 The selector is specified as a single key-value pair using any pipe-syntax attribute (`id`, `text`, `name`, `placeholder`, `data-*`). The `do` list accepts any commands that would be valid at the top level.
+
+Finding the container retries until it matches or `defaultTimeout` runs out. A `timeout:` sibling key on `within` bounds only this container lookup — commands inside `do:` keep their own budgets (see [Timeouts](#timeouts)):
+
+```yaml
+- within:
+    id: booking-card
+    timeout: 10000       # only the container lookup gets this budget
+    do:
+      - tapOn: text=Book now   # uses defaultTimeout, not the 10000ms above
+```
 
 Optional `nth` (0-based) selects which container to use when multiple match:
 

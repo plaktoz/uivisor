@@ -1,0 +1,8 @@
+appId: ${base}/integration-timeouts
+config: ../integration/config.yml
+# Tests: the default 5000ms budget is NOT enough to cross a 6500ms delay (AC78).
+# This flow is EXPECTED to fail — kept outside test-app/flows/integration/ so it
+# is never swept into that directory's "every flow passes" run (AC79).
+commands:
+  - goto: ${base}/integration-timeouts?delay=6500
+  - assertVisible: data-testid=int-delayed

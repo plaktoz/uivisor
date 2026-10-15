@@ -304,7 +304,7 @@ describe('runFlow with vars: scoping', () => {
     const entryStack = () => new Set(['/outer.yaml']);
 
     async function callOnce(ctx: RunContext, file: string) {
-      return dispatch(ctx.sessions.get('alice')!, { type: 'runFlow', path: file, vars: { u: 'B' } }, ctx, 'main', dir);
+      return dispatch(ctx.sessions.get('alice')!, { command: { type: 'runFlow', path: file, vars: { u: 'B' } } }, ctx, 'main', dir);
     }
 
     function expectRestored(ctx: RunContext) {

@@ -1,6 +1,31 @@
-import type { SessionDef } from '@uivisor/core';
+import type { SessionDef, TimeoutSettings } from '@uivisor/core';
+import { parsePositiveInt } from '../utils/positiveInt.js';
 
-const VALID_HEADER_KEYS = new Set(['appId', 'url', 'commands', 'tags', 'sessions', 'vars', 'config']);
+const VALID_HEADER_KEYS = new Set([
+  'appId', 'url', 'commands', 'tags', 'sessions', 'vars', 'config',
+  'defaultTimeout', 'navigationTimeout',
+]);
+
+const TIMEOUT_KEYS = ['defaultTimeout', 'navigationTimeout'] as const;
+
+/**
+ * Validates the `defaultTimeout`/`navigationTimeout` keys present in `obj` (S10).
+ * Returns only the keys that are present, parsed to positive integers.
+ */
+export function validateTimeoutKeys(obj: Record<string, unknown>, source: string): Partial<TimeoutSettings> {
+  const result: Partial<TimeoutSettings> = {};
+  for (const key of TIMEOUT_KEYS) {
+    if (key in obj) {
+      const raw = obj[key];
+      const parsed = parsePositiveInt(raw);
+      if (parsed === undefined) {
+        throw new Error(`Invalid ${key}: must be a positive integer, got ${String(raw)} in ${source}`);
+      }
+      result[key] = parsed;
+    }
+  }
+  return result;
+}
 
 export function validateHeader(raw: unknown, filePath?: string): string {
   if (typeof raw !== 'object' || raw === null) {

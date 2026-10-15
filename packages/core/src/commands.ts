@@ -1,8 +1,22 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Page, Locator } from 'playwright';
-import type { Selector, Command, CommandResult, RunContext, SessionedCommand, PlaywrightContext } from './types.js';
-import { resolveLocator, resolveContainerLocator } from './playwrightLocator.js';
+import type { Selector, CommandResult, RunContext, SessionedCommand, PlaywrightContext } from './types.js';
+import { resolveLocator, resolveContainerLocator, resolveNotVisible, selectorLabel } from './playwrightLocator.js';
+import { createDeadline, retryUntil, DEFAULT_TIMEOUTS, type Deadline } from './deadline.js';
+
+function elementDeadline(deadline?: Deadline): Deadline {
+  return deadline ?? createDeadline(DEFAULT_TIMEOUTS.defaultTimeout);
+}
+
+function navigationDeadline(deadline?: Deadline): Deadline {
+  return deadline ?? createDeadline(DEFAULT_TIMEOUTS.navigationTimeout);
+}
+
+/** `true` when `err` is a Playwright-shaped TimeoutError (checked by `.name`, not `instanceof`). */
+function isTimeoutError(err: unknown): boolean {
+  return (err as { name?: string } | null | undefined)?.name === 'TimeoutError';
+}
 
 // ─── Wildcard pattern matcher ─────────────────────────────────────────────────
 
@@ -60,10 +74,14 @@ export function createScopedPage(realPage: Page, scope: Locator): Page {
 
 // ─── Navigation commands ──────────────────────────────────────────────────────
 
-export async function executeGoto(page: Page, url: string): Promise<void> {
+export async function executeGoto(page: Page, url: string, deadline?: Deadline): Promise<void> {
+  const d = navigationDeadline(deadline);
   try {
-    await page.goto(url, { waitUntil: 'load' });
+    await page.goto(url, { waitUntil: 'load', timeout: d.pwTimeout() });
   } catch (err: unknown) {
+    if (isTimeoutError(err)) {
+      throw new Error(`Navigation failed: ${url} — timed out after ${d.timeoutMs}ms`);
+    }
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Navigation failed: ${url} — ${msg}`);
   }
@@ -71,48 +89,65 @@ export async function executeGoto(page: Page, url: string): Promise<void> {
 
 // ─── Tap / interaction commands ───────────────────────────────────────────────
 
-export async function executeTapOn(page: Page, selector: Selector, ctx: PlaywrightContext): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeTapOn(
+  page: Page,
+  selector: Selector,
+  ctx: PlaywrightContext,
+  deadline?: Deadline,
+): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.click({ timeout: 5000 });
+    await locator.click({ timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
   }
   ctx.lastTappedLocator = locator;
+  ctx.lastTappedLabel = selectorLabel(selector);
 }
 
-export async function executeInputText(ctx: PlaywrightContext, text: string): Promise<void> {
+export async function executeInputText(ctx: PlaywrightContext, text: string, deadline?: Deadline): Promise<void> {
   if (ctx.lastTappedLocator === null) {
     throw new Error('inputText shorthand used before any tapOn');
   }
-  await ctx.lastTappedLocator.fill(text);
+  const d = elementDeadline(deadline);
+  try {
+    await ctx.lastTappedLocator.fill(text, { timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${ctx.lastTappedLabel}`);
+  }
 }
 
-export async function executeInputTextTargeted(page: Page, element: Selector, text: string): Promise<void> {
-  const locator = await resolveLocator(page, element);
+export async function executeInputTextTargeted(
+  page: Page,
+  element: Selector,
+  text: string,
+  deadline?: Deadline,
+): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, element, undefined, d);
   try {
-    await locator.fill(text, { timeout: 5000 });
+    await locator.fill(text, { timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found for inputText targeted.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(element)}`);
   }
 }
 
 // ─── Assert commands ──────────────────────────────────────────────────────────
 
-export async function executeAssertVisible(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeAssertVisible(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.waitFor({ state: 'visible', timeout: 5000 });
+    await locator.waitFor({ state: 'visible', timeout: d.pwTimeout() });
   } catch {
     throw new Error('Expected: visible\nGot: element not found');
   }
 }
 
-export async function executeAssertNotVisible(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
-  try {
-    await locator.waitFor({ state: 'hidden', timeout: 5000 });
-  } catch {
+export async function executeAssertNotVisible(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  if (!(await resolveNotVisible(page, selector, d))) {
     throw new Error('Expected: not visible\nGot: visible');
   }
 }
@@ -121,11 +156,16 @@ export async function executeWait(ms: number): Promise<void> {
   await new Promise<void>((r) => setTimeout(r, ms));
 }
 
-export async function executeAssertUrl(page: Page, expectedPath: string): Promise<void> {
-  const url = new URL(page.url());
-  const actual = url.pathname + url.search + url.hash;
-  if (!matchesPattern(expectedPath, actual)) {
-    throw new Error(`Expected: ${expectedPath}\nGot: ${actual}`);
+export async function executeAssertUrl(page: Page, expectedPath: string, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const result = await retryUntil<true, string>(d, async () => {
+    const url = new URL(page.url());
+    const actual = url.pathname + url.search + url.hash;
+    if (matchesPattern(expectedPath, actual)) return { done: true, value: true };
+    return { done: false, last: actual };
+  });
+  if (!result.done) {
+    throw new Error(`Expected: ${expectedPath}\nGot: ${result.last}`);
   }
 }
 
@@ -140,92 +180,137 @@ export async function executeScroll(page: Page, direction: 'up' | 'down' | 'left
   }, direction);
 }
 
-export async function executeAssertText(page: Page, selector: Selector, expected: string): Promise<void> {
-  let locator: Locator;
+export async function executeAssertText(
+  page: Page,
+  selector: Selector,
+  expected: string,
+  deadline?: Deadline,
+): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'visible', timeout: 5000 });
+    await locator.waitFor({ state: 'visible', timeout: d.pwTimeout() });
   } catch {
     throw new Error(`Expected: ${expected}\nGot: element not found`);
   }
-  const actual = (await locator.innerText()).trim();
+  let actual: string;
+  try {
+    actual = (await locator.innerText({ timeout: d.pwTimeout() })).trim();
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (actual !== expected) {
     throw new Error(`Expected: ${expected}\nGot: ${actual}`);
   }
 }
 
-export async function executeAssertValue(page: Page, selector: Selector, expected: string): Promise<void> {
-  let locator: Locator;
+export async function executeAssertValue(
+  page: Page,
+  selector: Selector,
+  expected: string,
+  deadline?: Deadline,
+): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'attached', timeout: 5000 });
+    await locator.waitFor({ state: 'attached', timeout: d.pwTimeout() });
   } catch {
     throw new Error(`Expected: ${expected}\nGot: element not found`);
   }
-  const actual = await locator.inputValue();
-  if (actual !== expected) {
-    throw new Error(`Expected: ${expected}\nGot: ${actual}`);
-  }
-}
-
-export async function executeAssertCount(page: Page, css: string, expected: number): Promise<void> {
-  const actual = await page.locator(css).count();
-  if (actual !== expected) {
-    throw new Error(`Expected: ${expected}\nGot: ${actual}`);
-  }
-}
-
-export async function executeAssertEnabled(page: Page, selector: Selector): Promise<void> {
-  let locator: Locator;
+  let actual: string;
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'attached', timeout: 5000 });
+    actual = await locator.inputValue({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
+  if (actual !== expected) {
+    throw new Error(`Expected: ${expected}\nGot: ${actual}`);
+  }
+}
+
+export async function executeAssertCount(page: Page, css: string, expected: number, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const result = await retryUntil<true, number>(d, async () => {
+    const actual = await page.locator(css).count();
+    if (actual === expected) return { done: true, value: true };
+    return { done: false, last: actual };
+  });
+  if (!result.done) {
+    throw new Error(`Expected: ${expected}\nGot: ${result.last}`);
+  }
+}
+
+export async function executeAssertEnabled(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
+  try {
+    await locator.waitFor({ state: 'attached', timeout: d.pwTimeout() });
   } catch {
     throw new Error(`Expected: enabled\nGot: element not found`);
   }
-  const enabled = await locator.isEnabled();
+  let enabled: boolean;
+  try {
+    enabled = await locator.isEnabled({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (!enabled) {
     throw new Error(`Expected: enabled\nGot: disabled`);
   }
 }
 
-export async function executeAssertDisabled(page: Page, selector: Selector): Promise<void> {
-  let locator: Locator;
+export async function executeAssertDisabled(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'attached', timeout: 5000 });
+    await locator.waitFor({ state: 'attached', timeout: d.pwTimeout() });
   } catch {
     throw new Error(`Expected: disabled\nGot: element not found`);
   }
-  const disabled = await locator.isDisabled();
+  let disabled: boolean;
+  try {
+    disabled = await locator.isDisabled({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (!disabled) {
     throw new Error(`Expected: disabled\nGot: enabled`);
   }
 }
 
-export async function executeAssertChecked(page: Page, selector: Selector): Promise<void> {
-  let locator: Locator;
+export async function executeAssertChecked(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'attached', timeout: 5000 });
+    await locator.waitFor({ state: 'attached', timeout: d.pwTimeout() });
   } catch {
     throw new Error(`Expected: checked\nGot: element not found`);
   }
-  const checked = await locator.isChecked();
+  let checked: boolean;
+  try {
+    checked = await locator.isChecked({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (!checked) {
     throw new Error(`Expected: checked\nGot: unchecked`);
   }
 }
 
-export async function executeAssertUnchecked(page: Page, selector: Selector): Promise<void> {
-  let locator: Locator;
+export async function executeAssertUnchecked(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'attached', timeout: 5000 });
+    await locator.waitFor({ state: 'attached', timeout: d.pwTimeout() });
   } catch {
     throw new Error(`Expected: unchecked\nGot: element not found`);
   }
-  const checked = await locator.isChecked();
+  let checked: boolean;
+  try {
+    checked = await locator.isChecked({ timeout: d.pwTimeout() });
+  } catch {
+    throw new Error(`Element not found after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
+  }
   if (checked) {
     throw new Error(`Expected: unchecked\nGot: checked`);
   }
@@ -235,82 +320,112 @@ export async function executePressKey(page: Page, key: string): Promise<void> {
   await page.keyboard.press(key);
 }
 
-export async function executeSelectOption(page: Page, selector: Selector, value: string): Promise<void> {
-  let locator: Locator;
+export async function executeSelectOption(
+  page: Page,
+  selector: Selector,
+  value: string,
+  deadline?: Deadline,
+): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    locator = await resolveLocator(page, selector);
-    await locator.waitFor({ state: 'attached', timeout: 5000 });
-  } catch {
-    throw new Error('Element not found.');
-  }
-  try {
-    await locator.selectOption(value, { timeout: 5000 });
+    await locator.waitFor({ state: 'attached', timeout: d.pwTimeout() });
+    await locator.selectOption(value, { timeout: d.pwTimeout() });
   } catch {
     throw new Error('Option not found.');
   }
 }
 
-export async function executeCheck(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeCheck(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.check({ timeout: 5000 });
+    await locator.check({ timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
   }
 }
 
-export async function executeUncheck(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeUncheck(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.uncheck({ timeout: 5000 });
+    await locator.uncheck({ timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
   }
 }
 
-export async function executeHover(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeHover(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.hover({ timeout: 5000 });
+    await locator.hover({ timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
   }
 }
 
-export async function executeDoubleClick(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeDoubleClick(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.dblclick({ timeout: 5000 });
+    await locator.dblclick({ timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
   }
 }
 
-export async function executeClearText(page: Page, selector: Selector): Promise<void> {
-  const locator = await resolveLocator(page, selector);
+export async function executeClearText(page: Page, selector: Selector, deadline?: Deadline): Promise<void> {
+  const d = elementDeadline(deadline);
+  const locator = await resolveLocator(page, selector, undefined, d);
   try {
-    await locator.clear({ timeout: 5000 });
+    await locator.clear({ timeout: d.pwTimeout() });
   } catch {
-    throw new Error('Element not found.');
+    throw new Error(`Element not actionable after ${d.timeoutMs}ms: ${selectorLabel(selector)}`);
   }
 }
 
-export async function executeReload(page: Page): Promise<void> {
-  await page.reload({ waitUntil: 'load' });
+export async function executeReload(page: Page, deadline?: Deadline): Promise<void> {
+  const d = navigationDeadline(deadline);
+  try {
+    await page.reload({ waitUntil: 'load', timeout: d.pwTimeout() });
+  } catch (err: unknown) {
+    if (isTimeoutError(err)) {
+      throw new Error(`reload timed out after ${d.timeoutMs}ms`);
+    }
+    throw err;
+  }
 }
 
-export async function executeGoBack(page: Page): Promise<void> {
+export async function executeGoBack(page: Page, deadline?: Deadline): Promise<void> {
+  const d = navigationDeadline(deadline);
   const urlBefore = page.url();
-  await page.goBack({ waitUntil: 'commit' });
+  try {
+    await page.goBack({ waitUntil: 'commit', timeout: d.pwTimeout() });
+  } catch (err: unknown) {
+    if (isTimeoutError(err)) {
+      throw new Error(`goBack timed out after ${d.timeoutMs}ms`);
+    }
+    throw err;
+  }
   const urlAfter = page.url();
   if (urlAfter === urlBefore || urlAfter.startsWith('about:')) {
     throw new Error('No previous page in history.');
   }
 }
 
-export async function executeGoForward(page: Page): Promise<void> {
+export async function executeGoForward(page: Page, deadline?: Deadline): Promise<void> {
+  const d = navigationDeadline(deadline);
   const urlBefore = page.url();
-  await page.goForward({ waitUntil: 'commit' });
+  try {
+    await page.goForward({ waitUntil: 'commit', timeout: d.pwTimeout() });
+  } catch (err: unknown) {
+    if (isTimeoutError(err)) {
+      throw new Error(`goForward timed out after ${d.timeoutMs}ms`);
+    }
+    throw err;
+  }
   const urlAfter = page.url();
   if (urlAfter === urlBefore || urlAfter.startsWith('about:')) {
     throw new Error('No next page in history.');
@@ -333,34 +448,48 @@ export async function executeWaitFor(ms: number): Promise<void> {
   await new Promise<void>((r) => setTimeout(r, ms));
 }
 
-export async function executeWaitForPageLoad(page: Page, path?: string, timeout?: number): Promise<void> {
-  const resolvedTimeout = timeout !== undefined ? timeout : 30000;
+export async function executeWaitForPageLoad(
+  page: Page,
+  path?: string,
+  timeout?: number,
+  deadline?: Deadline,
+): Promise<void> {
+  const d = deadline ?? createDeadline(timeout ?? 30000);
   const glob = path ? '**/' + path.replace(/^\//, '') : undefined;
-  if (glob) {
-    await page.waitForURL(glob, { timeout: resolvedTimeout });
+  try {
+    if (glob) {
+      await page.waitForURL(glob, { timeout: d.pwTimeout() });
+    }
+    await page.waitForLoadState('networkidle', { timeout: d.pwTimeout() });
+  } catch (err: unknown) {
+    if (isTimeoutError(err)) {
+      throw new Error(`waitForPageLoad timed out after ${d.timeoutMs}ms`);
+    }
+    throw err;
   }
-  await page.waitForLoadState('networkidle', { timeout: resolvedTimeout });
 }
 
 // ─── Within scoping command ───────────────────────────────────────────────────
 
 /**
- * Callback type for dispatching a single Command inside `executeWithin`.
+ * Callback type for dispatching a single step inside `executeWithin`.
  * The caller (dispatcher) provides this to avoid a circular import.
  */
 export type WithinDispatch = (
   page: Page,
-  cmd: Command,
+  step: SessionedCommand,
   ctx: RunContext,
 ) => Promise<CommandResult>;
 
 /**
  * Execute a `within` scoping block:
  *
- * 1. Resolve the container selector from the page root.
- * 2. Validate cardinality — throw if 0 containers found, or if `nth` is out of range.
+ * 1. Validate `nth` up front (no resolution attempt for a malformed `nth`).
+ * 2. Resolve the container selector from the page root, waiting up to `deadline`
+ *    (default: the built-in element budget). The deadline bounds ONLY this lookup —
+ *    it is never forwarded to the `do:` steps (Q18).
  * 3. Build a scoped page whose locator methods are rooted at the selected container.
- * 4. Dispatch each command in `do` using `dispatch(scopedPage, cmd, ctx)`.
+ * 4. Dispatch each step in `do` using `dispatch(scopedPage, step, ctx)`.
  * 5. Return the collected `CommandResult[]`.
  */
 export async function executeWithin(
@@ -368,23 +497,16 @@ export async function executeWithin(
   cmd: { type: 'within'; selector: string; nth?: number; do: SessionedCommand[] },
   ctx: RunContext,
   dispatch: WithinDispatch,
+  deadline?: Deadline,
 ): Promise<CommandResult[]> {
-  // 1. Resolve container (lenient: accepts ≥1 match for nth support)
-  const containerLoc = await resolveContainerLocator(page, cmd.selector);
-  const count = await containerLoc.count();
-
-  // 2. Validate
-  if (count === 0) {
-    throw new Error(`within: No container found for selector '${cmd.selector}'`);
-  }
+  // 1. Validate nth before any resolution attempt
   if (cmd.nth !== undefined && cmd.nth < 0) {
     throw new Error(`within: nth must be a non-negative integer, got ${cmd.nth}`);
   }
-  if (cmd.nth !== undefined && cmd.nth >= count) {
-    throw new Error(
-      `within: nth=${cmd.nth} requested but only ${count} containers matched selector '${cmd.selector}'`,
-    );
-  }
+
+  // 2. Resolve container (lenient: accepts ≥1 match for nth support); throws its own
+  //    "No container found" / "nth=… requested but only …" errors at the deadline.
+  const containerLoc = await resolveContainerLocator(page, cmd.selector, { nth: cmd.nth, deadline });
 
   // 3. Select target container
   const target = cmd.nth !== undefined ? containerLoc.nth(cmd.nth) : containerLoc;
@@ -392,10 +514,10 @@ export async function executeWithin(
   // 4. Create a scoped page (all locator queries scoped to target)
   const scopedPage = createScopedPage(page, target);
 
-  // 5. Dispatch each do-command with the scoped page
+  // 5. Dispatch each do-step with the scoped page (whole step, no `within` deadline)
   const results: CommandResult[] = [];
   for (const sc of cmd.do) {
-    const r = await dispatch(scopedPage, sc.command, ctx);
+    const r = await dispatch(scopedPage, sc, ctx);
     results.push(r);
     if (!r.passed) break; // stop on first failure (same semantics as top-level flow)
   }

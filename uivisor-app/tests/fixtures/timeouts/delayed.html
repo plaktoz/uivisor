@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timeouts Fixture: delayed</title>
+</head>
+<body>
+
+  <!--
+    Query params:
+      delay       (ms, default 1500) - when int-delayed, int-delayed-card/int-card-label
+                  and the Submit heading/button sequence appear.
+      cardDelay   (ms, default 0)    - when the separate `card` container (AC27) appears.
+      innerDelay  (ms, default 2500) - when `inner`, nested inside `card`, appears.
+
+    Elements:
+      int-delayed            - added `delay` ms after load (AC1-AC5)
+      <h2>Submit</h2>        - added `delay` ms after load; clicking does nothing (AC7, AC8)
+      data-testid="Submit"   - button "Confirm", added `delay` + 50 ms after load;
+                                clicking renders int-submit-result (AC7, AC8)
+      int-delayed-card / int-card-label - added `delay` ms after load (AC24)
+      int-hidden              - always present, display:none (AC20)
+      card / inner             - card appears after `cardDelay`; inner (nested) after
+                                `innerDelay` (AC27)
+  -->
+
+  <div id="root"></div>
+
+  <script>
+    function qp(name, def) {
+      var v = new URLSearchParams(window.location.search).get(name);
+      if (v === null || v === '') return def;
+      return Number(v);
+    }
+
+    var delay = qp('delay', 1500);
+    var cardDelay = qp('cardDelay', 0);
+    var innerDelay = qp('innerDelay', 2500);
+
+    var root = document.getElementById('root');
+
+    // int-hidden: always present
+    var hidden = document.createElement('div');
+    hidden.setAttribute('data-testid', 'int-hidden');
+    hidden.style.display = 'none';
+    hidden.textContent = 'Hidden';
+    root.appendChild(hidden);
+
+    function addCard() {
+      var card = document.createElement('div');
+      card.setAttribute('data-testid', 'card');
+      root.appendChild(card);
+      setTimeout(function () {
+        var inner = document.createElement('span');
+        inner.setAttribute('data-testid', 'inner');
+        inner.textContent = 'Inner ready';
+        card.appendChild(inner);
+      }, innerDelay);
+    }
+
+    setTimeout(addCard, cardDelay);
+
+    setTimeout(function () {
+      var delayed = document.createElement('div');
+      delayed.setAttribute('data-testid', 'int-delayed');
+      delayed.textContent = 'Delayed content';
+      root.appendChild(delayed);
+
+      var card2 = document.createElement('div');
+      card2.setAttribute('data-testid', 'int-delayed-card');
+      var label = document.createElement('span');
+      label.setAttribute('data-testid', 'int-card-label');
+      label.textContent = 'Card ready';
+      card2.appendChild(label);
+      root.appendChild(card2);
+
+      var heading = document.createElement('h2');
+      heading.textContent = 'Submit';
+      heading.onclick = function () { /* clicking the heading does nothing */ };
+      root.appendChild(heading);
+
+      setTimeout(function () {
+        var button = document.createElement('button');
+        button.setAttribute('data-testid', 'Submit');
+        button.textContent = 'Confirm';
+        button.onclick = function () {
+          var result = document.createElement('p');
+          result.setAttribute('data-testid', 'int-submit-result');
+          result.textContent = 'Submitted';
+          root.appendChild(result);
+        };
+        root.appendChild(button);
+      }, 50);
+    }, delay);
+  </script>
+
+</body>
+</html>

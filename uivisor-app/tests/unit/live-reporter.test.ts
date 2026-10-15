@@ -96,6 +96,28 @@ describe('live reporter', () => {
     expect(s.writes, 'an unchanged frame is not rewritten').toHaveLength(3);
   });
 
+  it('a notice is flushed as its own line, below which the frame repaints fresh, and survives a later redraw', () => {
+    const s = setup();
+    s.reporter.startFlow(flow);
+    s.reporter.onProgress({ kind: 'notice', message: 'child.yaml: defaultTimeout ignored (inherited from top.yaml)' });
+
+    // The notice rewinds the painted frame and is written above it as a permanent line.
+    expect(s.writes[2]).toBe(
+      `${ESC}[3F${ESC}[J` + 'child.yaml: defaultTimeout ignored (inherited from top.yaml)\n',
+    );
+    // The frame is repainted fresh immediately below — no rewind, since nothing was painted yet.
+    expect(s.writes[3].includes(ESC)).toBe(false);
+    expect(s.writes[3]).toMatch(/^▶ demo\.yaml/);
+
+    // A later redraw only rewinds the live region — the notice line is untouched, already in scrollback.
+    s.reporter.onProgress({ kind: 'stepStart', command: goto });
+    s.advance(1_200);
+    s.tick();
+    expect(s.writes[4].startsWith(`${ESC}[3F${ESC}[J`)).toBe(true);
+
+    expect(s.screen()).toContain('child.yaml: defaultTimeout ignored (inherited from top.yaml)\n');
+  });
+
   it('leaves the finished block in place, and starts the next flow below it', () => {
     const s = setup();
     s.reporter.startFlow(flow);

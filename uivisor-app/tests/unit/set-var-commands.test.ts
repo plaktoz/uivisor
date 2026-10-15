@@ -60,7 +60,7 @@ describe('setVar — static form', () => {
   it('stores the value in ctx.varMap', async () => {
     const ctx = makeCtx();
     const cmd: Command = { type: 'setVar', name: 'myVar', value: 'hello' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
     expect(ctx.varMap.get('myVar')).toBe('hello');
   });
@@ -68,7 +68,7 @@ describe('setVar — static form', () => {
   it('interpolates ${...} in value before storing', async () => {
     const ctx = makeCtx({ greeting: 'world' });
     const cmd: Command = { type: 'setVar', name: 'msg', value: 'hello ${greeting}' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
     expect(ctx.varMap.get('msg')).toBe('hello world');
   });
@@ -77,7 +77,7 @@ describe('setVar — static form', () => {
     const ctx = makeCtx({ num: '1' });
     ctx.varMap.set('num', '1');
     const cmd: Command = { type: 'setVar', name: 'num', value: '2' };
-    await dispatch(makePage(), cmd, ctx);
+    await dispatch(makePage(), { command: cmd }, ctx);
     expect(ctx.varMap.get('num')).toBe('2');
   });
 });
@@ -91,7 +91,7 @@ describe('setVar — method form', () => {
       call: vi.fn().mockResolvedValue('generated-uuid') as unknown as typeof ctx.methodRunner.call,
     };
     const cmd: Command = { type: 'setVar', name: 'id', method: 'uuid', args: [] };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
     expect(ctx.varMap.get('id')).toBe('generated-uuid');
   });
@@ -101,7 +101,7 @@ describe('setVar — method form', () => {
     const callFn = vi.fn().mockResolvedValue('20261001');
     ctx.methodRunner = { call: callFn as unknown as typeof ctx.methodRunner.call };
     const cmd: Command = { type: 'setVar', name: 'date', method: 'today', args: ["'YYYYMMDD'"] };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
     // Quotes stripped from string arg
     expect(callFn).toHaveBeenCalledWith('today', ['YYYYMMDD']);
@@ -113,7 +113,7 @@ describe('setVar — method form', () => {
       call: vi.fn().mockRejectedValue(new Error('setVar failed: boom() threw: oops')) as unknown as typeof ctx.methodRunner.call,
     };
     const cmd: Command = { type: 'setVar', name: 'x', method: 'boom', args: [] };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/setVar failed.*boom.*oops/);
   });
@@ -126,14 +126,14 @@ describe('testVarSet — existence form', () => {
     const ctx = makeCtx();
     ctx.varMap.set('userId', 'abc-123');
     const cmd: Command = { type: 'testVarSet', name: 'userId' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
   });
 
   it('fails when the variable is absent', async () => {
     const ctx = makeCtx();
     const cmd: Command = { type: 'testVarSet', name: 'missing' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/missing|not.*set|undefined/i);
   });
@@ -142,7 +142,7 @@ describe('testVarSet — existence form', () => {
     const ctx = makeCtx();
     ctx.varMap.set('emptyVar', '');
     const cmd: Command = { type: 'testVarSet', name: 'emptyVar' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(false);
   });
 });
@@ -154,7 +154,7 @@ describe('testVarSet — equality form', () => {
     const ctx = makeCtx();
     ctx.varMap.set('num', '5');
     const cmd: Command = { type: 'testVarSet', name: 'num', expected: '5' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
   });
 
@@ -162,14 +162,14 @@ describe('testVarSet — equality form', () => {
     const ctx = makeCtx();
     ctx.varMap.set('num', '5');
     const cmd: Command = { type: 'testVarSet', name: 'num', expected: '6' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(false);
   });
 
   it('fails when variable is absent in equality form', async () => {
     const ctx = makeCtx();
     const cmd: Command = { type: 'testVarSet', name: 'absent', expected: 'val' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(false);
   });
 });
@@ -181,7 +181,7 @@ describe('unsetVar', () => {
     const ctx = makeCtx();
     ctx.varMap.set('toRemove', 'value');
     const cmd: Command = { type: 'unsetVar', name: 'toRemove' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
     expect(ctx.varMap.get('toRemove')).toBeUndefined();
   });
@@ -189,7 +189,7 @@ describe('unsetVar', () => {
   it('is a no-op (passes) when variable does not exist', async () => {
     const ctx = makeCtx();
     const cmd: Command = { type: 'unsetVar', name: 'nonexistent' };
-    const result = await dispatch(makePage(), cmd, ctx);
+    const result = await dispatch(makePage(), { command: cmd }, ctx);
     expect(result.passed).toBe(true);
   });
 });

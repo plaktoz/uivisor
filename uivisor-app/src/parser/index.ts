@@ -1,7 +1,7 @@
 import * as path from 'path';
-import type { FlowFile } from '@uivisor/core';
+import type { FlowFile, TimeoutSettings } from '@uivisor/core';
 import { readYamlFile } from './reader.js';
-import { validateHeader, validateCommandList, validateSessions } from './validator.js';
+import { validateHeader, validateCommandList, validateSessions, validateTimeoutKeys } from './validator.js';
 import { parseSessionedCommand } from './commandParser.js';
 import { validateVars, flattenVars, interpolateValue, interpolateObject } from '@uivisor/core';
 import { loadConfigFile } from './interpolate.js';
@@ -17,6 +17,7 @@ export function loadAndParse(filePath: string): FlowFile {
   // Pass 1: resolve config: path (env-only — no vars yet)
   let configVars: Record<string, string> = {};
   let flowConfig = {};
+  let configTimeouts: Partial<TimeoutSettings> = {};
   if ('config' in obj && obj['config'] !== undefined) {
     const rawConfigPath = obj['config'];
     if (typeof rawConfigPath !== 'string') {
@@ -26,6 +27,7 @@ export function loadAndParse(filePath: string): FlowFile {
     const loadResult = loadConfigFile(interpolatedConfigPath, filePath);
     configVars = loadResult.vars;
     flowConfig = loadResult.flowConfig;
+    configTimeouts = loadResult.timeouts;
   }
 
   // Pass 2: flatten inline vars
@@ -47,6 +49,7 @@ export function loadAndParse(filePath: string): FlowFile {
 
   // Existing validation pipeline on interpolated doc
   const baseUrl = validateHeader(doc, filePath);
+  const headerTimeouts = validateTimeoutKeys(doc, filePath);
   const rawCommands = doc['commands'];
   validateCommandList(rawCommands);
 
@@ -69,5 +72,8 @@ export function loadAndParse(filePath: string): FlowFile {
   });
 
   const tags = Array.isArray(doc['tags']) ? (doc['tags'] as string[]) : [];
-  return { baseUrl, filePath: resolvedPath, commands, sessions, tags, vars, flowConfig };
+  return {
+    baseUrl, filePath: resolvedPath, commands, sessions, tags, vars, flowConfig,
+    timeouts: { header: headerTimeouts, config: configTimeouts },
+  };
 }

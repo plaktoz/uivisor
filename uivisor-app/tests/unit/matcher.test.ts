@@ -10,16 +10,18 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Page, Locator } from 'playwright';
+import { createDeadline } from '@uivisor/core';
 import { resolveSelector } from '../../src/matcher/index';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * Build a minimal mock Page whose getBy* methods return a mock Locator.
- * For object selectors, .count() is never called so the locator needs no count method.
+ * Object-selector resolution now waits for a stable count, so the locator
+ * needs a count() of 1 (an immediate single match).
  */
 function makeMockPage() {
-  const mockLocator = { _brand: 'locator' } as unknown as Locator;
+  const mockLocator = { _brand: 'locator', count: () => Promise.resolve(1) } as unknown as Locator;
 
   const page = {
     // Needed for object selectors:
@@ -128,10 +130,11 @@ describe('resolveSelector — object selectors (unchanged behaviour)', () => {
 
     // After T1+T6: xpath IS recognized. locator('xpath=//div') is called, count=0 → throws.
     // Either way, getBy* are never called — this is a structural assertion.
+    // Short deadline: count stays 0, so resolution would otherwise poll for the full 5000ms default.
     try {
-      await resolveSelector(page, { xpath: '//div' });
+      await resolveSelector(page, { xpath: '//div' }, undefined, createDeadline(1));
     } catch {
-      // expected — either "No element found" (post-T6) or "Unrecognized" (pre-T6)
+      // expected — either "Element not found" (post-T4) or "Unrecognized" (pre-T6)
     }
 
     expect(page.locator).toHaveBeenCalledWith('xpath=//div');
@@ -142,12 +145,13 @@ describe('resolveSelector — object selectors (unchanged behaviour)', () => {
     expect(page.getByTestId).not.toHaveBeenCalled();
   });
 
-  it('xpath branch (count=0) throws "No element found for xpath selector" error', async () => {
+  it('xpath branch (count=0) throws "Element not found after <T>ms" error', async () => {
     const { page } = makeMockPage();
 
-    // Post-T6: "No element found for xpath selector '//div'" (count=0 in mock).
-    await expect(resolveSelector(page, { xpath: '//div' })).rejects.toThrow(
-      /No element found for xpath selector/i,
+    // Post-T4: "Element not found after <T>ms: {"xpath":"//div"}" (count=0 in mock).
+    // Short deadline so the test doesn't wait the full 5000ms default.
+    await expect(resolveSelector(page, { xpath: '//div' }, undefined, createDeadline(1))).rejects.toThrow(
+      /Element not found after \d+ms: \{"xpath":"\/\/div"\}/,
     );
   });
 

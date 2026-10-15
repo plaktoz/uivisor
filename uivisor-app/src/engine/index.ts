@@ -31,12 +31,12 @@ async function runFlow(file: FlowFile, page: Page, ctx: RunContext): Promise<Flo
         const savedDefaultSessionId = ctx.defaultSessionId;
         ctx.defaultSessionId = sc.session;
         try {
-          result = await dispatch(sessionPage, sc.command, ctx, flowStem, flowDir);
+          result = await dispatch(sessionPage, sc, ctx, flowStem, flowDir);
         } finally {
           ctx.defaultSessionId = savedDefaultSessionId;
         }
       } else {
-        result = await dispatch(sessionPage, sc.command, ctx, flowStem, flowDir);
+        result = await dispatch(sessionPage, sc, ctx, flowStem, flowDir);
       }
 
       commandResults.push(result);

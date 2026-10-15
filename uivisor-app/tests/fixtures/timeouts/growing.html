@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timeouts Fixture: growing</title>
+</head>
+<body>
+
+  <!--
+    Query params:
+      growAt (ms, default 1000) - when the list grows from 1 to 3 items.
+
+    Elements:
+      data-testid="item" and class="row" - 1 item present at load, 2 more added
+      at `growAt` ms, giving 3 total (AC26, AC30).
+  -->
+
+  <ul id="list">
+    <li class="row" data-testid="item">Item 1</li>
+  </ul>
+
+  <script>
+    function qp(name, def) {
+      var v = new URLSearchParams(window.location.search).get(name);
+      if (v === null || v === '') return def;
+      return Number(v);
+    }
+
+    var growAt = qp('growAt', 1000);
+    var list = document.getElementById('list');
+
+    setTimeout(function () {
+      for (var i = 2; i <= 3; i++) {
+        var li = document.createElement('li');
+        li.className = 'row';
+        li.setAttribute('data-testid', 'item');
+        li.textContent = 'Item ' + i;
+        list.appendChild(li);
+      }
+    }, growAt);
+  </script>
+
+</body>
+</html>
