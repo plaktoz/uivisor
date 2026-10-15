@@ -4021,6 +4021,15 @@ Scope: `git show --remerge-diff 2c58e73` (all 10 conflicted files, resolved vs. 
 **Last checkpoint:** post-merge re-review at 2026-10-14 12:45
 
 ## PR
-**URL:** (pending)
+**URL:** https://github.com/plaktoz/uivisor/pull/122
 **Branch:** feat-selector-waits-and-timeouts
-**Status:** opening
+**Status:** open
+
+## Gate 3: Deploy Approval
+**Status:** approved by human (2026-10-15)
+
+**Last checkpoint:** PR #122 opened; Gate 3 presented at 2026-10-14 13:00
+
+## Deployment
+**Pre-deploy checks:** tests — Gate 3 approved (2026-10-15); lint — `test-app` oxlint exit 0 (warnings only; new: `IntegrationTimeoutsPage.jsx:31` set-state-in-effect, follow-up). No other workspace defines `lint`.
+**Container step:** skipped. `deploy` config names podman + compose, but the repo has no compose file or Dockerfile; prior runs also deployed by merging only.
